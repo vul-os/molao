@@ -1,33 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <!-- Background square with very rounded corners -->
-  <rect 
-    x="10" 
-    y="10" 
-    width="180" 
-    height="180" 
-    rx="50"
-    fill="#0084ff"
-  />
-  
-  <!-- Bold, clear NS letters -->
-  <text 
-    x="100" 
-    y="140" 
-    font-family="Arial Black, Arial, sans-serif" 
-    font-size="120" 
-    fill="white" 
-    text-anchor="middle"
-    style="letter-spacing: -2px"
-  >
-    NS
-  </text>
-  
-  <!-- Subtle underline element -->
-  <path 
-    d="M45 150 L155 150" 
-    stroke="white" 
-    stroke-width="8" 
-    stroke-linecap="round" 
-    opacity="0.3"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g fill="none" stroke="#000000" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Chat bubble outline -->
+    <path d="M20 25 C20 20, 25 15, 30 15 H70 C75 15, 80 20, 80 25 V60 C80 65, 75 70, 70 70 H45 L35 80 L35 70 H30 C25 70, 20 65, 20 60 Z"/>
+    
+    <!-- Scale design -->
+    <path d="M50 25 V55"/> <!-- Center stem -->
+    <line x1="35" y1="25" x2="65" y2="25"/> <!-- Top bar -->
+    <!-- Circle bowls -->
+    <circle cx="35" cy="30" r="5"/> <!-- Left bowl -->
+    <circle cx="65" cy="30" r="5"/> <!-- Right bowl -->
+  </g>
 </svg>

@@ -18,27 +18,6 @@ const Header = () => {
           </span>
         </RouterLink>
 
-        {/* Search Bar */}
-        <div className="flex flex-1 max-w-2xl mx-8">
-          <div className="w-full relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search conversations..."
-              className="pl-10 h-10 w-full bg-gray-50 border-gray-200 focus:bg-white"
-            />
-          </div>
-        </div>
-
-        {/* Settings */}
-        <RouterLink to="/settings">
-          <Button
-            variant="ghost"
-            className="p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-        </RouterLink>
       </div>
     </header>
   );
@@ -129,8 +108,7 @@ const Footer = () => {
 export const Layout = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <Header />
-      <main className="flex-1 pt-16">
+      <main className="flex-1">
         {children}
       </main>
       <Footer />

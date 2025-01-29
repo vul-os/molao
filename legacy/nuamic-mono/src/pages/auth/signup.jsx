@@ -92,10 +92,10 @@ const SignUpPage = () => {
           <div className="max-w-md w-full mx-auto space-y-8">
             {/* Logo */}
             <div className="flex justify-center mb-8">
-              <img
-                src="/api/placeholder/120/40"
+            <img
+                src="/icon.svg"
                 alt="Nuamic"
-                className="h-10"
+                className="h-12"
               />
             </div>
 

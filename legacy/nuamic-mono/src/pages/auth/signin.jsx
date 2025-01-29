@@ -72,9 +72,9 @@ const SignInPage = () => {
             {/* Logo */}
             <div className="flex justify-center mb-8">
               <img
-                src="/api/placeholder/120/40"
+                src="/icon.svg"
                 alt="Nuamic"
-                className="h-10"
+                className="h-12"
               />
             </div>
 
