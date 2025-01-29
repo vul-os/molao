@@ -14,19 +14,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import HostDropdown from './host-dropdown';
+import FirmDropdown from './firm-dropdown';
 
 const TopBar = ({ 
   onMenuClick,
   showMobileMenu = true,
-  onCreateHost 
+  onCreateFirm 
 }) => {
   const { 
     user, 
     signOut, 
-    hosts, 
-    activeHost,
-    switchHost
+    firms, 
+    activeFirm,
+    switchFirm
   } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,27 +48,27 @@ const TopBar = ({
     }
   };
 
-  const handleSwitchHost = (hostId) => {
+  const handleSwitchFirm = (firmId) => {
     try {
-      const newHost = switchHost(hostId);
-      if (newHost) {
+      const newFirm = switchFirm(firmId);
+      if (newFirm) {
         toast({
-          title: "Host switched",
-          description: `Switched to ${newHost.name}`,
+          title: "Firm switched",
+          description: `Switched to ${newFirm.name}`,
           duration: 2000,
         });
       }
     } catch (error) {
       toast({
-        title: "Error switching host",
+        title: "Error switching firm",
         description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleHostSignup = () => {
-    navigate('/signup#host');
+  const handleFirmSignup = () => {
+    navigate('/signup#firm');
   };
 
   const getUserInitials = () => {
@@ -82,11 +82,11 @@ const TopBar = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b">
-      <nav className="h-16 px-4">
-        <div className="h-full flex items-center mx-auto">
-          {/* Left section - always aligned left */}
-          <div className="flex items-center gap-2">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+      <nav className="h-16 px-4 lg:px-6">
+        <div className="h-full flex items-center justify-between w-full">
+          {/* Left section with menu and logo */}
+          <div className="flex items-center gap-4">
             {showMobileMenu && (
               <Button
                 variant="ghost"
@@ -105,44 +105,43 @@ const TopBar = ({
               aria-label="Go to dashboard"
             >
               <img src={Logo} alt="" className="h-8 w-8" />
-              <span className="hidden md:block ml-2 text-xl font-bold text-blue-600">
-                NeighbourSpace
+              <span className="hidden md:block ml-2 text-xl font-semibold text-gray-900">
+                Nuamic
               </span>
             </RouterLink>
           </div>
 
-          {/* Spacer to push content to edges */}
-          <div className="flex-1" />
-
-          {/* Right section - always aligned right */}
-          <div className="flex items-center gap-2 md:gap-4">
+          {/* Right section with auth buttons, firm dropdown, and user menu */}
+          <div className="flex items-center gap-4">
             {user ? (
               <>
-                <HostDropdown
-                  hosts={hosts}
-                  activeHost={activeHost}
-                  switchHost={handleSwitchHost}
-                  onCreateClick={onCreateHost}
+                <FirmDropdown
+                  firms={firms}
+                  activeFirm={activeFirm}
+                  switchFirm={handleSwitchFirm}
+                  onCreateClick={onCreateFirm}
                 />
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button 
                       variant="ghost" 
-                      className="h-8 w-8 rounded-full p-0"
+                      className="h-9 w-9 rounded-full p-0"
                       aria-label="Open user menu"
                     >
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="h-9 w-9">
                         <AvatarImage src={user.avatar} />
-                        <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                        <AvatarFallback className="bg-gray-100 text-gray-900">
+                          {getUserInitials()}
+                        </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end">
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Account</p>
-                        <p className="text-xs leading-none text-muted-foreground truncate">
+                        <p className="text-sm font-medium leading-none text-gray-900">Account</p>
+                        <p className="text-xs leading-none text-gray-500 truncate">
                           {user.email}
                         </p>
                       </div>
@@ -159,7 +158,7 @@ const TopBar = ({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleSignOut}
-                      className="cursor-pointer text-red-600 focus:text-red-600"
+                      className="cursor-pointer text-gray-700 focus:text-gray-900"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Sign out</span>
@@ -171,19 +170,25 @@ const TopBar = ({
               <>
                 <Button
                   variant="outline"
-                  className="hidden md:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  onClick={handleHostSignup}
+                  className="hidden md:inline-flex text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={handleFirmSignup}
                 >
-                  Become a host
+                  Register Firm
                 </Button>
                 <RouterLink to="/signup">
-                  <Button variant="ghost" className="hidden md:inline-flex text-sm font-medium">
+                  <Button 
+                    variant="ghost" 
+                    className="hidden md:inline-flex text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  >
                     Sign up
                   </Button>
                 </RouterLink>
                 <RouterLink to="/signin">
-                  <Button variant="default" size="sm" className="text-sm font-medium">
-                    Log in
+                  <Button 
+                    variant="default" 
+                    className="text-sm font-medium bg-black text-white hover:bg-gray-900"
+                  >
+                    Sign in
                   </Button>
                 </RouterLink>
               </>

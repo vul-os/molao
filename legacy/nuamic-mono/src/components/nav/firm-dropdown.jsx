@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, ChevronDown, Plus, MapPin } from 'lucide-react';
+import { Building2, ChevronDown, Plus } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -12,10 +12,10 @@ import {
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 
-const HostDropdown = ({ 
-  hosts, 
-  activeHost, 
-  switchHost,
+const FirmDropdown = ({ 
+  firms, 
+  activeFirm, 
+  switchFirm,
   onCreateClick
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,7 +26,7 @@ const HostDropdown = ({
     onCreateClick();
   };
 
-  const getHostInitials = (name) => {
+  const getFirmInitials = (name) => {
     return name
       .split(' ')
       .map(word => word[0])
@@ -35,30 +35,28 @@ const HostDropdown = ({
       .slice(0, 2);
   };
 
-  const getLocationString = (host) => {
-    const parts = [host.city, host.state].filter(Boolean);
-    return parts.length > 0 ? parts.join(', ') : null;
-  };
-
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button 
           variant="outline" 
-          className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-gray-50"
+          className="flex items-center gap-2 h-9 px-3 bg-white border-gray-200 hover:bg-gray-50"
         >
-          {activeHost ? (
+          {activeFirm ? (
             <Avatar className="h-6 w-6">
-              <AvatarImage src={activeHost.avatar} alt={activeHost.name} />
-              <AvatarFallback>{getHostInitials(activeHost.name)}</AvatarFallback>
+              <AvatarImage src={activeFirm.avatar} alt={activeFirm.name} />
+              <AvatarFallback className="bg-gray-100 text-gray-900">
+                {getFirmInitials(activeFirm.name)}
+              </AvatarFallback>
             </Avatar>
           ) : (
-            <Building2 className="h-5 w-5" />
+            <Building2 className="h-5 w-5 text-gray-500" />
           )}
-          <span className="max-w-[120px] truncate font-medium">
-            {activeHost?.name || 'Select Host'}
+          <span className="max-w-[120px] truncate font-medium text-gray-900">
+            {activeFirm?.name || 'Select Firm'}
           </span>
-          <ChevronDown className="h-4 w-4 transition-transform duration-200 opacity-70" 
+          <ChevronDown 
+            className="h-4 w-4 transition-transform duration-200 text-gray-500" 
             style={{ transform: isOpen ? 'rotate(180deg)' : undefined }} 
           />
         </Button>
@@ -66,7 +64,7 @@ const HostDropdown = ({
       
       <DropdownMenuPortal>
         <DropdownMenuContent 
-          className="w-80" 
+          className="w-[280px]" 
           align="start"
           sideOffset={5}
         >
@@ -74,52 +72,65 @@ const HostDropdown = ({
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start h-10 hover:bg-gray-50"
+              className="w-full justify-start h-10 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
               onClick={handleCreateClick}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Create New Host
+              Register New Firm
             </Button>
           </div>
 
           <DropdownMenuSeparator />
           
           <DropdownMenuGroup className="p-1 max-h-[400px] overflow-y-auto">
-            {hosts.map((host) => (
+            {firms.map((firm) => (
               <DropdownMenuItem
-                key={host.id}
+                key={firm.id}
                 onSelect={() => {
-                  switchHost(host.id);
+                  switchFirm(firm.id);
                   setIsOpen(false);
                 }}
                 className="p-2 cursor-pointer focus:bg-gray-50"
               >
                 <div className={`flex items-center gap-3 w-full ${
-                  activeHost?.id === host.id ? 'text-primary' : ''
+                  activeFirm?.id === firm.id ? 'text-gray-900' : 'text-gray-700'
                 }`}>
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={host.avatar} alt={host.name} />
-                    <AvatarFallback>{getHostInitials(host.name)}</AvatarFallback>
+                    <AvatarImage src={firm.avatar} alt={firm.name} />
+                    <AvatarFallback className="bg-gray-100 text-gray-900">
+                      {getFirmInitials(firm.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0">
                     <span className="truncate font-medium">
-                      {host.name}
+                      {firm.name}
                     </span>
-                    {getLocationString(host) && (
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {getLocationString(host)}
-                      </span>
-                    )}
+                    <span className="text-sm text-gray-500">
+                      {firm.role || 'Member'}
+                    </span>
                   </div>
-                  {host.status !== 'active' && (
-                    <span className="ml-auto text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded capitalize">
-                      {host.status}
+                  {firm.status !== 'active' && (
+                    <span className="ml-auto text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full capitalize">
+                      {firm.status}
                     </span>
                   )}
                 </div>
               </DropdownMenuItem>
             ))}
+
+            {firms.length === 0 && (
+              <div className="py-4 px-2 text-center">
+                <p className="text-sm text-gray-500">No firms found</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-gray-900 hover:bg-gray-50"
+                  onClick={handleCreateClick}
+                >
+                  Register a firm
+                </Button>
+              </div>
+            )}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenuPortal>
@@ -127,4 +138,4 @@ const HostDropdown = ({
   );
 };
 
-export default HostDropdown;
+export default FirmDropdown;

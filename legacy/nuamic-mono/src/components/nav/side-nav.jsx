@@ -1,89 +1,184 @@
-import React from "react";
-import { Home, Settings, Building2, Users, Calendar, MessageSquare, BarChart3 } from "lucide-react";
-import { NavItem } from "./nav-item";
+import React, { useEffect, useState } from 'react';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Settings, MessageSquare } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/services/supabase-client';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-const navItems = [
-  { 
-    to: "/host",
-    icon: Home,
-    text: "Dashboard",
-    description: "Overview and quick actions"
-  },
-  {
-    to: "/host/spaces",
-    icon: Building2,
-    text: "Spaces",
-    description: "Manage your spaces"
-  },
-  {
-    to: "/host/bookings",
-    icon: Calendar,
-    text: "Bookings",
-    description: "View and manage reservations"
-  },
-  {
-    to: "/host/messages",
-    icon: MessageSquare,
-    text: "Messages",
-    description: "Inbox and communications"
-  },
-  { 
-    to: "/host/settings",
-    icon: Settings,
-    text: "Settings",
-    description: "Preferences and configuration"
-  },
-];
+const NavItem = ({ title, lastMessage, timestamp, isActive, isExpanded, onClick }) => {
+  const getTimeString = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days > 0) {
+      return `${days}d ago`;
+    }
+    
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left px-3 py-2 rounded-lg transition-colors",
+        "hover:bg-gray-50",
+        isActive && "bg-gray-50",
+        !isExpanded && "px-2"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 mt-1">
+          <MessageSquare className={cn(
+            "w-5 h-5",
+            isActive ? "text-gray-900" : "text-gray-500"
+          )} />
+        </div>
+        
+        {isExpanded && (
+          <div className="min-w-0 flex-1">
+            <div className="flex justify-between gap-2">
+              <p className={cn(
+                "text-sm font-medium truncate",
+                isActive ? "text-gray-900" : "text-gray-700"
+              )}>
+                {title || 'New Chat'}
+              </p>
+              {timestamp && (
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  {getTimeString(timestamp)}
+                </span>
+              )}
+            </div>
+            {lastMessage && (
+              <p className="text-xs text-gray-500 truncate mt-0.5">
+                {lastMessage}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+};
 
 const SideNav = ({ isExpanded, isMobile }) => {
+  const [chats, setChats] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_recent_chats');
+        if (error) throw error;
+        setChats(data || []);
+      } catch (error) {
+        console.error('Error fetching chats:', error);
+        toast({
+          title: "Error loading chats",
+          description: "Please try again later",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchChats();
+  }, [toast]);
+
+  const getCurrentChatId = () => {
+    const match = location.pathname.match(/\/chat\/(.+)/);
+    return match ? match[1] : null;
+  };
+
   return (
     <aside
       className={cn(
         "fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r border-gray-200",
         "flex flex-col transition-all duration-300 ease-in-out",
-        "overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent",
         isExpanded ? "w-64" : isMobile ? "w-0" : "w-16",
         !isExpanded && !isMobile && "hover:w-64 hover:shadow-lg group"
       )}
     >
-      {/* Main Navigation */}
-      <nav className="flex-1 px-2 py-4">
-        <div className="space-y-1">
-          {navItems.map((item, index) => (
-            <NavItem 
-              key={item.to} 
-              {...item} 
-              isExpanded={isExpanded}
-              hasOrganizations={true}
-              className={cn(
-                "relative",
-                "transition-all duration-200 ease-in-out",
-                "rounded-lg",
-                "hover:bg-blue-50 hover:text-blue-600",
-                "group/item",
-                index === 0 && "bg-blue-50 text-blue-600"
-              )}
-            />
-          ))}
-        </div>
-      </nav>
+      {/* New Chat Button */}
+      <div className="p-4 border-b border-gray-100">
+        <RouterLink to="/chat/new">
+          <Button
+            variant="default"
+            className={cn(
+              "w-full bg-black text-white hover:bg-gray-900",
+              !isExpanded && !isMobile && "w-8 p-0 group-hover:w-full group-hover:px-4"
+            )}
+          >
+            <span className={cn(
+              "transition-opacity",
+              (!isExpanded && !isMobile) ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+            )}>
+              New Chat
+            </span>
+            {(!isExpanded && !isMobile) && (
+              <MessageSquare className="h-4 w-4 absolute group-hover:hidden" />
+            )}
+          </Button>
+        </RouterLink>
+      </div>
 
-      {/* Bottom Section - Optional status or user info */}
+      {/* Chat List */}
+      <ScrollArea className="flex-1">
+        <nav className="p-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-20">
+              <p className="text-sm text-gray-500">Loading chats...</p>
+            </div>
+          ) : chats.length > 0 ? (
+            <div className="space-y-1">
+              {chats.map((chat) => (
+                <NavItem
+                  key={chat.conversation_id}
+                  title={chat.title}
+                  lastMessage={chat.last_message_content}
+                  timestamp={chat.last_message_at}
+                  isActive={getCurrentChatId() === chat.conversation_id}
+                  isExpanded={isExpanded || (!isMobile && document.querySelector('aside:hover'))}
+                  onClick={() => navigate(`/chat/${chat.conversation_id}`)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-20 text-center px-4">
+              <p className="text-sm text-gray-500">No recent chats</p>
+            </div>
+          )}
+        </nav>
+      </ScrollArea>
+
+      {/* Settings Button */}
       <div className={cn(
-        "p-4 border-t border-gray-100",
+        "p-2 border-t border-gray-100",
         "transition-opacity duration-200",
-        (!isExpanded && !isMobile) ? "opacity-0 group-hover:opacity-100" : "opacity-100"
       )}>
-        <div className="flex items-center space-x-3">
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className={cn(
-            "text-sm text-gray-600 whitespace-nowrap",
-            (!isExpanded && !isMobile) && "hidden group-hover:inline"
-          )}>
-            System Status: Online
-          </span>
-        </div>
+        <RouterLink to="/settings">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start text-gray-700 hover:text-gray-900 hover:bg-gray-50",
+              !isExpanded && "justify-center"
+            )}
+          >
+            <Settings className="h-5 w-5" />
+            {isExpanded && <span className="ml-3">Settings</span>}
+          </Button>
+        </RouterLink>
       </div>
     </aside>
   );

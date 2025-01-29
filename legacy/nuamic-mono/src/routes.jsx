@@ -6,6 +6,7 @@ import { Progress as LoadingComponent } from './components/ui/progress';
 // Layouts
 import BlankLayout from './components/layout/blank-layout';
 import MainLayout from './components/layout/main-layout';
+import ChatPage from './pages/chat';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
@@ -34,6 +35,7 @@ const lazyImport = (importFn) => {
 };
 
 // Lazy loaded components
+const SignIn = lazyImport(() => import('./pages/auth/signin'));
 const SignUp = lazyImport(() => import('./pages/auth/signup'));
 const ForgotPassword = lazyImport(() => import('./pages/auth/forgot-password'));
 const UpdatePassword = lazyImport(() => import('./pages/auth/update-password'));
@@ -50,9 +52,7 @@ const AppRoutes = () => {
   return (
     <CustomSuspense>
       <Routes>
-        {/* Public routes */}
         <Route element={<BlankLayout />}>
-          {/* <Route path="/" element={<LandingPage />} /> */}
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -64,8 +64,9 @@ const AppRoutes = () => {
           />
         </Route>
 
-        {/* Protected routes */}
+
         <Route element={<MainLayout />}>
+          <Route path="/" element={<ChatPage />} />
 
           <Route path="*" element={<Protected><NotFound /></Protected>} />
         </Route>

@@ -4,7 +4,7 @@ import { useAuth } from '@/context/auth-context';
 
 const REDIRECT_STORAGE_KEY = 'auth_redirect_data';
 
-const ProtectedRoute = ({ 
+const ProtectedRoute = ({
   children,
   redirectPath = '/signin',
   loadingComponent = (
@@ -25,7 +25,7 @@ const ProtectedRoute = ({
         localStorage.setItem(REDIRECT_STORAGE_KEY, currentPath);
         
         // Redirect to sign-in
-        navigate(redirectPath, { 
+        navigate(redirectPath, {
           replace: true,
           state: { from: location }
         });
@@ -46,7 +46,7 @@ const ProtectedRoute = ({
   return user ? children : null;
 };
 
-// Export the redirect key for use in sign-in components
+// Helper functions for managing redirect storage
 export const getStoredRedirect = () => {
   try {
     return localStorage.getItem(REDIRECT_STORAGE_KEY);
