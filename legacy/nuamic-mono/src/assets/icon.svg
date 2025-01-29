@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Background square with very rounded corners -->
+  <rect 
+    x="10" 
+    y="10" 
+    width="180" 
+    height="180" 
+    rx="50"
+    fill="#0084ff"
+  />
+  
+  <!-- Bold, clear NS letters -->
+  <text 
+    x="100" 
+    y="140" 
+    font-family="Arial Black, Arial, sans-serif" 
+    font-size="120" 
+    fill="white" 
+    text-anchor="middle"
+    style="letter-spacing: -2px"
+  >
+    NS
+  </text>
+  
+  <!-- Subtle underline element -->
+  <path 
+    d="M45 150 L155 150" 
+    stroke="white" 
+    stroke-width="8" 
+    stroke-linecap="round" 
+    opacity="0.3"
+  />
+</svg>
