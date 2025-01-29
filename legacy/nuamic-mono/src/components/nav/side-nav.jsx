@@ -111,7 +111,10 @@ const SideNav = ({ isExpanded, isMobile }) => {
       )}
     >
       {/* New Chat Button */}
-      <div className="p-4 border-b border-gray-100">
+      <div className={cn(
+        "p-4 border-b border-gray-100",
+        isMobile && !isExpanded && "hidden"
+      )}>
         <RouterLink to="/chat/new">
           <Button
             variant="default"
@@ -134,7 +137,10 @@ const SideNav = ({ isExpanded, isMobile }) => {
       </div>
 
       {/* Chat List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className={cn(
+        "flex-1",
+        isMobile && !isExpanded && "hidden"
+      )}>
         <nav className="p-2">
           {isLoading ? (
             <div className="flex items-center justify-center h-20">
@@ -166,6 +172,7 @@ const SideNav = ({ isExpanded, isMobile }) => {
       <div className={cn(
         "p-2 border-t border-gray-100",
         "transition-opacity duration-200",
+        isMobile && !isExpanded && "hidden"
       )}>
         <RouterLink to="/settings">
           <Button
