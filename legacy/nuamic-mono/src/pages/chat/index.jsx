@@ -78,50 +78,52 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen relative">
-      <div className="flex-1 min-h-0">
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-hidden relative">
         <ScrollArea 
           ref={scrollAreaRef}
-          className="h-full pb-32" // Add padding at the bottom for the floating input
+          className="absolute inset-0"
         >
-          {/* Welcome Message */}
-          {messages.length === 0 && (
-            <div className="py-8">
-              <div className="max-w-2xl mx-auto px-4 text-center space-y-1">
-                <div className="w-20 h-20 bg-blue-50 rounded-full mx-auto flex items-center justify-center">
-                  <Scale className="h-10 w-10 text-blue-600" />
+          <div className="pb-40">
+            {/* Welcome Message */}
+            {messages.length === 0 && (
+              <div className="py-8">
+                <div className="max-w-2xl mx-auto px-4 text-center space-y-1">
+                  <div className="w-20 h-20 bg-blue-50 rounded-full mx-auto flex items-center justify-center">
+                    <Scale className="h-10 w-10 text-blue-600" />
+                  </div>
+                  <h1 className="text-4xl font-semibold text-gray-900 tracking-tight">
+                    AI Assistant
+                  </h1>
+                  <p className="text-lg text-gray-600 leading-relaxed">
+                    Your intelligent research companion. Upload documents, ask questions, 
+                    and get comprehensive analysis and insights.
+                  </p>
                 </div>
-                <h1 className="text-4xl font-semibold text-gray-900 tracking-tight">
-                  AI Assistant
-                </h1>
-                <p className="text-lg text-gray-600 leading-relaxed">
-                  Your intelligent research companion. Upload documents, ask questions, 
-                  and get comprehensive analysis and insights.
-                </p>
               </div>
-            </div>
-          )}
-
-          {/* Messages */}
-          <div className="max-w-2xl mx-auto px-4">
-            {messages.map((message, index) => (
-              <Message 
-                key={index} 
-                {...message}
-              />
-            ))}
-            {isLoading && (
-              <Message 
-                role="assistant" 
-                isLoading={true}
-              />
             )}
+
+            {/* Messages */}
+            <div className="max-w-2xl mx-auto px-4">
+              {messages.map((message, index) => (
+                <Message 
+                  key={index} 
+                  {...message}
+                />
+              ))}
+              {isLoading && (
+                <Message 
+                  role="assistant" 
+                  isLoading={true}
+                />
+              )}
+            </div>
           </div>
         </ScrollArea>
       </div>
 
-      {/* Floating Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur">
+      {/* Input Area - Now using sticky positioning */}
+      <div className="sticky bottom-0 flex-none z-10 bg-white/80 backdrop-blur border-t border-gray-200">
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit} className="p-4">
             <FileUploadPreview files={files} onRemove={removeFile} />
