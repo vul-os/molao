@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from '@/context/auth-context';
 import { Mail, Eye, EyeOff, Lock } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SignInPage = () => {
   const navigate = useNavigate();
@@ -53,14 +54,26 @@ const SignInPage = () => {
         await signIn(formData.email, formData.password);
         navigate('/');
       } catch (error) {
-        setErrors(prev => ({
-          ...prev,
-          submit: error.message
-        }));
+        if (error.code === 'email_not_confirmed') {
+          setErrors(prev => ({
+            ...prev,
+            emailConfirmation: true
+          }));
+        } else {
+          setErrors(prev => ({
+            ...prev,
+            submit: error.message
+          }));
+        }
       } finally {
         setIsLoading(false);
       }
     }
+  };
+
+  const handleForgotPassword = (e) => {
+    e.preventDefault(); // Prevent form submission
+    navigate('/forgot-password');
   };
 
   return (
@@ -88,7 +101,22 @@ const SignInPage = () => {
                 </p>
               </div>
 
-              {errors.submit && (
+              {errors.emailConfirmation && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertDescription className="text-blue-800">
+                    Please check your email to confirm your account. We've sent you a confirmation link. 
+                    Don't see it? Please check your spam folder or <Button
+                      variant="link"
+                      className="text-blue-800 font-medium p-0 h-auto"
+                      onClick={() => {/* Add resend confirmation email logic */}}
+                    >
+                      click here to resend
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {errors.submit && !errors.emailConfirmation && (
                 <div className="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
                   {errors.submit}
                 </div>
@@ -124,9 +152,10 @@ const SignInPage = () => {
                       Password
                     </Label>
                     <Button
+                      type="button" // Changed to type="button"
                       variant="link"
                       className="text-sm text-gray-600 hover:text-gray-900"
-                      onClick={() => navigate('/forgot-password')}
+                      onClick={handleForgotPassword}
                       disabled={isLoading}
                     >
                       Forgot password?
@@ -176,6 +205,7 @@ const SignInPage = () => {
                 <p className="text-sm text-gray-600">
                   Don't have an account?{' '}
                   <Button
+                    type="button" // Added type="button"
                     variant="link"
                     className="text-black hover:text-gray-900 font-medium"
                     onClick={() => navigate('/signup')}

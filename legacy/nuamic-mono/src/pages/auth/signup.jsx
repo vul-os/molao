@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from '@/context/auth-context';
-import { Mail, Eye, EyeOff, Lock, Phone } from 'lucide-react';
+import { Mail, Eye, EyeOff, Lock } from 'lucide-react';
 
 const SignUpPage = () => {
   const navigate = useNavigate();
@@ -19,7 +19,6 @@ const SignUpPage = () => {
     lastName: '',
     email: '',
     password: '',
-    phone: '',
     agreeToTerms: false
   });
 
@@ -37,11 +36,6 @@ const SignUpPage = () => {
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
     if (!passwordRegex.test(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters with 1 number and 1 uppercase letter';
-    }
-    
-    const phoneRegex = /^\+?[\d\s-]{10,}$/;
-    if (!phoneRegex.test(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number';
     }
     
     if (!formData.agreeToTerms) {
@@ -206,28 +200,6 @@ const SignUpPage = () => {
                   </div>
                   {errors.password && (
                     <p className="text-sm text-red-600 mt-1">{errors.password}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
-                    Phone Number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      className={`pl-10 h-12 ${errors.phone ? "border-red-500" : "border-gray-200"}`}
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.phone && (
-                    <p className="text-sm text-red-600 mt-1">{errors.phone}</p>
                   )}
                 </div>
 
