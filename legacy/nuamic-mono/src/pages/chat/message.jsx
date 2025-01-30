@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, Download, Copy, Check } from 'lucide-react';
+import { FileText, Loader2, Download, Copy, Check, Scale } from 'lucide-react';
 
 const Message = ({ role, content, files = [], isLoading, timestamp, maxWidth = "max-w-4xl", padding = "px-6" }) => {
   const isAssistant = role === 'assistant';
@@ -27,8 +27,12 @@ const Message = ({ role, content, files = [], isLoading, timestamp, maxWidth = "
       <div className={`${maxWidth} mx-auto`}>
         <div className={`flex gap-6 ${!isAssistant && 'justify-end'}`}>
           {isAssistant ? (
-            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-600 text-white shadow-sm">
-              ⚖️
+            // <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-600 text-white shadow-sm">
+            //                       <Scale className="h-10 w-10 text-blue-600" />
+
+            // </div>
+            <div className="w-10 h-10 bg-blue-600 rounded-full mx-auto flex items-center justify-center">
+                <Scale className="h-5 w-5 text-white" />
             </div>
           ) : null}
           <div className="flex-1 max-w-2xl space-y-3">

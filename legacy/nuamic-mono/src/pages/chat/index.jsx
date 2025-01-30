@@ -104,7 +104,7 @@ const ChatPage = () => {
             )}
 
             {/* Messages */}
-            <div className="max-w-2xl mx-auto px-4">
+            <div className="max-w-2xl mx-auto px-4 pt-2">
               {messages.map((message, index) => (
                 <Message 
                   key={index} 
