@@ -40,9 +40,8 @@ async function getChatCompletion(messages: Array<{ role: string; content: string
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4-turbo-preview',
-      messages,
-      max_tokens: 1024
+      model: 'gpt-4o',
+      messages
     })
   })
   if (!response.ok) throw new Error(`OpenAI API error: ${await response.text()}`)
@@ -53,29 +52,22 @@ async function handleFileUpload(supabase, fileData, firmId, userId) {
   const bytes = base64Decode(fileData.base64)
   const buffer = bytes.buffer
   const uniqueFileName = `${Date.now()}-${fileData.name}`
+  const storagePath = `${firmId}/${uniqueFileName}`
+  
   console.log(`Uploading file: ${fileData.name}`)
+  
   const { error: uploadError } = await supabase.storage
     .from('documents')
-    .upload(uniqueFileName, buffer, {
+    .upload(storagePath, buffer, {
       contentType: fileData.type,
       upsert: false
     })
   if (uploadError) throw uploadError
+
   const { data: { publicUrl } } = supabase.storage
     .from('documents')
-    .getPublicUrl(uniqueFileName)
-  const { data: fileRecord, error: fileError } = await supabase
-    .from('files')
-    .insert({
-      file_name: fileData.name,
-      file_type: fileData.type,
-      cdn_path: publicUrl,
-      file_size: bytes.length,
-      mime_type: fileData.type
-    })
-    .select()
-    .single()
-  if (fileError) throw fileError
+    .getPublicUrl(storagePath)
+
   const { data: chatFile, error: chatFileError } = await supabase
     .from('chat_files')
     .insert({
@@ -89,31 +81,57 @@ async function handleFileUpload(supabase, fileData, firmId, userId) {
     .select()
     .single()
   if (chatFileError) throw chatFileError
+
   console.log(`File uploaded and recorded: ${fileData.name}`)
-  return { fileRecord, chatFile }
+  return { chatFile }
 }
 
+/**
+ * Extracts text content from base64-encoded `fileData`.
+ */
 function extractTextContent(fileData) {
   const bytes = base64Decode(fileData.base64)
   const text = new TextDecoder().decode(bytes)
-  switch (fileData.type.toLowerCase()) {
-    case 'rtf':
-      return stripRTFFormatting(text)
+  
+  // Make sure we catch any MIME type that has "rtf" in it
+  const lowerType = (fileData.type || '').toLowerCase()
+  
+  if (lowerType.includes('rtf')) {
+    // If the file is RTF, strip out control words
+    return stripRTFFormatting(text)
+  }
+
+  // Otherwise, just return the raw text (for docx, plain text, etc.)
+  switch (lowerType) {
     case 'application/msword':
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
     case 'application/vnd.oasis.opendocument.text':
-      return text
     case 'text/plain':
     default:
       return text
   }
 }
 
+/**
+ * Removes RTF control words, braces, escaped hex codes, etc.
+ * Converts \par to newlines.  This won't perfectly handle complex RTF,
+ * but it should produce a more readable plain text version.
+ */
 function stripRTFFormatting(rtfText: string): string {
-  return rtfText.replace(/[\\][\w\d]+/g, '')
-                .replace(/[{}]/g, '')
-                .replace(/\\\n/g, '\n')
-                .trim()
+  return rtfText
+    // Remove RTF control words like \pard, \qc, \fs24, etc.
+    .replace(/\\[A-Za-z]+\d*/g, ' ')
+    // Remove escaped braces
+    .replace(/[{}]/g, '')
+    // Remove escaped hex codes (e.g. \'ab)
+    .replace(/\\'[0-9a-fA-F]{2}/g, '')
+    // Remove Unicode escapes (e.g. \u-1234)
+    .replace(/\\u-?\d+(\?)?/g, ' ')
+    // Replace \par or \pard with newlines
+    .replace(/\\(par[d]?)/gi, '\n')
+    // Collapse multiple spaces/newlines
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function preprocessContent(content: string): string {
@@ -160,22 +178,22 @@ serve(async (req) => {
         if (!data.firmId) throw new Error('Firm ID is required')
         const { message, files = [], conversationId } = data
         console.log(`Processing send-message for conversationId: ${conversationId}`)
-        
-        // Handle file uploads
+      
+        // 1. Upload newly attached files (and store in DB, but do not re-fetch)
         const processedFiles = await Promise.all(
           files.map(file => handleFileUpload(supabase, file, data.firmId, user.id))
         )
         if (processedFiles.length > 0) {
           console.log(`Uploaded ${processedFiles.length} file(s)`)
         }
-        
-        // Get conversation history
+      
+        // 2. Get existing conversation history (just the text for old messages)
         const { data: history } = await supabase.rpc(
           'get_conversation_history',
           { p_conversation_id: conversationId }
         )
-        
-        // Add user message by passing parameters directly
+      
+        // 3. Add the user's typed message (without file text) to DB
         const userResult = await supabase.rpc('add_chat_message', {
           p_conversation_id: conversationId,
           p_content: message,
@@ -186,39 +204,53 @@ serve(async (req) => {
         console.log('User RPC result:', userResult)
         const userMessageId = userResult.data?.[0]?.message_id || null
         console.log(`User message added with id: ${userMessageId}`)
-        
-        // Link files to message if any were uploaded
+      
+        // 4. Link newly uploaded files to this message
         if (processedFiles.length > 0 && userMessageId) {
-          await supabase.rpc(
-            'link_message_files',
-            {
-              p_message_id: userMessageId,
-              p_file_ids: processedFiles.map(pf => pf.chatFile.id)
-            }
-          )
+          await supabase.rpc('link_message_files', {
+            p_message_id: userMessageId,
+            p_file_ids: processedFiles.map(pf => pf.chatFile.id)
+          })
         }
-        
-        // Format messages for the LLM
-        const formattedMessages = [
-          ...(Array.isArray(history) ? history : []),
-          { role: 'user', content: message }
-        ].map(msg => ({
-          role: msg.role,
-          content: msg.files?.length > 0
-            ? `${msg.content}\n\nAttached files: ${msg.files.map((f: any) => f.filename).join(', ')}`
-            : msg.content
-        }))
-        
-        // Get AI completion
+      
+        // 5. Build the messages for the LLM
+        const formattedMessages: Array<{ role: string; content: string }> = []
+      
+        // A) Old messages get their stored content
+        if (Array.isArray(history)) {
+          for (const oldMsg of history) {
+            formattedMessages.push({
+              role: oldMsg.role,
+              content: oldMsg.content || ''
+            })
+          }
+        }
+      
+        // B) For the new user message, append text from the client’s `files` (using base64)
+        let newUserContent = message
+        for (const file of files) {
+          try {
+            const fileText = extractTextContent(file)
+            console.log('Extracted File Text:', fileText)
+            newUserContent += `\n\n=== File: ${file.name} ===\n${fileText}`
+          } catch (err) {
+            console.error(`Error extracting text from file "${file.name}":`, err)
+          }
+        }
+      
+        // Add combined user content to the messages array
+        formattedMessages.push({ role: 'user', content: newUserContent })
+      
+        // 6. Send all messages to OpenAI
         const completion = await getChatCompletion(formattedMessages)
         console.log('Received AI response')
-        
-        // Add AI response by passing parameters directly
+      
+        // 7. Store the assistant's reply
         const aiResult = await supabase.rpc('add_chat_message', {
           p_conversation_id: conversationId,
           p_content: completion.choices[0].message.content,
           p_role: 'assistant',
-          p_tokens_count: completion.usage.completion_tokens,
+          p_tokens_count: completion.usage?.completion_tokens || null,
           p_metadata: {
             model: completion.model,
             system_fingerprint: completion.system_fingerprint
@@ -227,7 +259,8 @@ serve(async (req) => {
         console.log('AI RPC result:', aiResult)
         const aiMessageId = aiResult.data?.[0]?.message_id || null
         console.log(`Assistant message added with id: ${aiMessageId}`)
-        
+      
+        // 8. Return the same structure as before
         return new Response(JSON.stringify({
           userMessageId,
           assistantMessageId: aiMessageId,
