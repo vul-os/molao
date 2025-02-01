@@ -5,33 +5,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
-interface FileData {
-  name: string
-  content: string
-  type: string
-  base64: string
-}
-
-interface SimilarFile {
-  file_id: string
-  file_name: string
-  file_type: string
-  cdn_path: string
-  chunk_text: string
-  similarity: number
-  metadata: Record<string, unknown>
-  file_size: number
-  mime_type: string
-}
-
-// Embedding functions
 async function getEmbedding(text: string): Promise<number[]> {
   const openaiKey = Deno.env.get('OPENAI_API_KEY')
   if (!openaiKey) throw new Error('OpenAI API key not configured')
-
+  console.log('Requesting embedding from OpenAI...')
   const response = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
     headers: {
@@ -44,18 +24,15 @@ async function getEmbedding(text: string): Promise<number[]> {
       encoding_format: 'float'
     })
   })
-
   if (!response.ok) throw new Error(`OpenAI API error: ${await response.text()}`)
-
   const result = await response.json()
   return result.data[0].embedding
 }
 
-// Chat completion function
 async function getChatCompletion(messages: Array<{ role: string; content: string }>) {
   const openaiKey = Deno.env.get('OPENAI_API_KEY')
   if (!openaiKey) throw new Error('OpenAI API key not configured')
-
+  console.log('Requesting chat completion from OpenAI...')
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -63,45 +40,31 @@ async function getChatCompletion(messages: Array<{ role: string; content: string
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4-turbo-preview',
       messages,
       max_tokens: 1024
     })
   })
-
   if (!response.ok) throw new Error(`OpenAI API error: ${await response.text()}`)
-
   return response.json()
 }
 
-// File handling functions
-async function handleFileUpload(supabaseClient, fileData, firmId, userId) {
-  const bytes = base64Decode(fileData.base64);
-  const buffer = bytes.buffer;
-  
-  // Generate a unique filename
-  const timestamp = new Date().getTime();
-  const uniqueFileName = `${timestamp}-${fileData.name}`;
-  
-  // Upload to Supabase storage
-  const { data: uploadData, error: uploadError } = await supabaseClient
-    .storage
+async function handleFileUpload(supabase, fileData, firmId, userId) {
+  const bytes = base64Decode(fileData.base64)
+  const buffer = bytes.buffer
+  const uniqueFileName = `${Date.now()}-${fileData.name}`
+  console.log(`Uploading file: ${fileData.name}`)
+  const { error: uploadError } = await supabase.storage
     .from('documents')
     .upload(uniqueFileName, buffer, {
       contentType: fileData.type,
       upsert: false
-    });
-
-  if (uploadError) throw uploadError;
-
-  // Get the public URL
-  const { data: { publicUrl } } = supabaseClient
-    .storage
+    })
+  if (uploadError) throw uploadError
+  const { data: { publicUrl } } = supabase.storage
     .from('documents')
-    .getPublicUrl(uniqueFileName);
-
-  // Insert into main files table
-  const { data: fileRecord, error: fileError } = await supabaseClient
+    .getPublicUrl(uniqueFileName)
+  const { data: fileRecord, error: fileError } = await supabase
     .from('files')
     .insert({
       file_name: fileData.name,
@@ -111,12 +74,9 @@ async function handleFileUpload(supabaseClient, fileData, firmId, userId) {
       mime_type: fileData.type
     })
     .select()
-    .single();
-
-  if (fileError) throw fileError;
-
-  // Insert into chat_files
-  const { data: chatFile, error: chatFileError } = await supabaseClient
+    .single()
+  if (fileError) throw fileError
+  const { data: chatFile, error: chatFileError } = await supabase
     .from('chat_files')
     .insert({
       firm_id: firmId,
@@ -127,17 +87,15 @@ async function handleFileUpload(supabaseClient, fileData, firmId, userId) {
       created_by: userId
     })
     .select()
-    .single();
-
-  if (chatFileError) throw chatFileError;
-
-  return { fileRecord, chatFile };
+    .single()
+  if (chatFileError) throw chatFileError
+  console.log(`File uploaded and recorded: ${fileData.name}`)
+  return { fileRecord, chatFile }
 }
 
-function extractTextContent(fileData: FileData): string {
+function extractTextContent(fileData) {
   const bytes = base64Decode(fileData.base64)
   const text = new TextDecoder().decode(bytes)
-  
   switch (fileData.type.toLowerCase()) {
     case 'rtf':
       return stripRTFFormatting(text)
@@ -169,76 +127,130 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
-
   try {
-    const supabaseClient = createClient(
+    console.log(`Received ${req.method} request at ${req.url}`)
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
-      req.headers.get('Authorization')?.split('Bearer ')[1] ?? ''
-    )
-
-    if (authError || !user) throw new Error('Unauthorized')
-
-    const url = new URL(req.url)
-    const path = url.pathname.split('/').filter(Boolean)
-    const method = req.method
-
-    if (path[0] === 'conversations') {
-      // List conversations
-      if (method === 'GET' && !path[1]) {
-        const { firm_id } = url.searchParams
-        if (!firm_id) throw new Error('Firm ID is required')
-
-        const { data, error } = await supabaseClient.rpc(
-          'get_recent_conversations',
-          { p_firm_id: firm_id }
-        )
-
-        if (error) throw error
-
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-
-      // Get conversation history
-      if (method === 'GET' && path[1] && path[2] === 'messages') {
-        const { data, error } = await supabaseClient.rpc(
+    const token = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token ?? '')
+    if (authError || !user) {
+      console.log('Authentication failed')
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+    }
+    console.log(`Authenticated user: ${user.id}`)
+    const { action, ...data } = await req.json()
+    console.log(`Processing action: ${action}`)
+    
+    switch (action) {
+      case 'get-history': {
+        if (!data.firmId) throw new Error('Firm ID is required')
+        console.log(`Fetching conversation history for conversationId: ${data.conversationId}`)
+        const { data: history, error: historyError } = await supabase.rpc(
           'get_conversation_history',
-          { p_conversation_id: path[1] }
+          { p_conversation_id: data.conversationId }
         )
-
-        if (error) throw error
-
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+        if (historyError) throw historyError
+        const conversationHistory = Array.isArray(history) ? history : []
+        return new Response(JSON.stringify(conversationHistory), { headers: corsHeaders })
       }
-
-      // Search files
-      if (method === 'POST' && path[1] && path[2] === 'search') {
-        const { query, files = [], firm_id, similarity_threshold = 0.7, match_count = 5 } = await req.json()
-
-        if (!firm_id) throw new Error('Firm ID is required')
-
-        // Process uploaded files
-        const processedFiles = await Promise.all(files.map(file => 
-          handleFileUpload(supabaseClient, file, firm_id, user.id)
-        ))
-
-        // Extract and process file contents
+      
+      case 'send-message': {
+        if (!data.firmId) throw new Error('Firm ID is required')
+        const { message, files = [], conversationId } = data
+        console.log(`Processing send-message for conversationId: ${conversationId}`)
+        
+        // Handle file uploads
+        const processedFiles = await Promise.all(
+          files.map(file => handleFileUpload(supabase, file, data.firmId, user.id))
+        )
+        if (processedFiles.length > 0) {
+          console.log(`Uploaded ${processedFiles.length} file(s)`)
+        }
+        
+        // Get conversation history
+        const { data: history } = await supabase.rpc(
+          'get_conversation_history',
+          { p_conversation_id: conversationId }
+        )
+        
+        // Add user message by passing parameters directly
+        const userResult = await supabase.rpc('add_chat_message', {
+          p_conversation_id: conversationId,
+          p_content: message,
+          p_role: 'user',
+          p_tokens_count: null,
+          p_metadata: {}
+        })
+        console.log('User RPC result:', userResult)
+        const userMessageId = userResult.data?.[0]?.message_id || null
+        console.log(`User message added with id: ${userMessageId}`)
+        
+        // Link files to message if any were uploaded
+        if (processedFiles.length > 0 && userMessageId) {
+          await supabase.rpc(
+            'link_message_files',
+            {
+              p_message_id: userMessageId,
+              p_file_ids: processedFiles.map(pf => pf.chatFile.id)
+            }
+          )
+        }
+        
+        // Format messages for the LLM
+        const formattedMessages = [
+          ...(Array.isArray(history) ? history : []),
+          { role: 'user', content: message }
+        ].map(msg => ({
+          role: msg.role,
+          content: msg.files?.length > 0
+            ? `${msg.content}\n\nAttached files: ${msg.files.map((f: any) => f.filename).join(', ')}`
+            : msg.content
+        }))
+        
+        // Get AI completion
+        const completion = await getChatCompletion(formattedMessages)
+        console.log('Received AI response')
+        
+        // Add AI response by passing parameters directly
+        const aiResult = await supabase.rpc('add_chat_message', {
+          p_conversation_id: conversationId,
+          p_content: completion.choices[0].message.content,
+          p_role: 'assistant',
+          p_tokens_count: completion.usage.completion_tokens,
+          p_metadata: {
+            model: completion.model,
+            system_fingerprint: completion.system_fingerprint
+          }
+        })
+        console.log('AI RPC result:', aiResult)
+        const aiMessageId = aiResult.data?.[0]?.message_id || null
+        console.log(`Assistant message added with id: ${aiMessageId}`)
+        
+        return new Response(JSON.stringify({
+          userMessageId,
+          assistantMessageId: aiMessageId,
+          content: completion.choices[0].message.content,
+          debug: { userResult, aiResult }
+        }), { headers: corsHeaders })
+      }
+      
+      case 'search': {
+        if (!data.firmId) throw new Error('Firm ID is required')
+        const { query, files = [], conversationId, similarity_threshold = 0.7, match_count = 5 } = data
+        console.log(`Processing search with query: "${query}"`)
+        const processedFiles = await Promise.all(
+          files.map(file => handleFileUpload(supabase, file, data.firmId, user.id))
+        )
+        if (processedFiles.length > 0) {
+          console.log(`Processed ${processedFiles.length} file(s) for search`)
+        }
         const fileContents = files.map(file => extractTextContent(file))
         const combinedContent = `${query}\n\nContext:\n${fileContents.join('\n\n')}`
         const processedContent = preprocessContent(combinedContent)
-        
-        // Generate embedding
         const embedding = await getEmbedding(processedContent)
-
-        // Search for similar files
-        const { data: similarFiles, error: searchError } = await supabaseClient.rpc(
+        const { data: similarFiles } = await supabase.rpc(
           'search_similar_files',
           {
             query_embedding: embedding,
@@ -246,30 +258,25 @@ serve(async (req) => {
             match_count
           }
         )
-
-        if (searchError) throw searchError
-
-        if (similarFiles.length > 0) {
-          // Add system message about found files
-          const { data: messageId } = await supabaseClient.rpc(
+        if (similarFiles && similarFiles.length > 0) {
+          console.log(`Found ${similarFiles.length} similar file(s)`)
+          const { data: messageId } = await supabase.rpc(
             'add_chat_message',
             {
-              p_conversation_id: path[1],
-              p_content: `I have found these relevant documents:\n${similarFiles.map(f => 
+              p_conversation_id: conversationId,
+              p_content: `I have found these relevant documents:\n${similarFiles.map((f: any) => 
                 `- ${f.file_name} (${Math.round(f.similarity * 100)}% relevant)\n${f.chunk_text}`
               ).join('\n\n')}`,
               p_role: 'system',
+              p_tokens_count: null,
               p_metadata: { type: 'search_results' }
             }
           )
-
-          // Link both uploaded and found files to the message
           const allFiles = [
             ...processedFiles.map(pf => pf.chatFile.id),
-            ...similarFiles.map(sf => sf.file_id)
+            ...similarFiles.map((sf: any) => sf.file_id)
           ]
-
-          await supabaseClient.rpc(
+          await supabase.rpc(
             'link_message_files',
             {
               p_message_id: messageId,
@@ -277,105 +284,18 @@ serve(async (req) => {
             }
           )
         }
-
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            files: similarFiles 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        return new Response(JSON.stringify({ 
+          success: true, 
+          files: similarFiles 
+        }), { headers: corsHeaders })
       }
-
-      // Regular message
-      if (method === 'POST' && path[1] && path[2] === 'messages') {
-        const { message, files = [], firm_id } = await req.json()
-
-        if (!firm_id) throw new Error('Firm ID is required')
-
-        // Process any uploaded files first
-        const processedFiles = await Promise.all(files.map(file => 
-          handleFileUpload(supabaseClient, file, firm_id, user.id)
-        ))
-
-        // Get conversation history
-        const { data: history, error: historyError } = await supabaseClient.rpc(
-          'get_conversation_history',
-          { p_conversation_id: path[1] }
-        )
-
-        if (historyError) throw historyError
-
-        // Add user message
-        const { data: messageId, error: messageError } = await supabaseClient.rpc(
-          'add_chat_message',
-          {
-            p_conversation_id: path[1],
-            p_content: message,
-            p_role: 'user'
-          }
-        )
-
-        if (messageError) throw messageError
-
-        // Link uploaded files to the message
-        if (processedFiles.length > 0) {
-          await supabaseClient.rpc(
-            'link_message_files',
-            {
-              p_message_id: messageId,
-              p_file_ids: processedFiles.map(pf => pf.chatFile.id)
-            }
-          )
-        }
-
-        // Format messages for OpenAI
-        const messages = [...history, { role: 'user', content: message }].map(msg => ({
-          role: msg.role,
-          content: msg.files.length > 0
-            ? `${msg.content}\n\nAttached files: ${msg.files.map(f => f.filename).join(', ')}`
-            : msg.content
-        }))
-
-        // Get AI response
-        const completion = await getChatCompletion(messages)
-
-        // Store AI response
-        const { data: aiMessageId, error: aiError } = await supabaseClient.rpc(
-          'add_chat_message',
-          {
-            p_conversation_id: path[1],
-            p_content: completion.choices[0].message.content,
-            p_role: 'assistant',
-            p_tokens_count: completion.usage.completion_tokens,
-            p_metadata: {
-              model: completion.model,
-              system_fingerprint: completion.system_fingerprint
-            }
-          }
-        )
-
-        if (aiError) throw aiError
-
-        return new Response(
-          JSON.stringify({
-            message_id: aiMessageId,
-            content: completion.choices[0].message.content
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+      
+      default:
+        console.log('Invalid action received')
+        return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400, headers: corsHeaders })
     }
-
-    throw new Error('Not found')
-
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: error.message === 'Not found' ? 404 : 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    )
+    console.error('Error encountered:', error)
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders })
   }
-});
+})

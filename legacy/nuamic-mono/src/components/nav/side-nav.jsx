@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { Settings, MessageSquare } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from '@/services/supabase-client';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from '@/context/auth-context';
 
 const NavItem = ({ title, lastMessage, timestamp, isActive, isExpanded, onClick }) => {
   const getTimeString = (timestamp) => {
@@ -70,35 +69,21 @@ const NavItem = ({ title, lastMessage, timestamp, isActive, isExpanded, onClick 
 };
 
 const SideNav = ({ isExpanded, isMobile }) => {
-  const [chats, setChats] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        const { data, error } = await supabase.rpc('get_recent_chats');
-        if (error) throw error;
-        setChats(data || []);
-      } catch (error) {
-        console.error('Error fetching chats:', error);
-        toast({
-          title: "Error loading chats",
-          description: "Please try again later",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchChats();
-  }, [toast]);
+  const navigate = useNavigate();
+  const { 
+    recentChats, 
+    isLoadingChats, 
+    activeChat,
+  } = useAuth();
 
   const getCurrentChatId = () => {
     const match = location.pathname.match(/\/chat\/(.+)/);
     return match ? match[1] : null;
+  };
+
+  const handleChatClick = (chatId) => {
+    navigate(`/chat/${chatId}`);
   };
 
   return (
@@ -142,21 +127,21 @@ const SideNav = ({ isExpanded, isMobile }) => {
         isMobile && !isExpanded && "hidden"
       )}>
         <nav className="p-2">
-          {isLoading ? (
+          {isLoadingChats ? (
             <div className="flex items-center justify-center h-20">
               <p className="text-sm text-gray-500">Loading chats...</p>
             </div>
-          ) : chats.length > 0 ? (
+          ) : recentChats.length > 0 ? (
             <div className="space-y-1">
-              {chats.map((chat) => (
+              {recentChats.map((chat) => (
                 <NavItem
-                  key={chat.conversation_id}
+                  key={chat.id}
                   title={chat.title}
                   lastMessage={chat.last_message_content}
                   timestamp={chat.last_message_at}
-                  isActive={getCurrentChatId() === chat.conversation_id}
+                  isActive={getCurrentChatId() === chat.id}
                   isExpanded={isExpanded || (!isMobile && document.querySelector('aside:hover'))}
-                  onClick={() => navigate(`/chat/${chat.conversation_id}`)}
+                  onClick={() => handleChatClick(chat.id)}
                 />
               ))}
             </div>

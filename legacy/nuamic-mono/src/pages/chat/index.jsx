@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Scale } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
@@ -6,91 +7,220 @@ import { supabase } from '@/services/supabase-client';
 import Message from './message';
 import MessageInput from './message-input';
 
-const ChatPage = ({ conversationId }) => {
-  const { activeFirm } = useAuth();
+const ChatPage = () => {
+  const { id: routeConversationId } = useParams();
+  const navigate = useNavigate();
+  const { activeFirm, createChat } = useAuth();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(routeConversationId);
   const scrollAreaRef = useRef(null);
+
+  const fetchHistory = useCallback(async (chatId) => {
+    if (!chatId || !activeFirm?.id) return;
+    
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      const { data, error } = await supabase.functions.invoke('chat-manager', {
+        body: {
+          action: 'get-history',
+          conversationId: chatId,
+          firmId: activeFirm.id
+        },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Handle the case where data might be a string
+      let messageData;
+      if (typeof data === 'string') {
+        try {
+          // If data is a string containing JSON, parse it
+          messageData = JSON.parse(data.replace('Received non-array message data: ', ''));
+        } catch (e) {
+          console.error('Error parsing message data:', e);
+          messageData = [];
+        }
+      } else {
+        messageData = data || [];
+      }
+      
+      // Ensure messageData is an array
+      if (Array.isArray(messageData)) {
+        // Sort messages by creation date
+        const sortedMessages = messageData.sort((a, b) => 
+          new Date(a.created_at) - new Date(b.created_at)
+        );
+        setMessages(sortedMessages);
+      } else {
+        console.warn('Invalid message data format:', messageData);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Error fetching conversation history:', error);
+      setMessages([]);
+    }
+  }, [activeFirm?.id]);
+
+  // Initialize conversation if none exists
+  useEffect(() => {
+    const initializeConversation = async () => {
+      if (!routeConversationId && activeFirm?.id) {
+        try {
+          const newChat = await createChat();
+          if (!newChat) throw new Error('Failed to create chat');
+          
+          setConversationId(newChat.id);
+          navigate(`/${newChat.id}`);
+        } catch (error) {
+          console.error('Error creating initial chat:', error);
+        }
+      }
+    };
+
+    initializeConversation();
+  }, [routeConversationId, activeFirm?.id, createChat, navigate]);
 
   useEffect(() => {
     if (!activeFirm?.id) {
       console.error('No active firm found');
+      setMessages([]);
       return;
     }
   }, [activeFirm]);
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (!conversationId || !activeFirm?.id) return;
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('conversations', {
-          body: {
-            path: `conversations/${conversationId}/messages`,
-            method: 'GET'
-          }
-        });
-        
-        if (error) throw error;
-        setMessages(data);
-      } catch (error) {
-        console.error('Error fetching conversation history:', error);
-      }
-    };
+    if (conversationId) {
+      fetchHistory(conversationId);
+    } else {
+      setMessages([]);
+    }
+  }, [conversationId, fetchHistory]);
 
-    fetchHistory();
-  }, [conversationId, activeFirm?.id]);
-
-  const scrollToBottom = () => {
+  useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (input, files) => {
+  const ensureConversation = useCallback(async () => {
+    if (conversationId) return conversationId;
+    
+    try {
+      const newChat = await createChat();
+      if (!newChat) throw new Error('Failed to create chat');
+      
+      setConversationId(newChat.id);
+      navigate(`/${newChat.id}`);
+      return newChat.id;
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      return null;
+    }
+  }, [conversationId, createChat, navigate]);
+
+  const handleSendMessage = useCallback(async (input, files) => {
     if (!activeFirm?.id) {
       console.error('No active firm');
       return;
     }
 
-    const newMessage = {
+    const chatId = await ensureConversation();
+    if (!chatId) {
+      setMessages(prev => Array.isArray(prev) ? [
+        ...prev,
+        {
+          role: 'system',
+          content: 'Failed to create conversation. Please try again.',
+          error: true,
+          timestamp: new Date().toISOString()
+        }
+      ] : [{
+        role: 'system',
+        content: 'Failed to create conversation. Please try again.',
+        error: true,
+        timestamp: new Date().toISOString()
+      }]);
+      return;
+    }
+
+    // Add optimistic user message
+    const userMessage = {
       role: 'user',
       content: input,
       files: files,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      status: 'sending'
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    setMessages(prev => Array.isArray(prev) ? [...prev, userMessage] : [userMessage]);
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('conversations', {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      const response = await supabase.functions.invoke('chat-manager', {
         body: {
-          path: `conversations/${conversationId}/messages`,
-          method: 'POST',
+          action: 'send-message',
           message: input,
-          files: files,
-          firm_id: activeFirm.id
+          files,
+          firmId: activeFirm.id,
+          conversationId: chatId
+        },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`
         }
       });
 
+      const { data, error } = response;
       if (error) throw error;
       
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.content,
-        timestamp: new Date().toISOString()
-      }]);
+      // Update messages with the confirmed messages from the response
+      setMessages(prev => {
+        if (!Array.isArray(prev)) return [];
+        
+        // Remove the optimistic message
+        const messagesWithoutOptimistic = prev.filter(msg => msg.status !== 'sending');
+        
+        // Create new messages using the returned message IDs and content
+        const updatedUserMessage = {
+          message_id: data.userMessageId,  // Changed from id to message_id
+          role: 'user',
+          content: input,
+          files: files,
+          timestamp: new Date().toISOString()
+        };
+
+        const updatedAssistantMessage = {
+          message_id: data.assistantMessageId,  // Changed from id to message_id
+          role: 'assistant',
+          content: data.content,  // Using the content from the response
+          timestamp: new Date().toISOString()
+        };
+        
+        return [...messagesWithoutOptimistic, updatedUserMessage, updatedAssistantMessage];
+      });
+
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => [...prev, {
+      setMessages(prev => Array.isArray(prev) ? [
+        ...prev.filter(msg => msg.status !== 'sending'),
+        {
+          role: 'system',
+          content: 'Failed to send message. Please try again.',
+          error: true,
+          timestamp: new Date().toISOString()
+        }
+      ] : [{
         role: 'system',
         content: 'Failed to send message. Please try again.',
         error: true,
@@ -99,39 +229,62 @@ const ChatPage = ({ conversationId }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeFirm?.id, ensureConversation]);
 
-  const handleSearch = async (input, files) => {
+  const handleSearch = useCallback(async (input, files) => {
     if (!files.length || !activeFirm?.id) return;
+
+    const chatId = await ensureConversation();
+    if (!chatId) {
+      setMessages(prev => Array.isArray(prev) ? [
+        ...prev,
+        {
+          role: 'system',
+          content: 'Failed to create conversation. Please try again.',
+          error: true,
+          timestamp: new Date().toISOString()
+        }
+      ] : [{
+        role: 'system',
+        content: 'Failed to create conversation. Please try again.',
+        error: true,
+        timestamp: new Date().toISOString()
+      }]);
+      return;
+    }
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('conversations', {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      const { data, error } = await supabase.functions.invoke('chat-manager', {
         body: {
-          path: `conversations/${conversationId}/search`,
-          method: 'POST',
+          action: 'search',
           query: input,
-          files: files,
-          firm_id: activeFirm.id
+          files,
+          firmId: activeFirm.id,
+          conversationId: chatId
+        },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`
         }
       });
 
       if (error) throw error;
       
-      // Refresh messages to show search results
-      const { data: historyData, error: historyError } = await supabase.functions.invoke('conversations', {
-        body: {
-          path: `conversations/${conversationId}/messages`,
-          method: 'GET'
-        }
-      });
-      
-      if (historyError) throw historyError;
-      setMessages(historyData);
-      
+      await fetchHistory(chatId);
     } catch (error) {
       console.error('Error during search:', error);
-      setMessages(prev => [...prev, {
+      setMessages(prev => Array.isArray(prev) ? [
+        ...prev,
+        {
+          role: 'system',
+          content: 'Failed to perform search. Please try again.',
+          error: true,
+          timestamp: new Date().toISOString()
+        }
+      ] : [{
         role: 'system',
         content: 'Failed to perform search. Please try again.',
         error: true,
@@ -140,7 +293,7 @@ const ChatPage = ({ conversationId }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeFirm?.id, ensureConversation, fetchHistory]);
 
   return (
     <div className="h-full flex flex-col">
@@ -151,7 +304,7 @@ const ChatPage = ({ conversationId }) => {
         >
           <div className="pb-40">
             {/* Welcome Message */}
-            {messages.length === 0 && (
+            {Array.isArray(messages) && messages.length === 0 && (
               <div className="py-8">
                 <div className="max-w-2xl mx-auto px-4 text-center space-y-1">
                   <div className="w-20 h-20 bg-blue-50 rounded-full mx-auto flex items-center justify-center">
@@ -170,12 +323,15 @@ const ChatPage = ({ conversationId }) => {
 
             {/* Messages */}
             <div className="max-w-2xl mx-auto px-4 pt-2">
-              {messages.map((message, index) => (
-                <Message 
-                  key={index} 
-                  {...message}
-                />
-              ))}
+              {Array.isArray(messages) && messages.map((message, index) => {
+                console.log('Rendering message:', message);
+                return (
+                  <Message 
+                    key={message.id || index} 
+                    {...message}
+                  />
+                );
+              })}
               {isLoading && (
                 <Message 
                   role="assistant" 

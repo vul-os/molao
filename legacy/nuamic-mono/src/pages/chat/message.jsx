@@ -21,16 +21,21 @@ const Message = ({ role, content, files = [], isLoading, timestamp, maxWidth = "
   const getUserInitial = () => {
     return 'J'; // This should be dynamic based on user name
   };
+
+  // Function to format the content with proper line breaks
+  const formatContent = (text) => {
+    return text?.split('\n').map((line, i) => (
+      <p key={i} className="mb-2 last:mb-0">
+        {line || '\u00A0'}
+      </p>
+    ));
+  };
   
   return (
     <div className={`py-4 ${padding} ${isAssistant ? 'bg-gray-50/50' : 'bg-white'} transition-colors duration-200`}>
       <div className={`${maxWidth} mx-auto`}>
         <div className={`flex gap-6 ${!isAssistant && 'justify-end'}`}>
           {isAssistant ? (
-            // <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-600 text-white shadow-sm">
-            //                       <Scale className="h-10 w-10 text-blue-600" />
-
-            // </div>
             <div className="w-10 h-10 bg-blue-600 rounded-full mx-auto flex items-center justify-center">
                 <Scale className="h-5 w-5 text-white" />
             </div>
@@ -67,8 +72,8 @@ const Message = ({ role, content, files = [], isLoading, timestamp, maxWidth = "
                         p-4 rounded-2xl border border-gray-200 bg-white shadow-sm
                         ${isAssistant && 'hover:border-blue-200 hover:bg-blue-50/20 cursor-pointer'}`}
                     >
-                      <div className="text-left">
-                        {content}
+                      <div className="text-left whitespace-pre-wrap">
+                        {content && formatContent(content)}
                       </div>
                       {isAssistant && (
                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
