@@ -27,11 +27,11 @@ const ChatPage = () => {
         body: {
           action: 'get-history',
           conversationId: chatId,
-          firmId: activeFirm.id
+          firmId: activeFirm.id,
         },
         headers: {
-          Authorization: `Bearer ${session.session.access_token}`
-        }
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
       });
       
       if (error) throw error;
@@ -53,8 +53,8 @@ const ChatPage = () => {
       // Ensure messageData is an array
       if (Array.isArray(messageData)) {
         // Sort messages by creation date
-        const sortedMessages = messageData.sort((a, b) => 
-          new Date(a.created_at) - new Date(b.created_at)
+        const sortedMessages = messageData.sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
         );
         setMessages(sortedMessages);
       } else {
@@ -66,7 +66,7 @@ const ChatPage = () => {
       setMessages([]);
     }
   }, [activeFirm?.id]);
-
+  
   // Initialize conversation if none exists
   useEffect(() => {
     const initializeConversation = async () => {
@@ -127,181 +127,236 @@ const ChatPage = () => {
     }
   }, [conversationId, createChat, navigate]);
 
-  const handleSendMessage = useCallback(async (input, files) => {
-    if (!activeFirm?.id) {
-      console.error('No active firm');
-      return;
-    }
+  const handleSendMessage = useCallback(
+    async (input, files) => {
+      console.log('=== handleSendMessage Started ===');
+      console.log('Input:', input);
+      console.log('Files:', files);
 
-    const chatId = await ensureConversation();
-    if (!chatId) {
-      setMessages(prev => Array.isArray(prev) ? [
-        ...prev,
-        {
+      // Validate required data
+      if (!activeFirm?.id) {
+        console.error('No active firm');
+        return;
+      }
+
+      if (!input?.trim()) {
+        console.error('Empty message');
+        return;
+      }
+
+      // Get or create conversation
+      const chatId = await ensureConversation();
+      console.log('Conversation ID:', chatId);
+
+      if (!chatId) {
+        console.error('Failed to ensure conversation');
+        const errorMessage = {
+          id: `error-${Date.now()}`,
           role: 'system',
           content: 'Failed to create conversation. Please try again.',
           error: true,
-          timestamp: new Date().toISOString()
-        }
-      ] : [{
-        role: 'system',
-        content: 'Failed to create conversation. Please try again.',
-        error: true,
-        timestamp: new Date().toISOString()
-      }]);
-      return;
-    }
-
-    // Add optimistic user message
-    const userMessage = {
-      role: 'user',
-      content: input,
-      files: files,
-      timestamp: new Date().toISOString(),
-      status: 'sending'
-    };
-
-    setMessages(prev => Array.isArray(prev) ? [...prev, userMessage] : [userMessage]);
-    setIsLoading(true);
-
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session) throw new Error('No active session');
-
-      const response = await supabase.functions.invoke('chat-manager', {
-        body: {
-          action: 'send-message',
-          message: input,
-          files,
-          firmId: activeFirm.id,
-          conversationId: chatId
-        },
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`
-        }
-      });
-
-      const { data, error } = response;
-      if (error) throw error;
-      
-      // Update messages with the confirmed messages from the response
-      setMessages(prev => {
-        if (!Array.isArray(prev)) return [];
-        
-        // Remove the optimistic message
-        const messagesWithoutOptimistic = prev.filter(msg => msg.status !== 'sending');
-        
-        // Create new messages using the returned message IDs and content
-        const updatedUserMessage = {
-          message_id: data.userMessageId,  // Changed from id to message_id
-          role: 'user',
-          content: input,
-          files: files,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
+        setMessages((prev) => (Array.isArray(prev) ? [...prev, errorMessage] : [errorMessage]));
+        return;
+      }
 
-        const updatedAssistantMessage = {
-          message_id: data.assistantMessageId,  // Changed from id to message_id
-          role: 'assistant',
-          content: data.content,  // Using the content from the response
-          timestamp: new Date().toISOString()
-        };
-        
-        return [...messagesWithoutOptimistic, updatedUserMessage, updatedAssistantMessage];
-      });
+      // Create temporary message
+      const tempMessageId = `temp-${Date.now()}`;
+      const tempMessage = {
+        id: tempMessageId,
+        role: 'user',
+        content: input,
+        files: files || [],
+        timestamp: new Date().toISOString(),
+        status: 'sending',
+      };
 
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages(prev => Array.isArray(prev) ? [
-        ...prev.filter(msg => msg.status !== 'sending'),
-        {
-          role: 'system',
-          content: 'Failed to send message. Please try again.',
-          error: true,
-          timestamp: new Date().toISOString()
+      // Add temporary message
+      setMessages((prev) =>
+        Array.isArray(prev) ? [...prev, tempMessage] : [tempMessage]
+      );
+      setIsLoading(true);
+
+      try {
+        // Get authentication session
+        const { data: session } = await supabase.auth.getSession();
+        if (!session?.session?.access_token) {
+          throw new Error('No active session');
         }
-      ] : [{
-        role: 'system',
-        content: 'Failed to send message. Please try again.',
-        error: true,
-        timestamp: new Date().toISOString()
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeFirm?.id, ensureConversation]);
 
-  const handleSearch = useCallback(async (input, files) => {
-    if (!files.length || !activeFirm?.id) return;
+        // Send message to chat manager
+        const response = await supabase.functions.invoke('chat-manager', {
+          body: {
+            action: 'send-message',
+            message: input,
+            files,
+            firmId: activeFirm.id,
+            conversationId: chatId,
+          },
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
+        });
 
-    const chatId = await ensureConversation();
-    if (!chatId) {
-      setMessages(prev => Array.isArray(prev) ? [
-        ...prev,
-        {
-          role: 'system',
-          content: 'Failed to create conversation. Please try again.',
-          error: true,
-          timestamp: new Date().toISOString()
+        console.log('Full response from chat-manager:', response);
+
+        // Handle errors in response
+        if (response.error) throw response.error;
+        if (!response.data) throw new Error('No response data received');
+
+        // Parse the data if it comes back as a string
+        let responseData = response.data;
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+          } catch (err) {
+            console.error('Error parsing JSON response:', err);
+            throw err;
+          }
         }
-      ] : [{
-        role: 'system',
-        content: 'Failed to create conversation. Please try again.',
-        error: true,
-        timestamp: new Date().toISOString()
-      }]);
-      return;
-    }
 
-    setIsLoading(true);
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session) throw new Error('No active session');
+        console.log('Response data structure:', responseData);
 
-      const { data, error } = await supabase.functions.invoke('chat-manager', {
-        body: {
-          action: 'search',
-          query: input,
-          files,
-          firmId: activeFirm.id,
-          conversationId: chatId
-        },
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`
-        }
-      });
+        // Update messages
+        setMessages((prev) => {
+          if (!Array.isArray(prev)) return [];
 
-      if (error) throw error;
-      
-      await fetchHistory(chatId);
-    } catch (error) {
-      console.error('Error during search:', error);
-      setMessages(prev => Array.isArray(prev) ? [
-        ...prev,
-        {
-          role: 'system',
-          content: 'Failed to perform search. Please try again.',
-          error: true,
-          timestamp: new Date().toISOString()
-        }
-      ] : [{
-        role: 'system',
-        content: 'Failed to perform search. Please try again.',
-        error: true,
-        timestamp: new Date().toISOString()
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeFirm?.id, ensureConversation, fetchHistory]);
+          // Remove temporary message
+          const filteredMessages = prev.filter((msg) => msg.id !== tempMessageId);
+
+          // Create new messages with the correct structure
+          const newMessages = [
+            {
+              id: responseData.userMessageId,
+              role: 'user',
+              content: input,
+              files: files || [],
+              timestamp: new Date().toISOString(),
+            },
+            {
+              id: responseData.assistantMessageId,
+              role: 'assistant',
+              content: responseData.content,
+              timestamp: new Date().toISOString(),
+            },
+          ];
+
+          console.log('New messages to be added:', newMessages);
+          return [...filteredMessages, ...newMessages];
+        });
+      } catch (error) {
+        console.error('Error in handleSendMessage:', error);
+
+        // Handle error state
+        setMessages((prev) => {
+          if (!Array.isArray(prev)) return [];
+
+          const filteredMessages = prev.filter((msg) => msg.id !== tempMessageId);
+          return [
+            ...filteredMessages,
+            {
+              id: `error-${Date.now()}`,
+              role: 'system',
+              content: 'Failed to send message. Please try again.',
+              error: true,
+              timestamp: new Date().toISOString(),
+            },
+          ];
+        });
+      } finally {
+        setIsLoading(false);
+        console.log('=== handleSendMessage Completed ===');
+      }
+    },
+    [activeFirm?.id, ensureConversation]
+  );
+
+  const handleSearch = useCallback(
+    async (input, files) => {
+      if (!files.length || !activeFirm?.id) return;
+
+      const chatId = await ensureConversation();
+      if (!chatId) {
+        setMessages((prev) =>
+          Array.isArray(prev)
+            ? [
+                ...prev,
+                {
+                  role: 'system',
+                  content: 'Failed to create conversation. Please try again.',
+                  error: true,
+                  timestamp: new Date().toISOString(),
+                },
+              ]
+            : [
+                {
+                  role: 'system',
+                  content: 'Failed to create conversation. Please try again.',
+                  error: true,
+                  timestamp: new Date().toISOString(),
+                },
+              ]
+        );
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        if (!session) throw new Error('No active session');
+
+        const { data, error } = await supabase.functions.invoke('chat-manager', {
+          body: {
+            action: 'search',
+            query: input,
+            files,
+            firmId: activeFirm.id,
+            conversationId: chatId,
+          },
+          headers: {
+            Authorization: `Bearer ${session.session.access_token}`,
+          },
+        });
+
+        if (error) throw error;
+
+        // If needed, parse `data` if you rely on it before fetching history
+        // but since we're not using `data` directly here, we just fetch history:
+        await fetchHistory(chatId);
+      } catch (error) {
+        console.error('Error during search:', error);
+        setMessages((prev) =>
+          Array.isArray(prev)
+            ? [
+                ...prev,
+                {
+                  role: 'system',
+                  content: 'Failed to perform search. Please try again.',
+                  error: true,
+                  timestamp: new Date().toISOString(),
+                },
+              ]
+            : [
+                {
+                  role: 'system',
+                  content: 'Failed to perform search. Please try again.',
+                  error: true,
+                  timestamp: new Date().toISOString(),
+                },
+              ]
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [activeFirm?.id, ensureConversation, fetchHistory]
+  );
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-hidden relative">
-        <ScrollArea 
-          ref={scrollAreaRef}
-          className="absolute inset-0"
-        >
+        <ScrollArea ref={scrollAreaRef} className="absolute inset-0">
           <div className="pb-40">
             {/* Welcome Message */}
             {Array.isArray(messages) && messages.length === 0 && (
@@ -314,7 +369,7 @@ const ChatPage = () => {
                     AI Assistant
                   </h1>
                   <p className="text-lg text-gray-600 leading-relaxed">
-                    Your intelligent research companion. Upload documents, ask questions, 
+                    Your intelligent research companion. Upload documents, ask questions,
                     and get comprehensive analysis and insights.
                   </p>
                 </div>
@@ -323,21 +378,12 @@ const ChatPage = () => {
 
             {/* Messages */}
             <div className="max-w-2xl mx-auto px-4 pt-2">
-              {Array.isArray(messages) && messages.map((message, index) => {
-                console.log('Rendering message:', message);
-                return (
-                  <Message 
-                    key={message.id || index} 
-                    {...message}
-                  />
-                );
-              })}
-              {isLoading && (
-                <Message 
-                  role="assistant" 
-                  isLoading={true}
-                />
-              )}
+              {Array.isArray(messages) &&
+                messages.map((message, index) => {
+                  console.log('Rendering message:', message);
+                  return <Message key={message.id || index} {...message} />;
+                })}
+              {isLoading && <Message role="assistant" isLoading={true} />}
             </div>
           </div>
         </ScrollArea>
