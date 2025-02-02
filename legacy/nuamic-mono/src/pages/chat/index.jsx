@@ -272,32 +272,38 @@ const ChatPage = () => {
     [activeFirm?.id, ensureConversation]
   );
 
+    // Add this debug log in your handleSearch function in ChatPage.jsx
   const handleSearch = useCallback(
     async (input, files) => {
-      if (!files.length || !activeFirm?.id) return;
+      console.log('Search initiated with:', { input, files }); // Add this debug log
+      
+      if (!activeFirm?.id) {
+        console.log('Search aborted: no active firm');
+        return;
+      }
+
+      // Add a temporary message to show search is in progress
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `search-${Date.now()}`,
+          role: 'system',
+          content: 'Searching through documents...',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
 
       const chatId = await ensureConversation();
       if (!chatId) {
-        setMessages((prev) =>
-          Array.isArray(prev)
-            ? [
-                ...prev,
-                {
-                  role: 'system',
-                  content: 'Failed to create conversation. Please try again.',
-                  error: true,
-                  timestamp: new Date().toISOString(),
-                },
-              ]
-            : [
-                {
-                  role: 'system',
-                  content: 'Failed to create conversation. Please try again.',
-                  error: true,
-                  timestamp: new Date().toISOString(),
-                },
-              ]
-        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'system',
+            content: 'Failed to create conversation. Please try again.',
+            error: true,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
         return;
       }
 
@@ -306,10 +312,17 @@ const ChatPage = () => {
         const { data: session } = await supabase.auth.getSession();
         if (!session) throw new Error('No active session');
 
+        console.log('Sending search request with:', {
+          query: input,
+          files,
+          firmId: activeFirm.id,
+          conversationId: chatId,
+        });
+
         const { data, error } = await supabase.functions.invoke('chat-manager', {
           body: {
             action: 'search',
-            query: input,
+            query: input || 'Please analyze these documents', // Provide default query if input is empty
             files,
             firmId: activeFirm.id,
             conversationId: chatId,
@@ -319,33 +332,26 @@ const ChatPage = () => {
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Search error:', error);
+          throw error;
+        }
 
-        // If needed, parse `data` if you rely on it before fetching history
-        // but since we're not using `data` directly here, we just fetch history:
+        console.log('Search response:', data);
+
+        // Fetch updated history after search completes
         await fetchHistory(chatId);
       } catch (error) {
         console.error('Error during search:', error);
-        setMessages((prev) =>
-          Array.isArray(prev)
-            ? [
-                ...prev,
-                {
-                  role: 'system',
-                  content: 'Failed to perform search. Please try again.',
-                  error: true,
-                  timestamp: new Date().toISOString(),
-                },
-              ]
-            : [
-                {
-                  role: 'system',
-                  content: 'Failed to perform search. Please try again.',
-                  error: true,
-                  timestamp: new Date().toISOString(),
-                },
-              ]
-        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'system',
+            content: `Search failed: ${error.message}. Please try again.`,
+            error: true,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
       } finally {
         setIsLoading(false);
       }

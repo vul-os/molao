@@ -1,32 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { decode as base64Decode } from 'https://deno.land/std@0.168.0/encoding/base64.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getEmbedding, preprocessContent, extractTextContent } from '../shared/embedding.ts'
+import { decode as base64Decode } from 'https://deno.land/std@0.168.0/encoding/base64.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
-}
-
-async function getEmbedding(text: string): Promise<number[]> {
-  const openaiKey = Deno.env.get('OPENAI_API_KEY')
-  if (!openaiKey) throw new Error('OpenAI API key not configured')
-  console.log('Requesting embedding from OpenAI...')
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      input: text,
-      model: 'text-embedding-3-large',
-      encoding_format: 'float'
-    })
-  })
-  if (!response.ok) throw new Error(`OpenAI API error: ${await response.text()}`)
-  const result = await response.json()
-  return result.data[0].embedding
 }
 
 async function getChatCompletion(messages: Array<{ role: string; content: string }>) {
@@ -84,61 +64,6 @@ async function handleFileUpload(supabase, fileData, firmId, userId) {
 
   console.log(`File uploaded and recorded: ${fileData.name}`)
   return { chatFile }
-}
-
-/**
- * Extracts text content from base64-encoded `fileData`.
- */
-function extractTextContent(fileData) {
-  const bytes = base64Decode(fileData.base64)
-  const text = new TextDecoder().decode(bytes)
-  
-  // Make sure we catch any MIME type that has "rtf" in it
-  const lowerType = (fileData.type || '').toLowerCase()
-  
-  if (lowerType.includes('rtf')) {
-    // If the file is RTF, strip out control words
-    return stripRTFFormatting(text)
-  }
-
-  // Otherwise, just return the raw text (for docx, plain text, etc.)
-  switch (lowerType) {
-    case 'application/msword':
-    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-    case 'application/vnd.oasis.opendocument.text':
-    case 'text/plain':
-    default:
-      return text
-  }
-}
-
-/**
- * Removes RTF control words, braces, escaped hex codes, etc.
- * Converts \par to newlines.  This won't perfectly handle complex RTF,
- * but it should produce a more readable plain text version.
- */
-function stripRTFFormatting(rtfText: string): string {
-  return rtfText
-    // Remove RTF control words like \pard, \qc, \fs24, etc.
-    .replace(/\\[A-Za-z]+\d*/g, ' ')
-    // Remove escaped braces
-    .replace(/[{}]/g, '')
-    // Remove escaped hex codes (e.g. \'ab)
-    .replace(/\\'[0-9a-fA-F]{2}/g, '')
-    // Remove Unicode escapes (e.g. \u-1234)
-    .replace(/\\u-?\d+(\?)?/g, ' ')
-    // Replace \par or \pard with newlines
-    .replace(/\\(par[d]?)/gi, '\n')
-    // Collapse multiple spaces/newlines
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function preprocessContent(content: string): string {
-  return content
-    .trim()
-    .replace(/\s+/g, ' ')
-    .slice(0, 8000)
 }
 
 serve(async (req) => {
@@ -271,7 +196,7 @@ serve(async (req) => {
       
       case 'search': {
         if (!data.firmId) throw new Error('Firm ID is required')
-        const { query, files = [], conversationId, similarity_threshold = 0.7, match_count = 5 } = data
+        const { query, files = [], conversationId, similarity_threshold = 0.0, match_count = 3 } = data
         console.log(`Processing search with query: "${query}"`)
         const processedFiles = await Promise.all(
           files.map(file => handleFileUpload(supabase, file, data.firmId, user.id))
@@ -280,33 +205,45 @@ serve(async (req) => {
           console.log(`Processed ${processedFiles.length} file(s) for search`)
         }
         const fileContents = files.map(file => extractTextContent(file))
-        const combinedContent = `${query}\n\nContext:\n${fileContents.join('\n\n')}`
+        // const combinedContent = `${query}\n\nContext From Files:\n${fileContents.join('\n\n')}`
+        const combinedContent = `${query}`
+
         const processedContent = preprocessContent(combinedContent)
         const embedding = await getEmbedding(processedContent)
-        const { data: similarFiles } = await supabase.rpc(
-          'search_similar_files',
-          {
-            query_embedding: embedding,
-            similarity_threshold,
-            match_count
-          }
-        )
+        // console.log("RPC Req search_similar_files", embedding)
+
+        // // Generate a random 1024-dimensional embedding
+        // const embedding = Array.from({ length: 1024 }, () => {
+        //   // random float in [-1, 1], with 4 decimal places
+        //   return parseFloat(((Math.random() * 2) - 1).toFixed(4));
+        // });
+
+        // Call your Supabase RPC function with the random embedding
+        const { data: similarFiles, error } = await supabase.rpc('search_similar_files', {
+          query_embedding: embedding,
+          similarity_threshold: similarity_threshold,
+          match_count: match_count
+        });
+
+        console.log(similarFiles, error)
+
         if (similarFiles && similarFiles.length > 0) {
           console.log(`Found ${similarFiles.length} similar file(s)`)
+          const ctnt = `I have found these relevant documents:\n${similarFiles.map((f: any) => 
+                `- ${f.file_name} (${Math.round(f.similarity * 100)}% relevant)\n`
+                ).join('\n\n')}`
+
           const { data: messageId } = await supabase.rpc(
             'add_chat_message',
             {
               p_conversation_id: conversationId,
-              p_content: `I have found these relevant documents:\n${similarFiles.map((f: any) => 
-                `- ${f.file_name} (${Math.round(f.similarity * 100)}% relevant)\n${f.chunk_text}`
-              ).join('\n\n')}`,
-              p_role: 'system',
+              p_content: ctnt,
+              p_role: 'assistant',
               p_tokens_count: null,
               p_metadata: { type: 'search_results' }
             }
           )
           const allFiles = [
-            ...processedFiles.map(pf => pf.chatFile.id),
             ...similarFiles.map((sf: any) => sf.file_id)
           ]
           await supabase.rpc(
@@ -316,11 +253,12 @@ serve(async (req) => {
               p_file_ids: allFiles
             }
           )
+          return new Response(JSON.stringify({
+            assistantMessageId: messageId,
+            content: ctnt,
+            files: similarFiles 
+          }), { headers: corsHeaders })
         }
-        return new Response(JSON.stringify({ 
-          success: true, 
-          files: similarFiles 
-        }), { headers: corsHeaders })
       }
       
       default:

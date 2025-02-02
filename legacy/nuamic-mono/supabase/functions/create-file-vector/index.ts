@@ -1,76 +1,12 @@
+// main.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getEmbedding, fetchFileContent, preprocessContent } from '../shared/embedding.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
-}
-
-interface FileRecord {
-  id: string
-  file_name: string
-  cdn_path: string
-  mime_type: string
-  file_size: number
-}
-
-async function extractRTFContent(buffer: ArrayBuffer): Promise<string> {
-  // Basic RTF text extraction - removes RTF formatting
-  const text = new TextDecoder().decode(buffer);
-  return text
-    .replace(/[\\][\w-]+/g, '') // Remove RTF commands
-    .replace(/[{}]/g, '')       // Remove braces
-    .replace(/\\\n/g, '\n')     // Handle line breaks
-    .replace(/\\['']/g, "'")    // Handle quotes
-    .replace(/\s+/g, ' ')       // Normalize whitespace
-    .trim();
-}
-
-async function fetchFileContent(cdnUrl: string): Promise<string> {
-  const response = await fetch(cdnUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.statusText}`);
-  }
-  
-  const buffer = await response.arrayBuffer();
-  const text = await extractRTFContent(buffer);
-  return text;
-}
-
-async function getEmbedding(text: string): Promise<number[]> {
-  const openaiKey = Deno.env.get('OPENAI_API_KEY')
-  if (!openaiKey) {
-    throw new Error('OpenAI API key not configured')
-  }
-
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      input: text,
-      model: 'text-embedding-3-large',
-      encoding_format: 'float'
-    })
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`OpenAI API error: ${error}`)
-  }
-
-  const result = await response.json()
-  return result.data[0].embedding
-}
-
-function preprocessContent(content: string): string {
-  return content
-    .trim()
-    .replace(/\s+/g, ' ')
-    .slice(0, 8000) // OpenAI's token limit
 }
 
 serve(async (req: Request) => {
@@ -111,18 +47,11 @@ serve(async (req: Request) => {
       throw new Error('File not found')
     }
 
-    // Verify file is RTF
-    if (!file.mime_type.toLowerCase().includes('rtf')) {
-      throw new Error('File must be an RTF document')
-    }
-
-    // Fetch and process RTF content directly from CDN
-    const fileContent = await fetchFileContent(file.cdn_path)
-    
-    // Preprocess content
+    // Fetch and process file content
+    const fileContent = await fetchFileContent(file.cdn_path, file.mime_type)
     const processedContent = preprocessContent(fileContent)
     
-    // Generate embedding
+    // Generate embedding using Voyage API
     const embedding = await getEmbedding(processedContent)
 
     // Save embedding
@@ -130,7 +59,7 @@ serve(async (req: Request) => {
       .from('file_vectors')
       .insert({
         file_id: file.id,
-        model: 'text-embedding-3-large',
+        model: 'voyage-law-2',
         embedding,
         chunk_text: processedContent,
         metadata: {
@@ -178,3 +107,7 @@ serve(async (req: Request) => {
     )
   }
 })
+
+// curl -X POST 'https://oedmyvlymptorkupspem.supabase.co/functions/v1/create-file-vector' \
+//   -H "Content-Type: application/json" \
+//   -d '{"file_id": "625d8759-0b51-42a1-bbd0-c0ff06544333"}'

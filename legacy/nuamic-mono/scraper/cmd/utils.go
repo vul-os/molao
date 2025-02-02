@@ -89,16 +89,29 @@ func ExtractDetailsFromURL(caseURL string) (string, string, string, error) {
 	}
 
 	segments := strings.Split(parsedURL.Path, "/")
-	// Expected structure: /za/cases/{FOLDER}/{YEAR}/{CASE}.html
-	if len(segments) < 5 {
-		return "", "", "", fmt.Errorf("unexpected URL structure for '%s'", caseURL)
+
+	// Get folder (index 3)
+	folder := ""
+	if len(segments) > 3 {
+		folder = segments[3]
 	}
 
-	folder := segments[3]
-	year := segments[4]
-	caseFile := segments[5]
+	// Get year (index 4)
+	year := ""
+	if len(segments) > 4 {
+		year = segments[4]
+	}
+
+	// Get case file (index 5)
+	caseFile := ""
+	if len(segments) > 5 {
+		caseFile = segments[5]
+	}
+
+	// Check if we got all required components
 	if folder == "" || year == "" || caseFile == "" {
-		return "", "", "", fmt.Errorf("empty folder, year, or case number extracted from URL '%s'", caseURL)
+		// Return empty strings instead of error if segments are missing
+		return folder, year, strings.TrimSuffix(caseFile, path.Ext(caseFile)), nil
 	}
 
 	// Remove file extension from caseFile
