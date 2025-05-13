@@ -1,19 +1,23 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Dict
-import os
-import requests
+from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification
+import torch
+import torch.nn.functional as F
 
 app = FastAPI()
 
-HF_API_KEY = os.getenv("HF_API_KEY")  # Set this as an env variable in Cloud Run
-EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
-RERANKER_MODEL = "BAAI/bge-reranker-large"
+# ---------- Load Models ----------
+embedding_model_name = "BAAI/bge-large-en-v1.5"
+reranker_model_name = "BAAI/bge-reranker-large"
 
-HF_HEADERS = {
-    "Authorization": f"Bearer {HF_API_KEY}",
-    "Content-Type": "application/json"
-}
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+embedding_tokenizer = AutoTokenizer.from_pretrained(embedding_model_name)
+embedding_model = AutoModel.from_pretrained(embedding_model_name).to(device).eval()
+
+reranker_tokenizer = AutoTokenizer.from_pretrained(reranker_model_name)
+reranker_model = AutoModelForSequenceClassification.from_pretrained(reranker_model_name).to(device).eval()
 
 # ---------- Request & Response Models ----------
 class EmbeddingRequest(BaseModel):
@@ -34,42 +38,66 @@ class RerankedDocument(BaseModel):
 class RerankResponse(BaseModel):
     results: List[RerankedDocument]
 
-# ---------- Embedding ----------
-@app.post("/embeddings", response_model=EmbeddingResponse)
-async def generate_embeddings(request: EmbeddingRequest):
-    response = requests.post(
-        f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBEDDING_MODEL}",
-        headers=HF_HEADERS,
-        json={"inputs": request.input}
+# ---------- Embedding Helper ----------
+def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
+    prefixed = [f"{prefix}{t}" for t in texts]
+    inputs = embedding_tokenizer(
+        prefixed,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=512,
     )
-    if response.status_code != 200:
-        return {"data": []}
-    data = response.json()
-    # Hugging Face returns one embedding if input is single string; normalize to always be list of lists
-    embeddings = data if isinstance(data[0], list) else [data]
-    return EmbeddingResponse(data=[{"embedding": emb} for emb in embeddings])
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = embedding_model(**inputs)
+        embeddings = outputs.last_hidden_state[:, 0]  # CLS token
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+    return embeddings.cpu()
 
-# ---------- Reranking ----------
-@app.post("/rerank", response_model=RerankResponse)
-async def rerank_documents(request: RerankRequest):
-    pairs = [
-        {"inputs": {"query": request.query, "passage": doc["text"]}}
-        for doc in request.documents
+# ---------- Reranking Helper ----------
+def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument]:
+    pairs = []
+    ids = []
+    for doc in documents:
+        doc_id = doc["id"]
+        file_name = doc.get("file_name", "Unknown Case")
+        doc_text = f"{file_name} - Legal Document Section\n\n{doc['text']}"
+        pairs.append((query, doc_text))
+        ids.append(doc_id)
+
+    inputs = reranker_tokenizer.batch_encode_plus(
+        pairs,
+        padding=True,
+        truncation=True,
+        return_tensors="pt",
+        max_length=512,
+    )
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        scores = reranker_model(**inputs).logits.squeeze(-1)
+
+    sorted_results = sorted(
+        zip(ids, [doc["text"] for doc in documents], scores.tolist()),
+        key=lambda x: x[2],
+        reverse=True,
+    )
+
+    return [
+        RerankedDocument(id=id_, text=text, score=score)
+        for id_, text, score in sorted_results
     ]
 
-    reranked = []
-    for idx, pair in enumerate(pairs):
-        response = requests.post(
-            f"https://api-inference.huggingface.co/models/{RERANKER_MODEL}",
-            headers=HF_HEADERS,
-            json=pair
-        )
-        if response.status_code == 200:
-            score = response.json()[0]["score"]
-            reranked.append({
-                "id": request.documents[idx]["id"],
-                "text": request.documents[idx]["text"],
-                "score": score
-            })
-    sorted_docs = sorted(reranked, key=lambda d: d["score"], reverse=True)
-    return RerankResponse(results=sorted_docs)
+# ---------- Endpoints ----------
+@app.post("/embeddings", response_model=EmbeddingResponse)
+async def generate_embeddings(request: EmbeddingRequest):
+    embeddings = embed_texts(request.input, prefix="search_query: ")
+    return EmbeddingResponse(
+        data=[{"embedding": emb.tolist()} for emb in embeddings]
+    )
+
+@app.post("/rerank", response_model=RerankResponse)
+async def rerank_documents(request: RerankRequest):
+    results = rerank(request.query, request.documents)
+    return RerankResponse(results=results)
