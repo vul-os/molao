@@ -9,7 +9,7 @@ import uvicorn
 import logging
 from pathlib import Path
 from google.cloud import storage
-
+# test comment 5
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -54,15 +54,19 @@ RERANKER_MODEL_PATH = LOCAL_MODEL_DIR / "bge-reranker-large"
 
 # ---------- Load Embedding Model ----------
 logger.info("Models embedding started.")
-embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
-embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH)
-embedding_model.eval()
+# embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
+# embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH)
+# embedding_model.eval()
+embedding_tokenizer = None
+embedding_model = None
 
 # ---------- Load Reranker Model ----------
 logger.info("Models reranker started.")
-reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
-reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH)
-reranker_model.eval()
+# reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
+# reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH)
+# reranker_model.eval()
+reranker_tokenizer = None
+reranker_model = None
 
 # ---------- Set Device ----------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,10 +112,44 @@ class RerankedDocument(BaseModel):
 class RerankResponse(BaseModel):
     results: List[RerankedDocument]
 
+def get_embedding_model():
+    global embedding_tokenizer, embedding_model
+    if embedding_tokenizer is None or embedding_model is None:
+        logger.info("Loading embedding model...")
+        embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
+        embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
+        embedding_model.eval()
+    return embedding_tokenizer, embedding_model
+
+def get_reranker_model():
+    global reranker_tokenizer, reranker_model
+    if reranker_tokenizer is None or reranker_model is None:
+        logger.info("Loading reranker model...")
+        reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
+        reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
+        reranker_model.eval()
+    return reranker_tokenizer, reranker_model
+
 # ---------- Embedding Helper ----------
+# def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
+#     prefixed = [f"{prefix}{t}" for t in texts]
+#     inputs = embedding_tokenizer(
+#         prefixed,
+#         return_tensors="pt",
+#         padding=True,
+#         truncation=True,
+#         max_length=512,
+#     )
+#     inputs = {k: v.to(device) for k, v in inputs.items()}
+#     with torch.no_grad():
+#         outputs = embedding_model(**inputs)
+#         embeddings = outputs.last_hidden_state[:, 0]
+#         embeddings = F.normalize(embeddings, p=2, dim=1)
+#     return embeddings.cpu()
 def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
+    tokenizer, model = get_embedding_model()
     prefixed = [f"{prefix}{t}" for t in texts]
-    inputs = embedding_tokenizer(
+    inputs = tokenizer(
         prefixed,
         return_tensors="pt",
         padding=True,
@@ -120,13 +158,14 @@ def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
-        outputs = embedding_model(**inputs)
+        outputs = model(**inputs)
         embeddings = outputs.last_hidden_state[:, 0]
         embeddings = F.normalize(embeddings, p=2, dim=1)
     return embeddings.cpu()
 
 # ---------- Reranking Helper ----------
 def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument]:
+    tokenizer, model = get_reranker_model()
     pairs = []
     ids = []
     for doc in documents:
