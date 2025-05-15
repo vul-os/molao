@@ -10,7 +10,7 @@ app = FastAPI()
 # ---------- Load Models ----------
 embedding_model_name = "BAAI/bge-large-en-v1.5"
 reranker_model_name = "BAAI/bge-reranker-large"
-
+#  test comment
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 embedding_tokenizer = AutoTokenizer.from_pretrained(embedding_model_name)
