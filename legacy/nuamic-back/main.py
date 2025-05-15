@@ -5,24 +5,23 @@ from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassific
 import torch
 import torch.nn.functional as F
 import os
-import uvicorn
 import logging
 from pathlib import Path
 from google.cloud import storage
-# test comment 5
+
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 logger.info("Starting FastAPI service...")
 
+# ---------- Environment Variables ----------
 BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
 EMBEDDING_MODEL_GCS_PATH = "models/bge-large-en-v1.5"
 RERANKER_MODEL_GCS_PATH = "models/bge-reranker-large"
-LOCAL_MODEL_DIR = Path("/tmp/models")  # Cloud Run supports /tmp for writable storage
+LOCAL_MODEL_DIR = Path("/tmp/models")  # Cloud Run writable directory
 
+# ---------- GCS Download Logic ----------
 def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
-    """Recursively download a GCS folder to a local path."""
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix)
@@ -34,7 +33,7 @@ def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
         blob.download_to_filename(dest_path)
         logger.info(f"Downloaded {blob.name} to {dest_path}")
 
-# Download models on startup
+# Download models on container start
 logger.info("Downloading embedding model...")
 download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-large-en-v1.5")
 
@@ -44,40 +43,34 @@ download_gcs_folder(BUCKET_NAME, RERANKER_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge
 EMBEDDING_MODEL_PATH = LOCAL_MODEL_DIR / "bge-large-en-v1.5"
 RERANKER_MODEL_PATH = LOCAL_MODEL_DIR / "bge-reranker-large"
 
+# ---------- Device ----------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ---------- Load Environment Variables ----------
-# The models are now mounted under /models (Cloud Run mount path)
-# EMBEDDING_MODEL_PATH = Path("nuamic-models/models/bge-large-en-v1.5").resolve()
-# RERANKER_MODEL_PATH = Path("nuamic-models/models/bge-reranker-large").resolve()
-# EMBEDDING_MODEL_PATH = Path("models/bge-large-en-v1.5").resolve()
-# RERANKER_MODEL_PATH = Path("models/bge-reranker-large").resolve()
-
-# ---------- Load Embedding Model ----------
-logger.info("Models embedding started.")
-# embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
-# embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH)
-# embedding_model.eval()
+# ---------- Lazy Model Globals ----------
 embedding_tokenizer = None
 embedding_model = None
-
-# ---------- Load Reranker Model ----------
-logger.info("Models reranker started.")
-# reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
-# reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH)
-# reranker_model.eval()
 reranker_tokenizer = None
 reranker_model = None
 
-# ---------- Set Device ----------
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-embedding_model.to(device)
-reranker_model.to(device)
+def get_embedding_model():
+    global embedding_tokenizer, embedding_model
+    if embedding_tokenizer is None or embedding_model is None:
+        logger.info("Loading embedding model...")
+        embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
+        embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
+        embedding_model.eval()
+    return embedding_tokenizer, embedding_model
 
-logger.info("Models loaded successfully.")
-logger.info(f"Embedding model path: {EMBEDDING_MODEL_PATH}")
-logger.info(f"Reranker model path: {RERANKER_MODEL_PATH}")
+def get_reranker_model():
+    global reranker_tokenizer, reranker_model
+    if reranker_tokenizer is None or reranker_model is None:
+        logger.info("Loading reranker model...")
+        reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
+        reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
+        reranker_model.eval()
+    return reranker_tokenizer, reranker_model
 
-# ---------- Debug: Directory Listing ----------
+# ---------- Debug: Confirm Contents ----------
 if EMBEDDING_MODEL_PATH.exists():
     logger.info("Embedding model directory contents:")
     logger.info(os.listdir(EMBEDDING_MODEL_PATH))
@@ -112,40 +105,7 @@ class RerankedDocument(BaseModel):
 class RerankResponse(BaseModel):
     results: List[RerankedDocument]
 
-def get_embedding_model():
-    global embedding_tokenizer, embedding_model
-    if embedding_tokenizer is None or embedding_model is None:
-        logger.info("Loading embedding model...")
-        embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
-        embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
-        embedding_model.eval()
-    return embedding_tokenizer, embedding_model
-
-def get_reranker_model():
-    global reranker_tokenizer, reranker_model
-    if reranker_tokenizer is None or reranker_model is None:
-        logger.info("Loading reranker model...")
-        reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
-        reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
-        reranker_model.eval()
-    return reranker_tokenizer, reranker_model
-
-# ---------- Embedding Helper ----------
-# def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
-#     prefixed = [f"{prefix}{t}" for t in texts]
-#     inputs = embedding_tokenizer(
-#         prefixed,
-#         return_tensors="pt",
-#         padding=True,
-#         truncation=True,
-#         max_length=512,
-#     )
-#     inputs = {k: v.to(device) for k, v in inputs.items()}
-#     with torch.no_grad():
-#         outputs = embedding_model(**inputs)
-#         embeddings = outputs.last_hidden_state[:, 0]
-#         embeddings = F.normalize(embeddings, p=2, dim=1)
-#     return embeddings.cpu()
+# ---------- Embedding Logic ----------
 def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
     tokenizer, model = get_embedding_model()
     prefixed = [f"{prefix}{t}" for t in texts]
@@ -163,11 +123,12 @@ def embed_texts(texts: List[str], prefix: str = "") -> torch.Tensor:
         embeddings = F.normalize(embeddings, p=2, dim=1)
     return embeddings.cpu()
 
-# ---------- Reranking Helper ----------
+# ---------- Rerank Logic ----------
 def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument]:
     tokenizer, model = get_reranker_model()
     pairs = []
     ids = []
+
     for doc in documents:
         doc_id = doc["id"]
         file_name = doc.get("file_name", "Unknown Case")
@@ -175,7 +136,7 @@ def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument
         pairs.append((query, doc_text))
         ids.append(doc_id)
 
-    inputs = reranker_tokenizer.batch_encode_plus(
+    inputs = tokenizer.batch_encode_plus(
         pairs,
         padding=True,
         truncation=True,
@@ -183,9 +144,8 @@ def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument
         max_length=512,
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}
-
     with torch.no_grad():
-        scores = reranker_model(**inputs).logits.squeeze(-1).cpu()
+        scores = model(**inputs).logits.squeeze(-1).cpu()
 
     sorted_results = sorted(
         zip(ids, [doc["text"] for doc in documents], scores.tolist()),
@@ -209,20 +169,11 @@ async def rerank_documents(request: RerankRequest):
     results = rerank(request.query, request.documents)
     return RerankResponse(results=results)
 
-# ---------- Entrypoint ----------
-# if __name__ == "__main__":
-#     port = int(os.getenv("PORT", 8080))
-#     import uvicorn
-#     uvicorn.run("main:app", host="0.0.0.0", port=port)
-
 @app.get("/")
 def read_root():
     return {"message": "Hello from Cloud Run!"}
 
-# if __name__ == "__main__":
-#     port = int(os.environ.get("PORT", 8080))  # ✅ Required for Cloud Run
-#     uvicorn.run("main:app", host="0.0.0.0", port=port)
-
+# ---------- Entrypoint ----------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
