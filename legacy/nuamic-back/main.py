@@ -8,17 +8,47 @@ import os
 import uvicorn
 import logging
 from pathlib import Path
-# test comment 4
+from google.cloud import storage
+
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 logger.info("Starting FastAPI service...")
 
+BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
+EMBEDDING_MODEL_GCS_PATH = "models/bge-large-en-v1.5"
+RERANKER_MODEL_GCS_PATH = "models/bge-reranker-large"
+LOCAL_MODEL_DIR = Path("/tmp/models")  # Cloud Run supports /tmp for writable storage
+
+def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
+    """Recursively download a GCS folder to a local path."""
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=prefix)
+
+    for blob in blobs:
+        rel_path = Path(blob.name).relative_to(prefix)
+        dest_path = local_path / rel_path
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        blob.download_to_filename(dest_path)
+        logger.info(f"Downloaded {blob.name} to {dest_path}")
+
+# Download models on startup
+logger.info("Downloading embedding model...")
+download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-large-en-v1.5")
+
+logger.info("Downloading reranker model...")
+download_gcs_folder(BUCKET_NAME, RERANKER_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-reranker-large")
+
+EMBEDDING_MODEL_PATH = LOCAL_MODEL_DIR / "bge-large-en-v1.5"
+RERANKER_MODEL_PATH = LOCAL_MODEL_DIR / "bge-reranker-large"
+
+
 # ---------- Load Environment Variables ----------
 # The models are now mounted under /models (Cloud Run mount path)
-EMBEDDING_MODEL_PATH = Path("nuamic-models/models/bge-large-en-v1.5").resolve()
-RERANKER_MODEL_PATH = Path("nuamic-models/models/bge-reranker-large").resolve()
+# EMBEDDING_MODEL_PATH = Path("nuamic-models/models/bge-large-en-v1.5").resolve()
+# RERANKER_MODEL_PATH = Path("nuamic-models/models/bge-reranker-large").resolve()
 # EMBEDDING_MODEL_PATH = Path("models/bge-large-en-v1.5").resolve()
 # RERANKER_MODEL_PATH = Path("models/bge-reranker-large").resolve()
 
