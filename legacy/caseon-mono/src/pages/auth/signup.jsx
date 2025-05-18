@@ -1,23 +1,25 @@
 import React, { useState } from 'react';
-import { Layout } from '@/components/layout/auth-layout';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAuth } from '@/context/auth-context'; // Import the auth context
+import { useAuth } from '@/context/auth-context';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Mail, 
-  Eye,
-  EyeOff,
   Lock,
   Phone,
+  User,
+  AlertCircle,
+  Scale,
+  BookText
 } from 'lucide-react';
 
 const SignUpPage = () => {
   const navigate = useNavigate();
-  const { signUp, signInWithGoogle } = useAuth(); // Use the auth context
-  const [showPassword, setShowPassword] = useState(false);
+  const { signUp, signInWithGoogle } = useAuth();
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -106,22 +108,46 @@ const SignUpPage = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex min-h-[calc(100vh-4rem)]">
-        <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-20 xl:px-24">
-          <div className="mx-auto w-full max-w-sm lg:w-96">
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-                  Create an account
-                </h2>
-              </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
+      <div className="w-full max-w-md space-y-8">
+        {/* Logo/Brand */}
+        <div className="text-center">
+          <div className="flex justify-center items-center gap-2 mb-2">
+            <img 
+              src="/icon.svg" 
+              alt="CaseOn Logo" 
+              className="h-8 w-8" 
+            />
+            <h1 className="text-3xl font-serif font-bold tracking-tight text-gray-900">
+              CaseOn
+            </h1>
+          </div>
+          <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">
+            LEGAL INTELLIGENCE
+          </p>
+        </div>
 
-              <div className="space-y-4">
+        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-8">
+            <CardTitle className="text-2xl font-serif font-semibold tracking-tight text-gray-900">
+              Create your account
+            </CardTitle>
+            <CardDescription className="text-gray-600 font-medium">
+              Join CaseOn to access advanced legal research tools
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {errors.submit && (
+              <Alert variant="destructive" className="mb-6 border-l-4 border-red-500 bg-red-50">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="font-medium">{errors.submit}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-6">
                 <Button 
                   variant="outline" 
-                  className="w-full flex items-center justify-center gap-2"
-                  type="button"
+                className="w-full flex items-center justify-center gap-2 h-12 border-gray-200 bg-white hover:bg-gray-50 transition-colors duration-200 font-medium"
                   onClick={handleGoogleSignUp}
                   disabled={isLoading}
                 >
@@ -130,197 +156,188 @@ const SignUpPage = () => {
                     alt="Google" 
                     className="w-5"
                   />
-                  Sign up with Google
+                Continue with Google
                 </Button>
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
+                  <span className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">or</span>
-                  </div>
+                  <span className="px-2 bg-white text-gray-500 font-medium tracking-wide">OR</span>
                 </div>
               </div>
 
-              {errors.submit && (
-                <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
-                  {errors.submit}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 tracking-wide">First Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <Input
                       id="firstName"
                       name="firstName"
                       value={formData.firstName}
                       onChange={handleInputChange}
                       required
-                      className={errors.firstName ? "border-red-500" : ""}
+                        className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.firstName ? "border-red-500" : ""}`}
                       disabled={isLoading}
+                        placeholder="Enter first name"
                     />
+                    </div>
                     {errors.firstName && (
-                      <p className="text-sm text-red-500">{errors.firstName}</p>
+                      <p className="text-sm text-red-500 font-medium">{errors.firstName}</p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName" className="text-sm font-medium text-gray-700 tracking-wide">Last Name</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <Input
                       id="lastName"
                       name="lastName"
                       value={formData.lastName}
                       onChange={handleInputChange}
                       required
-                      className={errors.lastName ? "border-red-500" : ""}
+                        className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.lastName ? "border-red-500" : ""}`}
                       disabled={isLoading}
+                        placeholder="Enter last name"
                     />
+                    </div>
                     {errors.lastName && (
-                      <p className="text-sm text-red-500">{errors.lastName}</p>
+                      <p className="text-sm text-red-500 font-medium">{errors.lastName}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 tracking-wide">Email address</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <Input
                       id="email"
                       name="email"
                       type="email"
-                      className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
+                      autoComplete="email"
+                      className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.email ? "border-red-500" : ""}`}
                       value={formData.email}
                       onChange={handleInputChange}
                       required
                       disabled={isLoading}
+                      placeholder="Enter your email"
                     />
                   </div>
                   {errors.email && (
-                    <p className="text-sm text-red-500">{errors.email}</p>
+                    <p className="text-sm text-red-500 font-medium">{errors.email}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700 tracking-wide">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <Input
                       id="password"
                       name="password"
-                      type={showPassword ? "text" : "password"}
-                      className={`pl-10 ${errors.password ? "border-red-500" : ""}`}
+                      type="password"
+                      autoComplete="new-password"
+                      className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.password ? "border-red-500" : ""}`}
                       value={formData.password}
                       onChange={handleInputChange}
                       required
                       disabled={isLoading}
+                      placeholder="Create a password"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-500"
-                      disabled={isLoading}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
                   </div>
                   {errors.password && (
-                    <p className="text-sm text-red-500">{errors.password}</p>
+                    <p className="text-sm text-red-500 font-medium">{errors.password}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 tracking-wide">Phone Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                     <Input
                       id="phone"
                       name="phone"
                       type="tel"
-                      className={`pl-10 ${errors.phone ? "border-red-500" : ""}`}
+                      className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.phone ? "border-red-500" : ""}`}
                       value={formData.phone}
                       onChange={handleInputChange}
                       required
                       disabled={isLoading}
+                      placeholder="Enter phone number"
                     />
                   </div>
                   {errors.phone && (
-                    <p className="text-sm text-red-500">{errors.phone}</p>
+                    <p className="text-sm text-red-500 font-medium">{errors.phone}</p>
                   )}
                 </div>
 
-                <p className="text-sm text-gray-500">
-                  By creating an account, you agree StorNxtDoor may contact you using the above number and email, including through automated technology, SMS, and recorded messages. Consent is not a condition of purchase.
-                </p>
-
-                <div className="flex items-center space-x-2">
+                <div className="flex items-start space-x-3">
                   <Checkbox 
-                    id="terms" 
+                    id="agreeToTerms"
                     checked={formData.agreeToTerms}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({ ...prev, agreeToTerms: checked }))
+                    onCheckedChange={(checked) => {
+                      setFormData(prev => ({ ...prev, agreeToTerms: checked }));
+                      if (errors.agreeToTerms) {
+                        setErrors(prev => ({ ...prev, agreeToTerms: undefined }));
                     }
-                    className={errors.agreeToTerms ? "border-red-500" : ""}
+                    }}
+                    className={`mt-1 ${errors.agreeToTerms ? "border-red-500" : ""}`}
                     disabled={isLoading}
                   />
+                  <div className="space-y-1">
                   <label
-                    htmlFor="terms"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      htmlFor="agreeToTerms"
+                      className="text-sm font-medium text-gray-700 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     I agree to the{' '}
-                    <a href="/terms" className="text-blue-600 hover:underline">
+                      <a href="#" className="text-indigo-600 hover:text-indigo-500 font-medium">
                       Terms of Service
-                    </a>
-                    {' '}and{' '}
-                    <a href="/privacy" className="text-blue-600 hover:underline">
+                      </a>{' '}
+                      and{' '}
+                      <a href="#" className="text-indigo-600 hover:text-indigo-500 font-medium">
                       Privacy Policy
                     </a>
                   </label>
+                    {errors.agreeToTerms && (
+                      <p className="text-sm text-red-500 font-medium">{errors.agreeToTerms}</p>
+                    )}
+                  </div>
                 </div>
-                {errors.agreeToTerms && (
-                  <p className="text-sm text-red-500">{errors.agreeToTerms}</p>
-                )}
 
                 <Button 
                   type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium tracking-wide transition-colors duration-200"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                  {isLoading ? 'Creating account...' : 'Create account'}
                 </Button>
               </form>
 
-              <div className="text-center">
-                <span className="text-sm text-gray-600">Already have an account?{' '}</span>
+              <div className="text-center pt-2">
+                <span className="text-sm text-gray-600 font-medium">Already have an account?{' '}</span>
                 <Button
                   variant="link"
-                  className="text-blue-600 p-0"
-                  onClick={() => navigate('/login')}
+                  className="text-gray-900 hover:text-gray-700 p-0 h-auto font-medium"
+                  onClick={() => navigate('/signin')}
                   disabled={isLoading}
                 >
-                  Log in
+                  Sign in
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Right side image */}
-        <div className="hidden lg:block relative w-0 flex-1">
-          <img
-            className="absolute inset-0 h-full w-full object-cover"
-            src="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image_2000x.webp"
-            alt="Neighbourhood Scene"
-          />
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500 font-medium tracking-wide">
+          © {new Date().getFullYear()} CaseOn. All rights reserved.
         </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 

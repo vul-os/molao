@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, createContext } from 'react';
 import { supabase } from '@/services/supabase-client';
 
-// Create AuthContext
 const AuthContext = createContext(undefined);
 
-// Add useAuth hook
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -15,38 +13,109 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [hosts, setHosts] = useState([]);
-  const [activeHost, setActiveHost] = useState(null);
-  const [hasLoadedHosts, setHasLoadedHosts] = useState(false);
+  const [firms, setFirms] = useState([]);
+  const [activeFirm, setActiveFirm] = useState(null);
+  const [hasLoadedFirms, setHasLoadedFirms] = useState(false);
+  const [recentChats, setRecentChats] = useState([]);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
 
-  const fetchHosts = useCallback(async () => {
+  const getFirmBySlug = useCallback((slug) => {
+    return firms.find(firm => firm.slug === slug);
+  }, [firms]);
+
+  const fetchFirms = useCallback(async () => {
     if (!user) {
-      setHasLoadedHosts(true);
+      setHasLoadedFirms(true);
       return;
     }
     
     try {
       const { data, error } = await supabase
-      .from('hosts')
-      .select(`
-          *
-      `)
+        .from('firms')
+        .select('*');
 
       if (error) throw error;
-      console.log("data", data)
-      setHosts(data || []);
-      // Set first host as active if none is selected and there are hosts
-      if (data && data.length > 0 && !activeHost) {
-        setActiveHost(data[0]);
+      setFirms(data || []);
+      if (data && data.length > 0 && !activeFirm) {
+        setActiveFirm(data[0]);
       }
     } catch (error) {
-      console.error('Error fetching hosts:', error);
+      console.error('Error fetching firms:', error);
     } finally {
-      setHasLoadedHosts(true);
+      setHasLoadedFirms(true);
     }
-  }, [user, activeHost]);
+  }, [user, activeFirm]);
+
+  const fetchRecentChats = useCallback(async () => {
+    if (!user || !activeFirm) return;
+
+    setIsLoadingChats(true);
+    try {
+      const { data, error } = await supabase.rpc('get_recent_chats', {
+        p_firm_id: activeFirm.id
+      });
+      
+      if (error) throw error;
+      setRecentChats(data || []);
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    } finally {
+      setIsLoadingChats(false);
+    }
+  }, [user, activeFirm]);
+
+  const createChat = useCallback(async () => {
+    if (!user || !activeFirm) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .insert({
+          firm_id: activeFirm.id,
+          created_by: user.id,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setRecentChats(prev => [data, ...prev]);
+      return data;
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      return null;
+    }
+  }, [user, activeFirm]);
+
+  const archiveChat = useCallback(async (chatId) => {
+    try {
+      const { error } = await supabase
+        .from('chat_conversations')
+        .update({ status: 'archived' })
+        .eq('id', chatId);
+
+      if (error) throw error;
+      setRecentChats(prev => prev.filter(chat => chat.id !== chatId));
+    } catch (error) {
+      console.error('Error archiving chat:', error);
+    }
+  }, []);
+
+  const switchFirm = useCallback((firmId) => {
+    const newActiveFirm = firms.find(firm => firm.id === firmId);
+    if (newActiveFirm) {
+      setActiveFirm(newActiveFirm);
+    }
+    return newActiveFirm;
+  }, [firms]);
+
+  const switchFirmBySlug = useCallback((slug) => {
+    const newActiveFirm = firms.find(firm => firm.slug === slug);
+    if (newActiveFirm) {
+      setActiveFirm(newActiveFirm);
+    }
+  }, [firms]);
 
   const handleAuthStateChange = useCallback((event, session) => {
     console.log('Auth state changed:', event);
@@ -54,66 +123,22 @@ export function AuthProvider({ children }) {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user);
-          setSession(session);
-          setHasLoadedHosts(false);
+          setHasLoadedFirms(false);
         }
       } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setUser(null);
-        setSession(null);
-        setHosts([]);
-        setActiveHost(null);
-        setHasLoadedHosts(true);
+        setFirms([]);
+        setActiveFirm(null);
+        setRecentChats([]);
+        setHasLoadedFirms(true);
       } else if (event === 'USER_UPDATED') {
         setUser(session?.user ?? null);
-        setSession(session);
       }
     }, 0);
   }, []);
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      setLoading(true);
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) throw error;
-        if (session) {
-          setUser(session.user);
-          setSession(session);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [handleAuthStateChange]);
-
-  useEffect(() => {
-    if (!hasLoadedHosts) {
-      fetchHosts();
-    }
-  }, [user, hasLoadedHosts, fetchHosts]);
-
-  const switchHostBySlug = (slug) => {
-    const newActiveHost = hosts.find(host => host.slug === slug);
-    if (newActiveHost) {
-      setActiveHost(newActiveHost);
-    }
-  };
-
-  const getHostBySlug = useCallback((slug) => {
-    return hosts.find(host => host.slug === slug);
-  }, [hosts]);
-
-  const signUp = async (email, password) => {
+  // Auth methods
+  const signUp = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -123,18 +148,34 @@ export function AuthProvider({ children }) {
     });
     if (error) throw error;
     return data;
-  };
+  }, []);
 
-  const signIn = async (email, password) => {
+  const signIn = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
     if (error) throw error;
     return data.user;
-  };
+  }, []);
 
-  const forgotPassword = async (email) => {
+  const signInWithGoogle = useCallback(async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      }
+    });
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }, []);
+
+  const forgotPassword = useCallback(async (email) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/update-password`,
@@ -144,25 +185,9 @@ export function AuthProvider({ children }) {
     } catch (error) {
       return { error };
     }
-  };
+  }, []);
 
-  const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      }
-    });
-    if (error) throw error;
-    return data;
-  };
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  };
-
-  const updateUserPassword = async (new_password) => {
+  const updateUserPassword = useCallback(async (new_password) => {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
@@ -180,35 +205,89 @@ export function AuthProvider({ children }) {
       console.error('Password update failed:', error);
       return { data: null, error };
     }
-  };
+  }, []);
 
-  const switchHost = (hostId) => {
-    const newActiveHost = hosts.find(host => host.id === hostId);
-    if (newActiveHost) {
-      setActiveHost(newActiveHost);
+  useEffect(() => {
+    const initializeAuth = async () => {
+      setLoading(true);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (session) {
+          setUser(session.user);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [handleAuthStateChange]);
+
+  useEffect(() => {
+    if (!hasLoadedFirms) {
+      fetchFirms();
     }
-    return newActiveHost;
-  };
+  }, [user, hasLoadedFirms, fetchFirms]);
+
+  useEffect(() => {
+    if (activeFirm) {
+      fetchRecentChats();
+    }
+  }, [activeFirm, fetchRecentChats]);
 
   const contextValue = useMemo(() => ({
     loading,
     user,
-    session,
-    hosts,
-    activeHost,
-    hasLoadedHosts,
-    setHasLoadedHosts,
-    switchHost,
-    switchHostBySlug,
-    getHostBySlug,
+    firms,
+    activeFirm,
+    hasLoadedFirms,
+    recentChats,
+    isLoadingChats,
+    setHasLoadedFirms,
+    switchFirm,
+    switchFirmBySlug,
+    getFirmBySlug,
+    createChat,
+    archiveChat,
+    fetchRecentChats,
     signUp,
     signIn,
     signInWithGoogle,
     signOut,
     forgotPassword,
     updateUserPassword,
-    fetchHosts,
-  }), [loading, user, session, hosts, activeHost, hasLoadedHosts, getHostBySlug]);
+    fetchFirms,
+  }), [
+    loading,
+    user,
+    firms,
+    activeFirm,
+    hasLoadedFirms,
+    recentChats,
+    isLoadingChats,
+    setHasLoadedFirms,
+    switchFirm,
+    switchFirmBySlug,
+    getFirmBySlug,
+    createChat,
+    archiveChat,
+    fetchRecentChats,
+    signUp,
+    signIn,
+    signInWithGoogle,
+    signOut,
+    forgotPassword,
+    updateUserPassword,
+    fetchFirms
+  ]);
 
   return (
     <AuthContext.Provider value={contextValue}>

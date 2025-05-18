@@ -1,9 +1,7 @@
 import React from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Menu, Settings, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Settings, LogOut, Users, CreditCard, ChevronDown, Scale, Building2, Briefcase, UserCircle } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { useToast } from '@/hooks/use-toast';
-import Logo from '@/assets/icon.svg';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,64 +9,39 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import HostDropdown from './host-dropdown';
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 
-const TopBar = ({ 
-  onMenuClick,
-  showMobileMenu = true,
-  onCreateHost 
-}) => {
+const TOP_BAR_HEIGHT = '4rem';
+
+const TopBar = () => {
   const { 
     user, 
     signOut, 
-    hosts, 
-    activeHost,
-    switchHost
+    firms, 
+    activeFirm,
+    switchFirm
   } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     try {
       await signOut();
       navigate('/signin');
-      toast({
-        title: "Signed out successfully",
-        duration: 2000,
-      });
     } catch (error) {
-      toast({
-        title: "Error signing out",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("Error signing out:", error);
     }
   };
 
-  const handleSwitchHost = (hostId) => {
+  const handleSwitchFirm = (firmId) => {
     try {
-      const newHost = switchHost(hostId);
-      if (newHost) {
-        toast({
-          title: "Host switched",
-          description: `Switched to ${newHost.name}`,
-          duration: 2000,
-        });
-      }
+      switchFirm(firmId);
     } catch (error) {
-      toast({
-        title: "Error switching host",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("Error switching firm:", error);
     }
-  };
-
-  const handleHostSignup = () => {
-    navigate('/signup#host');
   };
 
   const getUserInitials = () => {
@@ -82,110 +55,147 @@ const TopBar = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200/80 shadow-sm backdrop-blur-sm">
       <nav className="h-16 px-4">
-        <div className="h-full flex items-center mx-auto">
-          {/* Left section - always aligned left */}
-          <div className="flex items-center gap-2">
-            {showMobileMenu && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                onClick={onMenuClick}
-                aria-label="Toggle menu"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            )}
-            
-            <RouterLink 
-              to="/" 
-              className="flex items-center"
-              aria-label="Go to dashboard"
-            >
-              <img src={Logo} alt="" className="h-8 w-8" />
-              <span className="hidden md:block ml-2 text-xl font-bold text-blue-600">
-                StorNxtDoor
+        <div className="h-full flex items-center justify-between max-w-7xl mx-auto">
+          {/* Left: App Name and Logo */}
+          <Link to="/" className="flex items-center gap-2 group">
+            <img 
+              src="/icon.svg" 
+              alt="CaseOn Logo" 
+              className="h-8 w-8 text-indigo-800 transition-colors group-hover:text-indigo-700" 
+            />
+            <div className="hidden md:flex flex-col">
+              <span className="text-lg font-serif font-bold tracking-tight text-gray-900 group-hover:text-indigo-800 transition-colors">
+                CaseOn
               </span>
-            </RouterLink>
-          </div>
+              <span className="text-[10px] font-medium tracking-wider text-gray-500 uppercase">
+                Legal Intelligence
+              </span>
+            </div>
+          </Link>
 
-          {/* Spacer to push content to edges */}
-          <div className="flex-1" />
-
-          {/* Right section - always aligned right */}
-          <div className="flex items-center gap-2 md:gap-4">
-            {user ? (
+          {/* Right: Firm Selector and Avatar */}
+          <div className="flex items-center gap-3">
+            {user && (
               <>
-                <HostDropdown
-                  hosts={hosts}
-                  activeHost={activeHost}
-                  switchHost={handleSwitchHost}
-                  onCreateClick={onCreateHost}
-                />
-                
+                {/* Firm Selector */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button 
                       variant="ghost" 
-                      className="h-8 w-8 rounded-full p-0"
+                      className="h-9 px-3 text-sm font-medium flex items-center gap-2 border border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/80 transition-colors"
+                    >
+                      <Building2 className="h-4 w-4 text-gray-500" />
+                      <span className="max-w-[120px] truncate">
+                        {activeFirm?.name || "Select Firm"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Your Law Firms
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      {firms.map((firm) => (
+                        <DropdownMenuItem
+                          key={firm.id}
+                          onClick={() => handleSwitchFirm(firm.id)}
+                          className={cn(
+                            "flex items-center gap-2 py-2",
+                            activeFirm?.id === firm.id ? "bg-indigo-50 text-indigo-900" : ""
+                          )}
+                        >
+                          <Briefcase className="h-4 w-4 text-gray-500" />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{firm.name}</span>
+                            <span className="text-xs text-gray-500">{firm.type || "Law Firm"}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/firms/new" className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700">
+                        <Building2 className="h-4 w-4" />
+                        <span>Add New Firm</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* User Avatar Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      className="h-9 w-9 rounded-full p-0 border border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/80 transition-colors"
                       aria-label="Open user menu"
                     >
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar} />
-                        <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white">
+                          {getUserInitials()}
+                        </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end">
+                  <DropdownMenuContent className="w-64" align="end">
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Account</p>
-                        <p className="text-xs leading-none text-muted-foreground truncate">
+                        <div className="flex items-center gap-2">
+                          <UserCircle className="h-4 w-4 text-gray-500" />
+                          <p className="text-sm font-medium leading-none">Account</p>
+                        </div>
+                        <p className="text-xs leading-none text-gray-500 truncate">
                           {user.email}
                         </p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <RouterLink 
-                        to="/host/settings"
-                        className="cursor-pointer w-full flex items-center"
-                      >
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                      </RouterLink>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem asChild>
+                        <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
+                          <Settings className="h-4 w-4 text-gray-500" />
+                          <div className="flex flex-col">
+                            <span>Settings</span>
+                            <span className="text-xs text-gray-500">Manage your preferences</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/members" className="flex items-center gap-2 cursor-pointer">
+                          <Users className="h-4 w-4 text-gray-500" />
+                          <div className="flex flex-col">
+                            <span>Team Members</span>
+                            <span className="text-xs text-gray-500">Manage firm members</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/billing" className="flex items-center gap-2 cursor-pointer">
+                          <CreditCard className="h-4 w-4 text-gray-500" />
+                          <div className="flex flex-col">
+                            <span>Billing</span>
+                            <span className="text-xs text-gray-500">Manage subscription</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
                       onClick={handleSignOut}
-                      className="cursor-pointer text-red-600 focus:text-red-600"
+                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
+                      <LogOut className="h-4 w-4" />
+                      <div className="flex flex-col">
+                        <span>Sign out</span>
+                        <span className="text-xs text-red-500">End your session</span>
+                      </div>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="hidden md:inline-flex text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  onClick={handleHostSignup}
-                >
-                  Become a host
-                </Button>
-                <RouterLink to="/signup">
-                  <Button variant="ghost" className="hidden md:inline-flex text-sm font-medium">
-                    Sign up
-                  </Button>
-                </RouterLink>
-                <RouterLink to="/signin">
-                  <Button variant="default" size="sm" className="text-sm font-medium">
-                    Log in
-                  </Button>
-                </RouterLink>
               </>
             )}
           </div>

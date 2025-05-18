@@ -6,7 +6,8 @@ import { Progress as LoadingComponent } from './components/ui/progress';
 // Layouts
 import BlankLayout from './components/layout/blank-layout';
 import MainLayout from './components/layout/main-layout';
-import GuestLayout from './components/layout/guest-layout';
+
+import SearchPage from './pages/search';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
@@ -35,12 +36,10 @@ const lazyImport = (importFn) => {
 };
 
 // Lazy loaded components
-const LandingPage = lazyImport(() => import('./pages/landing'));
 const SignIn = lazyImport(() => import('./pages/auth/signin'));
 const SignUp = lazyImport(() => import('./pages/auth/signup'));
 const ForgotPassword = lazyImport(() => import('./pages/auth/forgot-password'));
 const UpdatePassword = lazyImport(() => import('./pages/auth/update-password'));
-const AcceptInvite = lazyImport(() => import('./pages/auth/accept-invite'));
 const NotFound = lazyImport(() => import('./pages/not-found'));
 
 const Protected = ({ children }) => (
@@ -56,16 +55,12 @@ const AppRoutes = () => {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
-          
-          <Route 
-            path="/accept-invite/:token" 
-            element={<Protected><AcceptInvite /></Protected>} 
-          />
+        
         </Route>
 
 
         <Route element={<MainLayout />}>
-
+          <Route path="/" element={<Protected><SearchPage /></Protected>} />
         </Route>
 
         {/* Global catch-all route */}

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Layout } from '@/components/layout/auth-layout';
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Mail } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ChevronLeft, Mail, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ForgotPasswordPage = () => {
@@ -11,13 +11,14 @@ const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -31,129 +32,149 @@ const ForgotPasswordPage = () => {
       return;
     }
 
-    // Here you would typically make an API call to handle password reset
-    console.log('Password reset requested for:', email);
-    setIsSubmitted(true);
+    setIsLoading(true);
+    try {
+      // Here you would typically make an API call to handle password reset
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      console.log('Password reset requested for:', email);
+      setIsSubmitted(true);
+    } catch (err) {
+      setError('Failed to send reset link. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex flex-1">
-        {/* Left Side - Reset Form */}
-        <div className="w-full lg:w-1/2 p-8 flex items-start justify-center">
-          <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
+      <div className="w-full max-w-md space-y-8">
+        {/* Logo/Brand */}
+        <div className="text-center">
+          <div className="flex justify-center items-center gap-2 mb-2">
+            <img 
+              src="/icon.svg" 
+              alt="CaseOn Logo" 
+              className="h-8 w-8" 
+            />
+            <h1 className="text-3xl font-serif font-bold tracking-tight text-gray-900">
+              CaseOn
+            </h1>
+          </div>
+          <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">
+            LEGAL INTELLIGENCE
+          </p>
+        </div>
+
+        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-8">
             <Button 
               variant="ghost" 
-              className="flex items-center text-blue-600 hover:text-blue-700"
+              className="w-fit -ml-2 mb-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               onClick={() => navigate(-1)}
             >
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-
+            <CardTitle className="text-2xl font-serif font-semibold tracking-tight text-gray-900">
+              Reset your password
+            </CardTitle>
+            <CardDescription className="text-gray-600 font-medium">
+              Enter your email to receive a password reset link
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             {!isSubmitted ? (
               <div className="space-y-6">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-semibold tracking-tight">Reset Password</h2>
-                  <p className="text-gray-500">
-                    Please enter your email to receive a link to reset your password.
-                  </p>
-                </div>
+                {error && (
+                  <Alert variant="destructive" className="border-l-4 border-red-500 bg-red-50">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="font-medium">{error}</AlertDescription>
+                  </Alert>
+                )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                       <Input
                         type="email"
-                        placeholder="Email"
-                        className={`pl-10 ${error ? "border-red-500 focus:ring-red-500" : ""}`}
+                        placeholder="Enter your email"
+                        className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${error ? "border-red-500" : ""}`}
                         value={email}
                         onChange={(e) => {
                           setEmail(e.target.value);
                           if (error) setError('');
                         }}
+                        disabled={isLoading}
                       />
                     </div>
-                    {error && (
-                      <p className="text-sm text-red-500">{error}</p>
-                    )}
                   </div>
 
                   <Button 
                     type="submit" 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium tracking-wide transition-colors duration-200"
+                    disabled={isLoading}
                   >
-                    Send Reset Link
+                    {isLoading ? 'Sending reset link...' : 'Send reset link'}
                   </Button>
                 </form>
 
-                <div className="text-center text-sm">
-                  <span className="text-gray-600">
-                    Remember your password?{' '}
-                  </span>
+                <div className="text-center pt-2">
+                  <span className="text-sm text-gray-600 font-medium">Remember your password?{' '}</span>
                   <Button
                     variant="link"
-                    className="text-blue-600 p-0"
-                    onClick={() => navigate('/login')}
+                    className="text-gray-900 hover:text-gray-700 p-0 h-auto font-medium"
+                    onClick={() => navigate('/signin')}
+                    disabled={isLoading}
                   >
                     Sign in
                   </Button>
                 </div>
               </div>
             ) : (
-              <Card className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-semibold tracking-tight">Check your email</h2>
-                  <p className="text-gray-500">
-                    We've sent a password reset link to <span className="font-medium">{email}</span>. 
-                    The link will expire in 1 hour.
-                  </p>
+              <div className="space-y-6">
+                <div className="rounded-lg bg-green-50 p-4 border border-green-200">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-green-800">Check your email</h3>
+                      <div className="mt-2 text-sm text-green-700">
+                        <p>
+                          We've sent a password reset link to <span className="font-medium">{email}</span>. 
+                          The link will expire in 1 hour.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="space-y-3">
                   <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium tracking-wide transition-colors duration-200"
                     onClick={() => setIsSubmitted(false)}
                   >
                     Try another email
                   </Button>
                   <Button
                     variant="outline"
-                    className="w-full"
-                    onClick={() => navigate('/login')}
+                    className="w-full h-11 border-gray-200 hover:bg-gray-50 font-medium"
+                    onClick={() => navigate('/signin')}
                   >
                     Back to sign in
                   </Button>
                 </div>
-              </Card>
+              </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Right Side - Image */}
-        <div className="hidden lg:block lg:w-1/2 relative">
-          <picture>
-            <source
-              media="(min-width: 1024px)"
-              srcSet="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image_2000x.webp"
-            />
-            <source
-              srcSet="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image_1500x.webp"
-            />
-            <source
-              media="(min-width: 1024px)"
-              srcSet="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image-2000x.jpg"
-            />
-            <source
-              srcSet="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image-1500x.jpg"
-            />
-            <img
-              src="https://d9lvjui2ux1xa.cloudfront.net/img/auth/auth-image-2000x.jpg"
-              alt="Beautiful Neighborhood"
-              className="object-cover w-full h-full"
-            />
-          </picture>
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500 font-medium tracking-wide">
+          © {new Date().getFullYear()} CaseOn. All rights reserved.
         </div>
       </div>
     </div>

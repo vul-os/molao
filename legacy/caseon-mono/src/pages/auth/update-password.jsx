@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Lock } from "lucide-react";
 
 const MINIMUM_PASSWORD_LENGTH = 8;
 
@@ -90,27 +90,49 @@ const UpdatePassword = () => {
   };
 
   return (
-    <div className="container mx-auto max-w-md mt-10 px-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Update Password</CardTitle>
-          <CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
+      <div className="w-full max-w-md space-y-8">
+        {/* Logo/Brand */}
+        <div className="text-center">
+          <div className="flex justify-center items-center gap-2 mb-2">
+            <img 
+              src="/icon.svg" 
+              alt="CaseOn Logo" 
+              className="h-8 w-8" 
+            />
+            <h1 className="text-3xl font-serif font-bold tracking-tight text-gray-900">
+              CaseOn
+            </h1>
+          </div>
+          <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">
+            LEGAL INTELLIGENCE
+          </p>
+        </div>
+
+        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-8">
+            <CardTitle className="text-2xl font-serif font-semibold tracking-tight text-gray-900">
+              Update your password
+            </CardTitle>
+            <CardDescription className="text-gray-600 font-medium">
             Choose a strong password that meets all the requirements below
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
             {validationError && (
-              <Alert variant="destructive">
+                <Alert variant="destructive" className="border-l-4 border-red-500 bg-red-50">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{validationError}</AlertDescription>
+                  <AlertDescription className="font-medium">{validationError}</AlertDescription>
               </Alert>
             )}
             
             <div className="space-y-2">
-              <label htmlFor="newPassword" className="text-sm font-medium">
+                <label htmlFor="newPassword" className="text-sm font-medium text-gray-700 tracking-wide">
                 New Password
               </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <Input
                 id="newPassword"
                 type="password"
@@ -118,15 +140,18 @@ const UpdatePassword = () => {
                 onChange={handlePasswordChange}
                 disabled={isLoading}
                 required
-                className="w-full"
+                    className="pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900"
                 placeholder="Enter your new password"
               />
+                </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="confirmNewPassword" className="text-sm font-medium">
+                <label htmlFor="confirmNewPassword" className="text-sm font-medium text-gray-700 tracking-wide">
                 Confirm New Password
               </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <Input
                 id="confirmNewPassword"
                 type="password"
@@ -134,49 +159,81 @@ const UpdatePassword = () => {
                 onChange={(e) => setConfirmNewPassword(e.target.value)}
                 disabled={isLoading}
                 required
-                className="w-full"
+                    className="pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900"
                 placeholder="Confirm your new password"
               />
+                </div>
             </div>
 
-            <div className="text-sm space-y-2 text-muted-foreground">
-              <p>Password must:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Be at least {MINIMUM_PASSWORD_LENGTH} characters long</li>
-                <li>Include at least one uppercase letter</li>
-                <li>Include at least one lowercase letter</li>
-                <li>Include at least one number</li>
-                <li>Include at least one special character</li>
+              <div className="rounded-lg bg-gray-50 p-4 border border-gray-200">
+                <p className="text-sm font-medium text-gray-700 mb-2">Password requirements:</p>
+                <ul className="text-sm text-gray-600 space-y-1.5">
+                  <li className="flex items-center gap-2">
+                    <svg className={`h-4 w-4 ${newPassword.length >= MINIMUM_PASSWORD_LENGTH ? 'text-green-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={newPassword.length >= MINIMUM_PASSWORD_LENGTH ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+                    </svg>
+                    At least {MINIMUM_PASSWORD_LENGTH} characters long
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className={`h-4 w-4 ${/[A-Z]/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={/[A-Z]/.test(newPassword) ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+                    </svg>
+                    One uppercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className={`h-4 w-4 ${/[a-z]/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={/[a-z]/.test(newPassword) ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+                    </svg>
+                    One lowercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className={`h-4 w-4 ${/[0-9]/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={/[0-9]/.test(newPassword) ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+                    </svg>
+                    One number
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <svg className={`h-4 w-4 ${/[^A-Za-z0-9]/.test(newPassword) ? 'text-green-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={/[^A-Za-z0-9]/.test(newPassword) ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+                    </svg>
+                    One special character
+                  </li>
               </ul>
             </div>
 
             <Button 
               type="submit" 
-              className="w-full" 
+                className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white font-medium tracking-wide transition-colors duration-200"
               disabled={isLoading || !!validationError}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating Password...
+                    Updating password...
                 </>
               ) : (
-                'Update Password'
+                  'Update password'
               )}
             </Button>
 
             <Button 
               variant="outline" 
-              className="w-full" 
+                className="w-full h-11 border-gray-200 hover:bg-gray-50 font-medium"
               onClick={() => navigate('/signin')}
               disabled={isLoading}
               type="button"
             >
-              Back to Sign In
+                Back to sign in
             </Button>
           </form>
         </CardContent>
       </Card>
+
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500 font-medium tracking-wide">
+          © {new Date().getFullYear()} CaseOn. All rights reserved.
+        </div>
+      </div>
     </div>
   );
 };
