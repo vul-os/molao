@@ -1,16 +1,5 @@
 User-agent: *
 Allow: /
-Allow: /search
-Allow: /host
-Allow: /features
-Allow: /pricing
-Allow: /security
-Allow: /blog
-Allow: /help
-Allow: /community
-Allow: /privacy
-Allow: /terms
-Allow: /cookies
 
 # Sitemap location
-Sitemap: https://stornxtdoor.com/sitemap.xml
+Sitemap: https://caseon.io/sitemap.xml
