@@ -1,11 +1,12 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/nuamic:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'gcr.io/${PROJECT_ID}/caseon:latest', '.']
+    dir: './backend/service'  # Changed to your specific subdirectory path
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/nuamic:$COMMIT_SHA']
+    args: ['push', 'gcr.io/${PROJECT_ID}/caseon:latest']
   
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -13,15 +14,15 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'nuamic'
+      - 'caseon'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/nuamic:$COMMIT_SHA'
+      - 'gcr.io/${PROJECT_ID}/caseon:latest'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
 
-# Store image in Artifact Registry (optional, newer alternative to GCR)
+# Store image in Artifact Registry
 images:
-  - 'gcr.io/$PROJECT_ID/nuamic:$COMMIT_SHA'
+  - 'gcr.io/${PROJECT_ID}/caseon:latest'
