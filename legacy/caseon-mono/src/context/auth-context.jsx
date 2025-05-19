@@ -17,8 +17,6 @@ export function AuthProvider({ children }) {
   const [firms, setFirms] = useState([]);
   const [activeFirm, setActiveFirm] = useState(null);
   const [hasLoadedFirms, setHasLoadedFirms] = useState(false);
-  const [recentChats, setRecentChats] = useState([]);
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
 
   const getFirmBySlug = useCallback((slug) => {
     return firms.find(firm => firm.slug === slug);
@@ -47,61 +45,6 @@ export function AuthProvider({ children }) {
     }
   }, [user, activeFirm]);
 
-  const fetchRecentChats = useCallback(async () => {
-    if (!user || !activeFirm) return;
-
-    setIsLoadingChats(true);
-    try {
-      const { data, error } = await supabase.rpc('get_recent_chats', {
-        p_firm_id: activeFirm.id
-      });
-      
-      if (error) throw error;
-      setRecentChats(data || []);
-    } catch (error) {
-      console.error('Error fetching chats:', error);
-    } finally {
-      setIsLoadingChats(false);
-    }
-  }, [user, activeFirm]);
-
-  const createChat = useCallback(async () => {
-    if (!user || !activeFirm) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .insert({
-          firm_id: activeFirm.id,
-          created_by: user.id,
-          status: 'active'
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setRecentChats(prev => [data, ...prev]);
-      return data;
-    } catch (error) {
-      console.error('Error creating chat:', error);
-      return null;
-    }
-  }, [user, activeFirm]);
-
-  const archiveChat = useCallback(async (chatId) => {
-    try {
-      const { error } = await supabase
-        .from('chat_conversations')
-        .update({ status: 'archived' })
-        .eq('id', chatId);
-
-      if (error) throw error;
-      setRecentChats(prev => prev.filter(chat => chat.id !== chatId));
-    } catch (error) {
-      console.error('Error archiving chat:', error);
-    }
-  }, []);
-
   const switchFirm = useCallback((firmId) => {
     const newActiveFirm = firms.find(firm => firm.id === firmId);
     if (newActiveFirm) {
@@ -119,22 +62,25 @@ export function AuthProvider({ children }) {
 
   const handleAuthStateChange = useCallback((event, session) => {
     console.log('Auth state changed:', event);
-    setTimeout(() => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session?.user) {
-          setUser(session.user);
-          setHasLoadedFirms(false);
-        }
-      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-        setUser(null);
-        setFirms([]);
-        setActiveFirm(null);
-        setRecentChats([]);
-        setHasLoadedFirms(true);
-      } else if (event === 'USER_UPDATED') {
-        setUser(session?.user ?? null);
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user) {
+        setUser({
+          ...session.user,
+          access_token: session.access_token
+        });
+        setHasLoadedFirms(false);
       }
-    }, 0);
+    } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      setUser(null);
+      setFirms([]);
+      setActiveFirm(null);
+      setHasLoadedFirms(true);
+    } else if (event === 'USER_UPDATED') {
+      setUser(prev => prev ? {
+        ...session?.user,
+        access_token: prev.access_token
+      } : null);
+    }
   }, []);
 
   // Auth methods
@@ -207,17 +153,22 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Initialize auth state
   useEffect(() => {
     const initializeAuth = async () => {
       setLoading(true);
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (session) {
-          setUser(session.user);
+        if (session?.user) {
+          setUser({
+            ...session.user,
+            access_token: session.access_token
+          });
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -231,17 +182,12 @@ export function AuthProvider({ children }) {
     };
   }, [handleAuthStateChange]);
 
+  // Fetch firms when user changes
   useEffect(() => {
     if (!hasLoadedFirms) {
       fetchFirms();
     }
   }, [user, hasLoadedFirms, fetchFirms]);
-
-  useEffect(() => {
-    if (activeFirm) {
-      fetchRecentChats();
-    }
-  }, [activeFirm, fetchRecentChats]);
 
   const contextValue = useMemo(() => ({
     loading,
@@ -249,15 +195,10 @@ export function AuthProvider({ children }) {
     firms,
     activeFirm,
     hasLoadedFirms,
-    recentChats,
-    isLoadingChats,
     setHasLoadedFirms,
     switchFirm,
     switchFirmBySlug,
     getFirmBySlug,
-    createChat,
-    archiveChat,
-    fetchRecentChats,
     signUp,
     signIn,
     signInWithGoogle,
@@ -271,15 +212,10 @@ export function AuthProvider({ children }) {
     firms,
     activeFirm,
     hasLoadedFirms,
-    recentChats,
-    isLoadingChats,
     setHasLoadedFirms,
     switchFirm,
     switchFirmBySlug,
     getFirmBySlug,
-    createChat,
-    archiveChat,
-    fetchRecentChats,
     signUp,
     signIn,
     signInWithGoogle,

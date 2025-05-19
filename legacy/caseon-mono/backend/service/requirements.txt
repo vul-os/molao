@@ -1,7 +1,10 @@
-fastapi
-uvicorn
-transformers
-torch
-httpx
-google-cloud-storage
-supabase
+fastapi>=0.68.0
+uvicorn>=0.15.0
+transformers>=4.30.0
+torch>=2.0.0
+httpx>=0.24.0
+google-cloud-storage>=2.0.0
+supabase-py>=2.0.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.5
+pydantic>=1.10.0

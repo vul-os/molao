@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 // Suggested search queries with categories
 const suggestedSearches = [
@@ -44,6 +45,7 @@ const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
 export default function SearchPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -87,7 +89,7 @@ export default function SearchPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.access_token}`
+          'Authorization': `Bearer ${user.access_token}`
         },
         body: JSON.stringify({
           query: searchQuery,
@@ -95,8 +97,20 @@ export default function SearchPage() {
         })
       });
 
+      if (response.status === 401) {
+        // Handle unauthorized (token expired or invalid)
+        toast({
+          title: "Session expired",
+          description: "Your session has expired. Please sign in again.",
+          variant: "destructive"
+        });
+        navigate('/signin');
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Search request failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.description || 'Search request failed');
       }
 
       const data = await response.json();
@@ -105,7 +119,7 @@ export default function SearchPage() {
       console.error('Search error:', error);
       toast({
         title: "Search failed",
-        description: "Unable to perform search. Please try again.",
+        description: error.message || "Unable to perform search. Please try again.",
         variant: "destructive"
       });
       setSearchResults([]);
@@ -119,15 +133,31 @@ export default function SearchPage() {
     handleSearch();
   };
 
+  // Add error boundary for file content fetching
   const handleFileClick = async (file) => {
     setSelectedFile(file);
     setIsLoading(true);
     try {
-      // Fetch the file content from the CDN path
-      const response = await fetch(file.cdn_path);
+      const response = await fetch(file.cdn_path, {
+        headers: {
+          'Authorization': `Bearer ${user.access_token}`
+        }
+      });
+
+      if (response.status === 401) {
+        toast({
+          title: "Session expired",
+          description: "Your session has expired. Please sign in again.",
+          variant: "destructive"
+        });
+        navigate('/signin');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch file content');
       }
+
       const content = await response.text();
       setFileContent(content);
     } catch (error) {
@@ -137,6 +167,7 @@ export default function SearchPage() {
         description: "Unable to load file content. Please try again.",
         variant: "destructive"
       });
+      setSelectedFile(null);
     } finally {
       setIsLoading(false);
     }
