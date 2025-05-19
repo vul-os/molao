@@ -8,11 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
-# Install pip dependencies
+# Copy just requirements first to leverage Docker cache
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
+# Copy app code (only after installing dependencies)
 COPY . .
 
 # Expose port for Cloud Run

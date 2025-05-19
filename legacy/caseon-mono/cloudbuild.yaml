@@ -1,7 +1,13 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/${PROJECT_ID}/caseon:latest', '.']
+    args: [
+      'build',
+      '-t', 'gcr.io/${PROJECT_ID}/caseon:latest',
+      '--cache-from', 'gcr.io/${PROJECT_ID}/caseon:latest',
+      '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
+      '.'
+    ]
     dir: './backend/service'  # Changed to your specific subdirectory path
   
   # Push the container image to Container Registry
@@ -25,6 +31,7 @@ steps:
       
 options:
   logging: CLOUD_LOGGING_ONLY
+  env: ['DOCKER_BUILDKIT=1']
 # Store image in Artifact Registry
 images:
   - 'gcr.io/${PROJECT_ID}/caseon:latest'
