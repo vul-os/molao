@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 // Suggested search queries with categories
 const suggestedSearches = [
@@ -37,16 +39,11 @@ const suggestedSearches = [
   }
 ];
 
-// Simplified file structure
-const dummyFiles = [
-  { id: "f1", filename: "S v Makwanyane", path: "https://cdn.caseon.com/cases/s-v-makwanyane.rtf", year: "1995", court: "Constitutional Court" },
-  { id: "f2", filename: "Barkhuizen v Napier", path: "https://cdn.caseon.com/cases/barkhuizen-v-napier.rtf", year: "2007", court: "Constitutional Court" },
-  { id: "f3", filename: "Dudley Lee v Minister of Correctional Services", path: "https://cdn.caseon.com/cases/dudley-lee.rtf", year: "2012", court: "Constitutional Court" },
-  { id: "f4", filename: "Government of RSA v Grootboom", path: "https://cdn.caseon.com/cases/grootboom.rtf", year: "2000", court: "Constitutional Court" },
-  { id: "f5", filename: "AllPay v SASSA", path: "https://cdn.caseon.com/cases/allpay-v-sassa.rtf", year: "2014", court: "Constitutional Court" },
-];
+const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
 
 export default function SearchPage() {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -84,14 +81,37 @@ export default function SearchPage() {
     
     setIsLoading(true);
     setShowSuggestions(false);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    // Filter files based on search query
-    const results = dummyFiles.filter(file => 
-      file.filename.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setSearchResults(results);
-    setIsLoading(false);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.access_token}`
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          limit: 10
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Search request failed');
+      }
+
+      const data = await response.json();
+      setSearchResults(data.results || []);
+    } catch (error) {
+      console.error('Search error:', error);
+      toast({
+        title: "Search failed",
+        description: "Unable to perform search. Please try again.",
+        variant: "destructive"
+      });
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSuggestionClick = (suggestion) => {
@@ -103,13 +123,20 @@ export default function SearchPage() {
     setSelectedFile(file);
     setIsLoading(true);
     try {
-      // In a real app, this would fetch the RTF content from your backend
-      const response = await fetch(file.path);
-      const rtfContent = await response.text();
-      // Convert RTF to HTML (you'll need a proper RTF parser in production)
-      setFileContent(rtfContent);
+      // Fetch the file content from the CDN path
+      const response = await fetch(file.cdn_path);
+      if (!response.ok) {
+        throw new Error('Failed to fetch file content');
+      }
+      const content = await response.text();
+      setFileContent(content);
     } catch (error) {
       console.error('Error loading file:', error);
+      toast({
+        title: "Error",
+        description: "Unable to load file content. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -220,10 +247,10 @@ export default function SearchPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-heading text-sm font-medium text-slate-900 truncate">
-                                {file.filename}
+                                {file.file_name}
                               </p>
                               <p className="text-xs text-slate-500 mt-0.5">
-                                {file.year} • {file.court}
+                                {file.file_type} • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
                               </p>
                             </div>
                             <div className="bg-slate-100 rounded-full p-1.5 group-hover:bg-green-100 transition-colors">
@@ -234,8 +261,8 @@ export default function SearchPage() {
                       </Card>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="p-2 bg-slate-900 text-white">
-                      <p className="text-sm font-medium">{file.filename}</p>
-                      <p className="text-xs opacity-80">{file.year} • {file.court}</p>
+                      <p className="text-sm font-medium">{file.file_name}</p>
+                      <p className="text-xs opacity-80">{file.file_type}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -370,8 +397,8 @@ export default function SearchPage() {
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 rounded-t-xl">
               <div className="pr-4">
-                <h3 className="font-heading text-lg font-medium text-slate-900">{selectedFile.filename}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">{selectedFile.year} • {selectedFile.court}</p>
+                <h3 className="font-heading text-lg font-medium text-slate-900">{selectedFile.file_name}</h3>
+                <p className="text-sm text-slate-500 mt-0.5">{selectedFile.file_type}</p>
               </div>
               <Button
                 variant="ghost"
