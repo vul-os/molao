@@ -8,7 +8,7 @@ import Footer from './footer';
 const LandingPage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <TopBar showPortalButton={true} />
+      <TopBar showPortalButton="true" />
       <Hero />
       <Features />
       <Pricing />

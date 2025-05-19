@@ -66,7 +66,8 @@ export function AuthProvider({ children }) {
       if (session?.user) {
         setUser({
           ...session.user,
-          access_token: session.access_token
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
         });
         setHasLoadedFirms(false);
       }
@@ -78,7 +79,8 @@ export function AuthProvider({ children }) {
     } else if (event === 'USER_UPDATED') {
       setUser(prev => prev ? {
         ...session?.user,
-        access_token: prev.access_token
+        access_token: prev.access_token,
+        refresh_token: prev.refresh_token
       } : null);
     }
   }, []);
@@ -163,7 +165,8 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           setUser({
             ...session.user,
-            access_token: session.access_token
+            access_token: session.access_token,
+            refresh_token: session.refresh_token
           });
         }
       } catch (error) {
@@ -189,6 +192,47 @@ export function AuthProvider({ children }) {
     }
   }, [user, hasLoadedFirms, fetchFirms]);
 
+  // Add token refresh function
+  const refreshToken = async () => {
+    console.log("Attempting to refresh token...");
+    try {
+      // Check if we have a current session
+      const { data: currentSession } = await supabase.auth.getSession();
+      
+      if (!currentSession?.session) {
+        console.error("No active session to refresh");
+        return null;
+      }
+
+      console.log("Current session exists, refreshing...");
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        console.error("Token refresh error:", error.message);
+        throw error;
+      }
+      
+      if (data.session) {
+        console.log("Session refreshed successfully");
+        setUser({
+          ...data.session.user,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        });
+        return data.session.access_token;
+      } else {
+        console.error("No session data returned after refresh");
+        return null;
+      }
+    } catch (error) {
+      console.error("Error refreshing token:", error.message);
+      // Force sign out on critical errors
+      await supabase.auth.signOut();
+      setUser(null);
+      return null;
+    }
+  };
+
   const contextValue = useMemo(() => ({
     loading,
     user,
@@ -206,6 +250,7 @@ export function AuthProvider({ children }) {
     forgotPassword,
     updateUserPassword,
     fetchFirms,
+    refreshToken,
   }), [
     loading,
     user,
@@ -222,7 +267,8 @@ export function AuthProvider({ children }) {
     signOut,
     forgotPassword,
     updateUserPassword,
-    fetchFirms
+    fetchFirms,
+    refreshToken,
   ]);
 
   return (

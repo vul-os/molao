@@ -26,6 +26,9 @@ const TopBar = ({ showPortalButton = false }) => {
     switchFirm
   } = useAuth();
   const navigate = useNavigate();
+  
+  // Convert string "true" to boolean
+  const shouldShowPortalButton = showPortalButton === "true" || showPortalButton === true;
 
   const handleSignOut = async () => {
     try {
@@ -80,7 +83,7 @@ const TopBar = ({ showPortalButton = false }) => {
             {user ? (
               <>
                 {/* Portal Button */}
-                {showPortalButton && (
+                {shouldShowPortalButton && (
                   <Button
                     variant="ghost"
                     className="h-9 px-3 text-sm font-medium flex items-center gap-2 border border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/80 transition-colors"
@@ -167,15 +170,6 @@ const TopBar = ({ showPortalButton = false }) => {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
-                      <DropdownMenuItem asChild>
-                        <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
-                          <Settings className="h-4 w-4 text-gray-500" />
-                          <div className="flex flex-col">
-                            <span>Settings</span>
-                            <span className="text-xs text-gray-500">Manage your preferences</span>
-                          </div>
-                        </Link>
-                      </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link to="/members" className="flex items-center gap-2 cursor-pointer">
                           <Users className="h-4 w-4 text-gray-500" />

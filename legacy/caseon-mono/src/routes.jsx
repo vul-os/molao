@@ -9,6 +9,7 @@ import MainLayout from './components/layout/main-layout';
 
 import SearchPage from './pages/search';
 import LandingPage from './pages/landing';
+import MembersPage from './pages/members';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
@@ -63,6 +64,7 @@ const AppRoutes = () => {
         <Route element={<MainLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/search" element={<Protected><SearchPage /></Protected>} />
+          <Route path="/members" element={<Protected><MembersPage /></Protected>} />
         </Route>
 
         {/* Global catch-all route */}

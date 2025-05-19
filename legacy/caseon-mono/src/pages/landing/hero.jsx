@@ -261,7 +261,8 @@ const Hero = () => {
                       type="text" 
                       placeholder="Type your legal question..." 
                       className="flex-1 py-3 md:py-5 pl-3 md:pl-4 pr-8 md:pr-10 bg-slate-50 text-sm"
-                      value="I need information on POPI Act compliance for my company"
+                      defaultValue="I need information on POPI Act compliance for my company"
+                      readOnly
                     />
                     <Button 
                       className="bg-indigo-600 hover:bg-indigo-700 rounded-full p-2 h-10 w-10 flex-shrink-0"
@@ -276,6 +277,8 @@ const Hero = () => {
                       type="text" 
                       placeholder="Try another search..." 
                       className="flex-1 py-3 md:py-5 pl-3 md:pl-4 pr-8 md:pr-10 bg-slate-50 text-sm"
+                      defaultValue=""
+                      readOnly
                     />
                     <Button className="bg-indigo-600 hover:bg-indigo-700 rounded-full p-2 h-10 w-10 flex-shrink-0">
                       <Send className="h-4 w-4" />

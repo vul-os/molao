@@ -43,7 +43,7 @@ const suggestedSearches = [
 const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
 
 export default function SearchPage() {
-  const { user } = useAuth();
+  const { user, refreshToken } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -85,38 +85,88 @@ export default function SearchPage() {
     setShowSuggestions(false);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.access_token}`
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          limit: 10
-        })
-      });
-
-      if (response.status === 401) {
-        // Handle unauthorized (token expired or invalid)
-        toast({
-          title: "Session expired",
-          description: "Your session has expired. Please sign in again.",
-          variant: "destructive"
+      const makeSearchRequest = async (token) => {
+        // Check for null or undefined token
+        if (!token) {
+          console.error("No access token available");
+          throw new Error('missing_token');
+        }
+        
+        console.log("Attempting API request with token length:", token.length);
+        
+        const response = await fetch(`${API_BASE_URL}/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token.trim()}` // Ensure no whitespace
+          },
+          body: JSON.stringify({
+            query: searchQuery,
+            limit: 10
+          })
         });
-        navigate('/signin');
-        return;
+        
+        // Log response status for debugging
+        console.log("API response status:", response.status);
+        
+        if (response.status === 401) {
+          throw new Error('unauthorized');
+        }
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("API error details:", errorData);
+          throw new Error(errorData.description || 'Search request failed');
+        }
+        
+        return await response.json();
+      };
+      
+      // Try with current token
+      try {
+        // Check if user exists and has access_token
+        if (!user || !user.access_token) {
+          toast({
+            title: "Authentication error",
+            description: "You need to sign in first.",
+            variant: "destructive"
+          });
+          navigate('/signin');
+          return;
+        }
+        
+        const data = await makeSearchRequest(user.access_token);
+        setSearchResults(data.results || []);
+      } catch (error) {
+        console.log("Search error:", error.message);
+        
+        // If unauthorized, try to refresh token and retry once
+        if (error.message === 'unauthorized' || error.message === 'missing_token') {
+          console.log("Attempting token refresh...");
+          // Call the refreshToken function from auth context
+          const newToken = await refreshToken();
+          if (newToken) {
+            console.log("Token refreshed successfully");
+            // Retry with new token
+            const data = await makeSearchRequest(newToken);
+            setSearchResults(data.results || []);
+          } else {
+            console.log("Token refresh failed");
+            // Token refresh failed, redirect to sign in
+            toast({
+              title: "Session expired",
+              description: "Your session has expired. Please sign in again.",
+              variant: "destructive"
+            });
+            navigate('/signin');
+          }
+        } else {
+          // Not an auth error or refresh failed
+          throw error;
+        }
       }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.description || 'Search request failed');
-      }
-
-      const data = await response.json();
-      setSearchResults(data.results || []);
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('Search error details:', error);
       toast({
         title: "Search failed",
         description: error.message || "Unable to perform search. Please try again.",
@@ -176,7 +226,7 @@ export default function SearchPage() {
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100">
       {/* Add global font styles */}
-      <style jsx global>{`
+      <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
         body {
