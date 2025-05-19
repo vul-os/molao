@@ -22,7 +22,10 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-
+      
+options:
+  logging: CLOUD_LOGGING_ONLY
 # Store image in Artifact Registry
 images:
   - 'gcr.io/${PROJECT_ID}/caseon:latest'
+
