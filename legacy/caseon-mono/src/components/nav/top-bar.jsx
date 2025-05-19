@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Users, CreditCard, ChevronDown, Scale, Building2, Briefcase, UserCircle } from 'lucide-react';
+import { Settings, LogOut, Users, CreditCard, ChevronDown, Scale, Building2, Briefcase, UserCircle, Search } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const TOP_BAR_HEIGHT = '4rem';
 
-const TopBar = () => {
+const TopBar = ({ showPortalButton = false }) => {
   const { 
     user, 
     signOut, 
@@ -77,8 +77,20 @@ const TopBar = () => {
 
           {/* Right: Firm Selector and Avatar */}
           <div className="flex items-center gap-3">
-            {user && (
+            {user ? (
               <>
+                {/* Portal Button */}
+                {showPortalButton && (
+                  <Button
+                    variant="ghost"
+                    className="h-9 px-3 text-sm font-medium flex items-center gap-2 border border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/80 transition-colors"
+                    onClick={() => navigate('/search')}
+                  >
+                    <Search className="h-4 w-4 text-gray-500" />
+                    <span>Portal</span>
+                  </Button>
+                )}
+
                 {/* Firm Selector */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -197,6 +209,14 @@ const TopBar = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
+            ) : (
+              <Button
+                variant="default"
+                className="h-9 px-4 text-sm font-medium flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => navigate('/signin')}
+              >
+                Sign In
+              </Button>
             )}
           </div>
         </div>
