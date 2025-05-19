@@ -14,7 +14,9 @@ import {
   UserX, 
   Shield, 
   User,
-  Filter
+  Filter,
+  Clock,
+  Mail as MailIcon
 } from "lucide-react";
 import {
   Dialog,
@@ -42,8 +44,11 @@ import { motion } from "framer-motion";
 export default function MembersPage() {
   const { activeFirm, user } = useAuth();
   const [members, setMembers] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('associate');
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -51,6 +56,7 @@ export default function MembersPage() {
   useEffect(() => {
     if (activeFirm) {
       fetchMembers();
+      fetchPendingInvites();
     }
   }, [activeFirm]);
 
@@ -83,33 +89,98 @@ export default function MembersPage() {
     }
   };
 
+  const fetchPendingInvites = async () => {
+    if (!activeFirm) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('firm_invites')
+        .select(`
+          *,
+          inviter:invited_by (
+            id,
+            email,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('firm_id', activeFirm.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPendingInvites(data || []);
+    } catch (error) {
+      console.error('Error fetching pending invites:', error);
+      toast.error('Failed to fetch pending invites');
+    }
+  };
+
   const handleInvite = async () => {
     if (!inviteEmail || !activeFirm) return;
 
     try {
-      const response = await fetch('/api/invite-member', {
+      setInviteLoading(true);
+      
+      // Get the current session (either refreshed or existing)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Current session state:', {
+        hasSession: !!session,
+        error: sessionError?.message,
+        expiresAt: session?.expires_at,
+        currentTime: Math.floor(Date.now() / 1000)
+      });
+      
+       // Format the token properly if it's not already
+      const authToken = session?.access_token.startsWith('Bearer ') ?  session?.access_token : `Bearer ${ session?.access_token}`;
+
+      const response = await fetch('https://gxwpvpqatisvkpgpstst.supabase.co/functions/v1/invite-member', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${user?.access_token}`,
+          'Authorization': authToken,
         },
         body: JSON.stringify({
           email: inviteEmail,
           firmId: activeFirm.id,
+          role: inviteRole,
         }),
       });
 
+      const data = await response.json();
+      console.log('Response details:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+        data
+      });
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send invite');
+        // Add more context to the error
+        const errorMessage = data.error || 'Failed to send invite';
+        const errorDetails = data.details ? `\nDetails: ${JSON.stringify(data.details)}` : '';
+        throw new Error(`${errorMessage}${errorDetails}`);
       }
 
       toast.success('Invitation sent successfully');
       setIsInviteDialogOpen(false);
       setInviteEmail('');
+      setInviteRole('associate');
+      // Refresh the members list to show any immediate changes
+      fetchMembers();
     } catch (error) {
       console.error('Error sending invite:', error);
-      toast.error(error.message || 'Failed to send invitation');
+      // Show more detailed error message
+      if (error.message.includes('Unauthorized') || error.message.includes('No session found')) {
+        toast.error('Session expired - please sign in again');
+        // Optionally trigger a sign out
+      } else if (error.message.includes('Only partners can invite members')) {
+        toast.error('Only partners can invite new members');
+      } else {
+        toast.error(error.message || 'Failed to send invitation');
+      }
+    } finally {
+      setInviteLoading(false);
     }
   };
 
@@ -145,9 +216,9 @@ export default function MembersPage() {
 
   const getRoleBadgeColor = (role) => {
     switch (role.toLowerCase()) {
-      case 'admin':
+      case 'partner':
         return 'bg-amber-50 text-amber-800 border-amber-200';
-      case 'member':
+      case 'associate':
         return 'bg-slate-50 text-slate-800 border-slate-200';
       default:
         return 'bg-gray-50 text-gray-800 border-gray-200';
@@ -156,12 +227,23 @@ export default function MembersPage() {
 
   const getRoleIcon = (role) => {
     switch (role.toLowerCase()) {
-      case 'admin':
+      case 'partner':
         return <Shield className="h-3 w-3 mr-1" />;
-      case 'member':
+      case 'associate':
         return <User className="h-3 w-3 mr-1" />;
       default:
         return null;
+    }
+  };
+
+  const getRoleDisplayName = (role) => {
+    switch (role.toLowerCase()) {
+      case 'partner':
+        return 'Partner';
+      case 'associate':
+        return 'Associate';
+      default:
+        return role;
     }
   };
 
@@ -182,11 +264,11 @@ export default function MembersPage() {
   }, [members, searchQuery, roleFilter]);
 
   const partnersCount = useMemo(() => 
-    members.filter(m => m.role.toLowerCase() === 'admin').length,
+    members.filter(m => m.role.toLowerCase() === 'partner').length,
   [members]);
 
   const associatesCount = useMemo(() => 
-    members.filter(m => m.role.toLowerCase() === 'member').length,
+    members.filter(m => m.role.toLowerCase() === 'associate').length,
   [members]);
 
   const removeUser = async (memberId) => {
@@ -218,6 +300,22 @@ export default function MembersPage() {
     } catch (error) {
       console.error('Error updating role:', error);
       toast.error('Failed to update role');
+    }
+  };
+
+  const cancelInvite = async (inviteId) => {
+    try {
+      const { error } = await supabase
+        .from('firm_invites')
+        .update({ status: 'rejected' })
+        .eq('id', inviteId);
+      
+      if (error) throw error;
+      toast.success('Invitation cancelled');
+      fetchPendingInvites();
+    } catch (error) {
+      console.error('Error cancelling invite:', error);
+      toast.error('Failed to cancel invitation');
     }
   };
 
@@ -292,11 +390,11 @@ export default function MembersPage() {
                   variant="outline"
                   size="sm"
                   className={`rounded-full text-xs py-1 px-3 flex items-center ${
-                    roleFilter === 'admin' 
+                    roleFilter === 'partner' 
                       ? 'bg-amber-50 border-amber-200 text-amber-800 font-medium' 
                       : 'bg-white hover:bg-slate-50'
                   }`}
-                  onClick={() => setRoleFilter('admin')}
+                  onClick={() => setRoleFilter('partner')}
                 >
                   <Shield className="h-3 w-3 mr-1.5" />
                   Partners
@@ -305,11 +403,11 @@ export default function MembersPage() {
                   variant="outline"
                   size="sm"
                   className={`rounded-full text-xs py-1 px-3 flex items-center ${
-                    roleFilter === 'member' 
+                    roleFilter === 'associate' 
                       ? 'bg-slate-100 border-slate-300 text-slate-800 font-medium' 
                       : 'bg-white hover:bg-slate-50'
                   }`}
-                  onClick={() => setRoleFilter('member')}
+                  onClick={() => setRoleFilter('associate')}
                 >
                   <User className="h-3 w-3 mr-1.5" />
                   Associates
@@ -347,105 +445,260 @@ export default function MembersPage() {
                     />
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label>Role</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={inviteRole === 'associate' ? 'default' : 'outline'}
+                      className={`flex-1 ${inviteRole === 'associate' ? 'bg-slate-800 hover:bg-slate-700' : ''}`}
+                      onClick={() => setInviteRole('associate')}
+                      disabled={inviteLoading}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Associate
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={inviteRole === 'partner' ? 'default' : 'outline'}
+                      className={`flex-1 ${inviteRole === 'partner' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                      onClick={() => setInviteRole('partner')}
+                      disabled={inviteLoading}
+                    >
+                      <Shield className="h-4 w-4 mr-2" />
+                      Partner
+                    </Button>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsInviteDialogOpen(false);
+                    setInviteRole('associate');
+                  }}
+                  disabled={inviteLoading}
+                >
                   Cancel
                 </Button>
-                <Button className="bg-slate-800 hover:bg-slate-700" onClick={handleInvite}>
-                  Send Invitation
+                <Button 
+                  className={inviteRole === 'partner' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-800 hover:bg-slate-700'} 
+                  onClick={handleInvite}
+                  disabled={inviteLoading}
+                >
+                  {inviteLoading ? (
+                    <>
+                      <span className="animate-spin mr-2">⟳</span>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Invitation'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
 
+        {/* Pending Invites Section */}
+        {pendingInvites.length > 0 && (
+          <div className="pt-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-serif font-medium text-slate-800 flex items-center">
+                <Clock className="h-5 w-5 mr-2 text-amber-500" />
+                Pending Invites
+              </h2>
+              <span className="text-sm text-slate-500">
+                {pendingInvites.length} pending {pendingInvites.length === 1 ? 'invite' : 'invites'}
+              </span>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {pendingInvites.map((invite, index) => (
+                <motion.div
+                  key={invite.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="group relative bg-white rounded-lg border border-amber-200 shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start space-x-4 min-w-0">
+                        <Avatar className="h-12 w-12 border-2 border-amber-200 shrink-0">
+                          <AvatarFallback className="bg-amber-50 text-amber-800 font-serif">
+                            <MailIcon className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-serif font-medium text-slate-800 truncate">
+                              {invite.email}
+                            </h3>
+                            <Badge variant="outline" className={`rounded-sm text-xs h-5 flex items-center shrink-0 ${
+                              invite.role === 'partner' 
+                                ? 'bg-amber-50 text-amber-800 border-amber-200' 
+                                : 'bg-slate-50 text-slate-800 border-slate-200'
+                            }`}>
+                              {invite.role === 'partner' ? (
+                                <Shield className="h-3 w-3 mr-1" />
+                              ) : (
+                                <User className="h-3 w-3 mr-1" />
+                              )}
+                              {invite.role === 'partner' ? 'Partner' : 'Associate'}
+                            </Badge>
+                          </div>
+                          <p className="text-slate-500 text-sm mt-1 truncate">
+                            Invited by {invite.inviter?.full_name || invite.inviter?.email || 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-slate-400 hover:text-slate-700 shrink-0"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem 
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                            onClick={() => cancelInvite(invite.id)}
+                          >
+                            <UserX className="h-4 w-4 mr-2" />
+                            Cancel Invite
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <div className="flex items-center text-amber-600 text-xs font-medium">
+                        <Clock className="h-3 w-3 mr-1.5" />
+                        Sent {new Date(invite.created_at).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: 'numeric'
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Members Grid */}
         <div className="pt-4">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-serif font-medium text-slate-800 flex items-center">
+              <UserCheck className="h-5 w-5 mr-2 text-slate-500" />
+              Members
+            </h2>
+            <span className="text-sm text-slate-500">
+              {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+            </span>
+          </div>
           {filteredMembers.length > 0 ? (
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredMembers.map((member, index) => (
                 <motion.div
                   key={member.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
-                  className={`bg-white rounded-md border hover:border-slate-300 transition-all duration-200 p-6 ${
-                    member.role === 'admin' 
-                      ? 'border-amber-200 shadow-sm' 
-                      : 'border-slate-200'
+                  className={`group relative bg-white rounded-lg border hover:border-slate-300 transition-all duration-200 ${
+                    member.role === 'partner' 
+                      ? 'border-amber-200 shadow-sm hover:shadow-md' 
+                      : 'border-slate-200 hover:shadow-sm'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Avatar className={`h-14 w-14 ${
-                        member.role === 'admin'
-                          ? 'border-2 border-amber-200'
-                          : 'border border-slate-200'
-                      }`}>
-                        <AvatarImage src={member.profiles?.avatar_url} />
-                        <AvatarFallback className={`${
-                          member.role === 'admin'
-                            ? 'bg-amber-800 text-white'
-                            : 'bg-slate-700 text-white'
-                        } font-serif`}>
-                          {getFirstLetter(member.profiles?.full_name, member.profiles?.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-serif font-medium text-lg text-slate-800">
-                            {getDisplayName(member.profiles)}
-                          </h3>
-                          <Badge variant="outline" className={`rounded-sm text-xs h-5 flex items-center ${getRoleBadgeColor(member.role)}`}>
-                            {getRoleIcon(member.role)}
-                            {member.role === 'admin' ? 'Partner' : 'Associate'}
-                          </Badge>
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start space-x-4 min-w-0">
+                        <Avatar className={`h-12 w-12 shrink-0 ${
+                          member.role === 'partner'
+                            ? 'border-2 border-amber-200'
+                            : 'border border-slate-200'
+                        }`}>
+                          <AvatarImage src={member.profiles?.avatar_url} />
+                          <AvatarFallback className={`${
+                            member.role === 'partner'
+                              ? 'bg-amber-800 text-white'
+                              : 'bg-slate-700 text-white'
+                          } font-serif`}>
+                            {getFirstLetter(member.profiles?.full_name, member.profiles?.email)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-serif font-medium text-slate-800 truncate">
+                              {getDisplayName(member.profiles)}
+                            </h3>
+                            <Badge variant="outline" className={`rounded-sm text-xs h-5 flex items-center shrink-0 ${getRoleBadgeColor(member.role)}`}>
+                              {getRoleIcon(member.role)}
+                              {getRoleDisplayName(member.role)}
+                            </Badge>
+                          </div>
+                          <p className="text-slate-500 text-sm mt-1 truncate">
+                            {member.profiles?.email}
+                          </p>
                         </div>
-                        <p className="text-slate-500 text-sm">{member.profiles?.email}</p>
                       </div>
+                      
+                      {user?.id !== member.profile_id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-slate-400 hover:text-slate-700 shrink-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {member.role !== 'partner' && (
+                              <DropdownMenuItem onClick={() => changeRole(member.id, 'partner')}>
+                                <Shield className="h-4 w-4 mr-2" />
+                                Make Partner
+                              </DropdownMenuItem>
+                            )}
+                            {member.role !== 'associate' && (
+                              <DropdownMenuItem onClick={() => changeRole(member.id, 'associate')}>
+                                <User className="h-4 w-4 mr-2" />
+                                Make Associate
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              onClick={() => removeUser(member.id)}
+                            >
+                              <UserX className="h-4 w-4 mr-2" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                     
-                    {user?.id !== member.profile_id && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="border border-slate-200">
-                          {member.role !== 'admin' && (
-                            <DropdownMenuItem onClick={() => changeRole(member.id, 'admin')}>
-                              <UserCheck className="h-4 w-4 mr-2" />
-                              Make Partner
-                            </DropdownMenuItem>
-                          )}
-                          {member.role !== 'member' && (
-                            <DropdownMenuItem onClick={() => changeRole(member.id, 'member')}>
-                              <UserCheck className="h-4 w-4 mr-2" />
-                              Make Associate
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem 
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() => removeUser(member.id)}
-                          >
-                            <UserX className="h-4 w-4 mr-2" />
-                            Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-slate-400 text-xs font-medium">
-                      Member since {new Date(member.created_at).toLocaleDateString('en-US', { 
-                        year: 'numeric', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
-                    </span>
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <div className="flex items-center text-slate-400 text-xs font-medium">
+                        <UserCheck className="h-3 w-3 mr-1.5" />
+                        Member since {new Date(member.created_at).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}
