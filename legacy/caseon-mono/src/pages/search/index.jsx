@@ -40,7 +40,8 @@ const suggestedSearches = [
   }
 ];
 
-const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
+// const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
+const API_BASE_URL = "http://localhost:8080";
 
 export default function SearchPage() {
   const { user, refreshToken } = useAuth();
