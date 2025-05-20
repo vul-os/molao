@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,23 +19,23 @@ import (
 	"strconv"
 	"syscall"
 
+	"cloud.google.com/go/storage"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid" // Added for UUID validation
 	"github.com/supabase-community/supabase-go"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
+	"google.golang.org/api/option"
 )
 
 // Config holds the configuration for the application
 type Config struct {
-	BunnyAPIKey     string `json:"bunny_api_key"`
-	StorageZoneName string `json:"storage_zone_name"`
-	Region          string `json:"region"` // e.g., us-east, eu-central
-	CaseURLsFile    string `json:"case_urls_file"`
-	Concurrency     int    `json:"concurrency"`
-	SupabaseURL     string `json:"supabase_url"`
-	SupabaseAPIKey  string `json:"supabase_api_key"`
-	CDNURL          string `json:"cdn_url"`
+	GCPKeyFile     string `json:"gcp_key_file"`
+	BucketName     string `json:"bucket_name"`
+	CaseURLsFile   string `json:"case_urls_file"`
+	Concurrency    int    `json:"concurrency"`
+	SupabaseURL    string `json:"supabase_url"`
+	SupabaseAPIKey string `json:"supabase_api_key"`
 }
 
 // LoadConfig reads the configuration from the specified JSON file
@@ -54,14 +53,11 @@ func LoadConfig(filename string) (*Config, error) {
 	}
 
 	// Override with environment variables if set
-	if apiKey, exists := os.LookupEnv("BUNNY_API_KEY"); exists {
-		config.BunnyAPIKey = apiKey
+	if keyFile, exists := os.LookupEnv("GCP_KEY_FILE"); exists {
+		config.GCPKeyFile = keyFile
 	}
-	if storageZone, exists := os.LookupEnv("BUNNY_STORAGE_ZONE"); exists {
-		config.StorageZoneName = storageZone
-	}
-	if region, exists := os.LookupEnv("BUNNY_REGION"); exists {
-		config.Region = region
+	if bucketName, exists := os.LookupEnv("GCP_BUCKET_NAME"); exists {
+		config.BucketName = bucketName
 	}
 	if caseURLsFile, exists := os.LookupEnv("CASE_URLS_FILE"); exists {
 		config.CaseURLsFile = caseURLsFile
@@ -77,13 +73,10 @@ func LoadConfig(filename string) (*Config, error) {
 	if supabaseAPIKey, exists := os.LookupEnv("SUPABASE_API_KEY"); exists {
 		config.SupabaseAPIKey = supabaseAPIKey
 	}
-	if cdnURL, exists := os.LookupEnv("CDN_URL"); exists {
-		config.CDNURL = cdnURL
-	}
 
 	// Validate configuration fields
-	if config.BunnyAPIKey == "" || config.StorageZoneName == "" || config.CaseURLsFile == "" || config.Region == "" || config.SupabaseURL == "" || config.SupabaseAPIKey == "" || config.CDNURL == "" {
-		return nil, fmt.Errorf("config fields 'bunny_api_key', 'storage_zone_name', 'region', 'case_urls_file', 'supabase_url', 'supabase_api_key', and 'cdn_url' must be set")
+	if config.GCPKeyFile == "" || config.BucketName == "" || config.CaseURLsFile == "" || config.SupabaseURL == "" || config.SupabaseAPIKey == "" {
+		return nil, fmt.Errorf("config fields 'gcp_key_file', 'bucket_name', 'case_urls_file', 'supabase_url', and 'supabase_api_key' must be set")
 	}
 	if config.Concurrency <= 0 {
 		config.Concurrency = 2 // Default concurrency
@@ -92,73 +85,53 @@ func LoadConfig(filename string) (*Config, error) {
 	return config, nil
 }
 
-// BunnyCDNUploader handles uploading files to BunnyCDN via REST API
-type BunnyCDNUploader struct {
-	APIKey      string
-	StorageZone string
-	Region      string
-	HTTPClient  *http.Client
+// GCPStorageUploader handles uploading files to Google Cloud Storage
+type GCPStorageUploader struct {
+	client     *storage.Client
+	bucketName string
+	ctx        context.Context
 }
 
-// NewBunnyCDNUploader initializes a new BunnyCDNUploader
-func NewBunnyCDNUploader(apiKey, storageZone, region string) *BunnyCDNUploader {
-	return &BunnyCDNUploader{
-		APIKey:      apiKey,
-		StorageZone: storageZone,
-		Region:      region,
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 100,
-				IdleConnTimeout:     90 * time.Second,
-				DisableCompression:  false,
-				MaxConnsPerHost:     100,
-				ForceAttemptHTTP2:   true,
-			},
-		},
-	}
-}
-
-// UploadFile uploads a file to BunnyCDN with the given filename using REST API with retry logic
-func (u *BunnyCDNUploader) UploadFile(ctx context.Context, fileName string, data []byte) error {
-	// Construct the upload URL
-	uploadURL := fmt.Sprintf("https://%s.bunnycdn.com/%s/%s",
-		u.Region,
-		u.StorageZone,
-		url.PathEscape(fileName),
-	)
-
-	// Create a new PUT request with the file data and context
-	req, err := http.NewRequestWithContext(ctx, "PUT", uploadURL, bytes.NewReader(data))
+// NewGCPStorageUploader initializes a new GCPStorageUploader
+func NewGCPStorageUploader(ctx context.Context, keyFile, bucketName string) (*GCPStorageUploader, error) {
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile(keyFile))
 	if err != nil {
-		return fmt.Errorf("failed to create upload request: %v", err)
+		return nil, fmt.Errorf("failed to create storage client: %v", err)
 	}
 
-	// Set required headers
-	req.Header.Set("AccessKey", u.APIKey)
-	// Set Content-Type based on file extension
-	contentType := "application/octet-stream" // Default
-	if strings.HasSuffix(strings.ToLower(fileName), ".rtf") {
-		contentType = "application/rtf"
-	}
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Accept", "application/json")
+	return &GCPStorageUploader{
+		client:     client,
+		bucketName: bucketName,
+		ctx:        ctx,
+	}, nil
+}
+
+// UploadFile uploads a file to Google Cloud Storage with retry logic
+func (u *GCPStorageUploader) UploadFile(fileName string, data []byte) error {
+	bucket := u.client.Bucket(u.bucketName)
+	obj := bucket.Object(fileName)
 
 	// Define the upload operation with retry
 	operation := func() error {
-		resp, err := u.HTTPClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("upload request failed: %v", err)
+		writer := obj.NewWriter(u.ctx)
+		
+		// Set content type based on file extension
+		contentType := "application/octet-stream" // Default
+		if strings.HasSuffix(strings.ToLower(fileName), ".rtf") {
+			contentType = "application/rtf"
 		}
-		defer resp.Body.Close()
+		writer.ContentType = contentType
 
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			return nil // Success
+		if _, err := writer.Write(data); err != nil {
+			writer.Close()
+			return fmt.Errorf("failed to write data: %v", err)
 		}
 
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(body))
+		if err := writer.Close(); err != nil {
+			return fmt.Errorf("failed to close writer: %v", err)
+		}
+
+		return nil
 	}
 
 	// Configure exponential backoff
@@ -166,11 +139,16 @@ func (u *BunnyCDNUploader) UploadFile(ctx context.Context, fileName string, data
 	expBackoff.MaxElapsedTime = 2 * time.Minute
 
 	// Retry the upload operation
-	if err := backoff.Retry(operation, backoff.WithContext(expBackoff, ctx)); err != nil {
+	if err := backoff.Retry(operation, backoff.WithContext(expBackoff, u.ctx)); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// Close closes the GCP storage client
+func (u *GCPStorageUploader) Close() error {
+	return u.client.Close()
 }
 
 // ExtractDetailsFromURL extracts the folder, year, and case number from the case URL
@@ -308,8 +286,11 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	// Initialize BunnyCDN uploader
-	uploader := NewBunnyCDNUploader(config.BunnyAPIKey, config.StorageZoneName, config.Region)
+	// Initialize GCP storage uploader
+	uploader, err := NewGCPStorageUploader(context.Background(), config.GCPKeyFile, config.BucketName)
+	if err != nil {
+		log.Fatalf("Failed to initialize GCP storage uploader: %v", err)
+	}
 
 	// Initialize Supabase client
 	supabaseClient, err := supabase.NewClient(config.SupabaseURL, config.SupabaseAPIKey, &supabase.ClientOptions{})
@@ -447,21 +428,21 @@ func main() {
 			modifiedFileName := fmt.Sprintf("%s-%s-%s%s", folder, year, baseFileName, path.Ext(rtfFileName))
 			log.Printf("📝 Renamed file to: %s", modifiedFileName)
 
-			// Upload the RTF to BunnyCDN via REST API
-			log.Printf("⬆️ Uploading to BunnyCDN: %s", modifiedFileName)
-			err = uploader.UploadFile(ctx, modifiedFileName, rtfData)
+			// Upload the RTF to Google Cloud Storage
+			log.Printf("⬆️ Uploading to GCP Storage: %s", modifiedFileName)
+			err = uploader.UploadFile(modifiedFileName, rtfData)
 			if err != nil {
-				log.Printf("❌ Failed to upload '%s' to BunnyCDN: %v", modifiedFileName, err)
+				log.Printf("❌ Failed to upload '%s' to GCP Storage: %v", modifiedFileName, err)
 				bar.Increment()
 				return
 			}
-			log.Printf("✅ Successfully uploaded to BunnyCDN: %s", modifiedFileName)
+			log.Printf("✅ Successfully uploaded to GCP Storage: %s", modifiedFileName)
 
 			// Prepare data for 'files' table without metadata
 			fileRecord := map[string]interface{}{
 				"file_name": modifiedFileName,
 				"file_type": "rtf",
-				"cdn_path":  fmt.Sprintf("%s/%s", config.CDNURL, url.PathEscape(modifiedFileName)),
+				"cdn_path":  fmt.Sprintf("gs://%s/%s", config.BucketName, url.PathEscape(modifiedFileName)),
 				"file_size": len(rtfData),
 				"mime_type": "application/rtf",
 			}
@@ -540,4 +521,9 @@ func main() {
 	p.Wait()
 
 	log.Println("All RTF files have been processed.")
+
+	// Close GCP storage uploader
+	if err := uploader.Close(); err != nil {
+		log.Printf("❌ Failed to close GCP storage uploader: %v", err)
+	}
 }
