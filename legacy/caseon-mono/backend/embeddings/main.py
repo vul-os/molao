@@ -160,7 +160,7 @@ def get_embeddings_batched(chunks: List[str], model, tokenizer, config: Dict[str
                 max_length=max_length,  # Use config value
                 return_tensors="pt"
             )
-            logger.info(f"Input shape: {encoded_input['input_ids'].shape}")3
+            logger.info(f"Input shape: {encoded_input['input_ids'].shape}")
             
             # Move to appropriate device
             encoded_input = {k: v.to(device) for k, v in encoded_input.items()}
