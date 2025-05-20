@@ -11,12 +11,14 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from datetime import datetime
-from typing import List, Tuple, Dict, Any
-from transformers import AutoTokenizer, AutoModel
+from typing import List, Tuple, Dict, Any, Generator
+from transformers import AutoTokenizer
 from striprtf.striprtf import rtf_to_text
 import docx
 import fitz
 import json
+from optimum.onnxruntime import ORTModelForFeatureExtraction
+from transformers import AutoModel
 
 # Setup
 logging.basicConfig(level=logging.INFO)
@@ -52,54 +54,55 @@ def download_file(cdn_path: str, local_path: str) -> bool:
         logger.error(f"Failed to download {cdn_path}: {e}")
         return False
 
-def process_file(file_path: str, mime_type: str, tokenizer, config) -> List[Tuple[str, int, int]]:
-    text = ""
+def process_file(file_path: str, mime_type: str, tokenizer) -> str:
     try:
         if mime_type == "application/rtf":
             with open(file_path, "rb") as f:
                 raw_rtf = f.read()
             try:
-                # decode bytes to string first
                 rtf_string = raw_rtf.decode('utf-8', errors='ignore')  
-                text = rtf_to_text(rtf_string)
+                return normalize_whitespace(rtf_to_text(rtf_string))
             except Exception as e:
                 logger.error(f"Failed to parse RTF for file {file_path}: {e}")
-                return []
+                return ""
         elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             doc = docx.Document(file_path)
-            text = "\n\n".join([para.text for para in doc.paragraphs])
+            return normalize_whitespace("\n\n".join([para.text for para in doc.paragraphs]))
         elif mime_type == "application/pdf":
             with fitz.open(file_path) as doc:
-                for page in doc:
-                    text += page.get_text()
+                text = "\n\n".join([page.get_text() for page in doc])
+                return normalize_whitespace(text)
         else:
             with open(file_path, 'r', encoding='utf-8') as f:
-                text = f.read()
+                return normalize_whitespace(f.read())
     except Exception as e:
         logger.error(f"Failed to process file {file_path}: {e}")
-        return []
+        return ""
 
-    text = normalize_whitespace(text)
-
-    if not text:
-        logger.error(f"File {file_path} resulted in empty text after processing. Skipping.")
-        return []
-
-    tokens = tokenizer.encode(text, add_special_tokens=False)
+def chunk_text(text: str, tokenizer, config: Dict[str, Any]) -> Generator[Tuple[str, int, int], None, None]:
+    max_length = config['processing']['token_limit']  # Use from config
     stride = config['processing']['stride']
-    token_limit = config['processing']['token_limit']
-    chunks = []
-
-    # Ensure chunks do not exceed token limit
-    for start in range(0, len(tokens), stride):
-        end = min(start + token_limit, len(tokens))
-        chunk_tokens = tokens[start:end]
+    
+    # First encode the text with truncation to avoid the warning
+    encoded = tokenizer.encode(
+        text,
+        add_special_tokens=False,
+        truncation=True,
+        max_length=max_length * 100  # Allow for multiple chunks but prevent excessive memory usage
+    )
+    
+    total_length = len(encoded)
+    logger.info(f"Total tokens in text (after initial truncation): {total_length}")
+    
+    # Generate chunks with overlap
+    for start in range(0, total_length, stride):
+        end = min(start + max_length, total_length)
+        chunk_tokens = encoded[start:end]
         chunk_text = tokenizer.decode(chunk_tokens, skip_special_tokens=True)
-        chunks.append((chunk_text, start, end))
-        if end == len(tokens):  # Stop if we've reached the end of the tokens
+        yield (chunk_text, start, end)
+        
+        if end == total_length:
             break
-
-    return chunks
 
 def save_to_database(file_id: uuid.UUID, chunks: List[Tuple[str, int, int]], embeddings: List[List[float]], model_name: str):
     conn = get_db_connection()
@@ -118,7 +121,7 @@ def save_to_database(file_id: uuid.UUID, chunks: List[Tuple[str, int, int]], emb
                 data.append((file_id, model_name, embed, start, end, json.dumps(metadata)))
 
             execute_values(cur, """
-                INSERT INTO file_vectors_small (file_id, model, embedding, chunk_start, chunk_end, metadata)
+                INSERT INTO file_vectors (file_id, model, embedding, chunk_start, chunk_end, metadata)
                 VALUES %s
             """, data)
             conn.commit()
@@ -128,139 +131,207 @@ def save_to_database(file_id: uuid.UUID, chunks: List[Tuple[str, int, int]], emb
     finally:
         conn.close()
 
-def get_embeddings_batched(chunks: List[str], tokenizer, model, batch_size: int, device: str) -> List[List[float]]:
-    model = model.to(device)
-    model.eval()
+def get_embeddings_batched(chunks: List[str], model, tokenizer, config: Dict[str, Any]) -> List[List[float]]:
     embeddings = []
+    batch_size = config['processing']['batch_size']
+    max_length = config['processing']['token_limit']  # Use from config
+    
+    logger.info(f"Processing {len(chunks)} chunks in batches of {batch_size}")
+    
+    # Determine device
+    device = "cuda" if torch.cuda.is_available() else "cpu"  
+    logger.info(f"Using device: {device}")
+    
+    # Check if we're using ONNX model
+    is_onnx = isinstance(model, ORTModelForFeatureExtraction)
+    logger.info(f"Using {'ONNX' if is_onnx else 'PyTorch'} model")
+    
     for i in range(0, len(chunks), batch_size):
-        batch = chunks[i:i+batch_size]
-        inputs = tokenizer(batch, padding=True, truncation=True, return_tensors="pt", max_length=512)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        with torch.no_grad():
-            model_out = model(**inputs)
-            pooled = F.normalize(model_out.last_hidden_state[:, 0], p=2, dim=1)
-            embeddings.extend(pooled.cpu().tolist())
-        del inputs
-        torch.cuda.empty_cache()
-        gc.collect()
+        batch = chunks[i:i + batch_size]
+        logger.info(f"Processing batch {i//batch_size + 1}/{(len(chunks) + batch_size - 1) // batch_size}")
+        
+        try:
+            # Tokenize with padding and truncation
+            logger.info(f"Tokenizing batch {i//batch_size + 1}")
+            encoded_input = tokenizer(
+                batch,
+                padding=True,
+                truncation=True,
+                max_length=max_length,  # Use config value
+                return_tensors="pt"
+            )
+            logger.info(f"Input shape: {encoded_input['input_ids'].shape}")3
+            
+            # Move to appropriate device
+            encoded_input = {k: v.to(device) for k, v in encoded_input.items()}
+            
+            # Generate embeddings
+            logger.info(f"Generating embeddings for batch {i//batch_size + 1}")
+            with torch.no_grad():
+                outputs = model(**encoded_input)
+                logger.info(f"Model output type: {type(outputs)}")
+                if isinstance(outputs, dict):
+                    logger.info(f"Model output keys: {outputs.keys()}")
+                
+                # Handle different output formats for ONNX vs PyTorch
+                if is_onnx:
+                    # ONNX model might return different output format
+                    if isinstance(outputs, dict) and 'last_hidden_state' in outputs:
+                        logger.info("Using last_hidden_state from ONNX output")
+                        batch_embeddings = outputs['last_hidden_state'][:, 0]
+                    else:
+                        logger.info("Using direct ONNX output")
+                        # If outputs is a tensor directly
+                        batch_embeddings = outputs[:, 0] if len(outputs.shape) == 3 else outputs
+                    
+                    # Convert to torch tensor if it's not already
+                    if not isinstance(batch_embeddings, torch.Tensor):
+                        logger.info("Converting ONNX output to torch tensor")
+                        batch_embeddings = torch.tensor(batch_embeddings, device=device)
+                else:
+                    # PyTorch model returns last_hidden_state
+                    logger.info("Using PyTorch model output")
+                    batch_embeddings = outputs.last_hidden_state[:, 0]
+                
+                logger.info(f"Embeddings shape before normalization: {batch_embeddings.shape}")
+                # Normalize embeddings
+                batch_embeddings = F.normalize(batch_embeddings, p=2, dim=1)
+                logger.info(f"Embeddings shape after normalization: {batch_embeddings.shape}")
+                # Move embeddings to CPU before converting to numpy
+                embeddings.extend(batch_embeddings.cpu().numpy().tolist())
+            
+            # Clear memory
+            del encoded_input, outputs, batch_embeddings
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
+            logger.info(f"Completed batch {i//batch_size + 1}")
+            
+        except Exception as e:
+            logger.error(f"Error processing batch {i//batch_size + 1}: {str(e)}", exc_info=True)
+            raise
+    
+    logger.info(f"Completed processing all {len(chunks)} chunks")
     return embeddings
 
-def main():
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:64,expandable_segments:True"
-    torch.set_float32_matmul_precision("high")
-    torch.cuda.empty_cache()
-
-    config = load_config()
-    device = config['embedding']['device']
-
-    model_name = config['embedding']['model_name']
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
-
-    priority_file_id = uuid.UUID("85da823b-6474-4b1e-982c-06752b43b327")
-
-    # Step 1: Handle priority file first
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM file_vectors_small WHERE file_id = %s", (str(priority_file_id),))
-            exists = cur.fetchone()[0] > 0
-    finally:
-        conn.close()
-
-    if not exists:
-        logger.info(f"Priority file {priority_file_id} not embedded yet. Processing it first...")
-        conn = get_db_connection()
+def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tokenizer, config: Dict[str, Any]):
+    for file_id, cdn_path, mime_type in file_batch:
+        local_path = f"temp_{file_id}.bin"
+        logger.info(f"Processing file {file_id} from {cdn_path} (mime type: {mime_type})")
+        
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT id, cdn_path, mime_type FROM files WHERE id = %s", (str(priority_file_id),))
-                priority_file = cur.fetchone()
-        finally:
-            conn.close()
+            logger.info(f"Downloading file {file_id}")
+            if not download_file(cdn_path, local_path):
+                logger.error(f"Failed to download file {file_id}")
+                continue
 
-        if priority_file:
-            file_id, cdn_path, mime_type = priority_file
-            local_path = f"temp_{file_id}.bin"
+            # Process the file to get text
+            logger.info(f"Extracting text from file {file_id}")
+            text = process_file(local_path, mime_type, tokenizer)
+            if not text:
+                logger.error(f"No text extracted from file {file_id}")
+                continue
+            logger.info(f"Extracted {len(text)} characters from file {file_id}")
 
-            if download_file(cdn_path, local_path):
-                chunks = process_file(local_path, mime_type, tokenizer, config)
-                text_chunks = [chunk for chunk, _, _ in chunks]
+            # Chunk the text
+            logger.info(f"Chunking text for file {file_id}")
+            chunks = list(chunk_text(text, tokenizer, config))
+            
+            if not chunks:
+                logger.error(f"No chunks generated for file {file_id}")
+                continue
+            logger.info(f"Generated {len(chunks)} chunks for file {file_id}")
 
+            # Get text only from chunks
+            text_chunks = [chunk[0] for chunk in chunks]
+            logger.info(f"Average chunk length: {sum(len(c) for c in text_chunks) / len(text_chunks):.2f} characters")
+            
+            # Generate embeddings in batches
+            logger.info(f"Generating embeddings for file {file_id}")
+            try:
                 embeddings = get_embeddings_batched(
-                    [f"search_document: {t}" for t in text_chunks],
-                    tokenizer,
+                    text_chunks,
                     model,
-                    config['processing']['batch_size'],
-                    device
+                    tokenizer,
+                    config
                 )
+                logger.info(f"Generated {len(embeddings)} embeddings for file {file_id}")
+            except Exception as e:
+                logger.error(f"Error generating embeddings for file {file_id}: {str(e)}", exc_info=True)
+                raise
 
-                save_to_database(file_id, chunks, embeddings, model_name)
+            # Save to database
+            logger.info(f"Saving embeddings to database for file {file_id}")
+            try:
+                save_to_database(file_id, chunks, embeddings, config['embedding']['model_name'])
+                logger.info(f"Successfully processed file {file_id}")
+            except Exception as e:
+                logger.error(f"Error saving to database for file {file_id}: {str(e)}", exc_info=True)
+                raise
+
+        except Exception as e:
+            logger.error(f"Error processing file {file_id}: {str(e)}", exc_info=True)
+            continue
+        finally:
+            if os.path.exists(local_path):
                 os.remove(local_path)
-                logger.info(f"Priority file {file_id} processed successfully.")
-            else:
-                logger.error(f"Failed to download priority file {file_id}. Skipping.")
-        else:
-            logger.error(f"Priority file {priority_file_id} not found in 'files' table.")
-    else:
-        logger.info(f"Priority file {priority_file_id} already embedded. Skipping.")
+                logger.info(f"Cleaned up temporary file for {file_id}")
 
-    # Step 2: Get all processed file IDs and find files that haven't been processed
+def main():
+    # Configure PyTorch
+    config = load_config()
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = f"max_split_size_mb:{config['processing']['cuda_memory_mb']},expandable_segments:True"
+    torch.set_float32_matmul_precision("high")
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    # Initialize model and tokenizer
+    logger.info("Loading model and tokenizer...")
+    model_name = 'BAAI/bge-large-en-v1.5'
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    # Initialize ONNX model
+    try:
+        model = ORTModelForFeatureExtraction.from_pretrained(
+            model_name,
+            revision="refs/pr/13",
+            file_name="model.onnx",  # Updated path to match example
+            provider="CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
+        )
+        logger.info("ONNX model loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load ONNX model: {e}")
+        logger.info("Falling back to regular PyTorch model")
+        model = AutoModel.from_pretrained(model_name)
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+    # Get unprocessed files
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM files")
-            files = cur.fetchall()
-
-            cur.execute("SELECT DISTINCT file_id FROM file_vectors_small")
-            processed_files = {row[0] for row in cur.fetchall()}
+            cur.execute("""
+                SELECT f.id, f.cdn_path, f.mime_type 
+                FROM files f 
+                LEFT JOIN file_vectors fv ON f.id = fv.file_id 
+                WHERE fv.file_id IS NULL
+            """)
+            unprocessed_files = cur.fetchall()
     finally:
         conn.close()
-
-    # Filter files that have not been processed
-    unprocessed_files = [file_id for file_id, in files if file_id not in processed_files]
 
     if not unprocessed_files:
         logger.info("No unprocessed files found.")
         return
 
-    logger.info(f"Found {len(unprocessed_files)} unprocessed files.")
+    logger.info(f"Found {len(unprocessed_files)} unprocessed files")
 
-    # Step 3: Process unprocessed files
-    for file_id in unprocessed_files:
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT cdn_path, mime_type FROM files WHERE id = %s", (str(file_id),))
-                file = cur.fetchone()
-        finally:
-            conn.close()
+    # Process files in batches
+    for i in range(0, len(unprocessed_files), config['processing']['batch_size']):
+        file_batch = unprocessed_files[i:i + config['processing']['batch_size']]
+        process_files_batch(file_batch, model, tokenizer, config)
 
-        if file:
-            cdn_path, mime_type = file
-            local_path = f"temp_{file_id}.bin"
-
-            logger.info(f"Processing file {file_id}...")
-            if not download_file(cdn_path, local_path):
-                logger.error(f"Download failed for file {file_id}. Skipping.")
-                continue
-
-            chunks = process_file(local_path, mime_type, tokenizer, config)
-            text_chunks = [chunk for chunk, _, _ in chunks]
-
-            embeddings = get_embeddings_batched(
-                [f"search_document: {t}" for t in text_chunks],
-                tokenizer,
-                model,
-                config['processing']['batch_size'],
-                device
-            )
-
-            save_to_database(file_id, chunks, embeddings, model_name)
-            os.remove(local_path)
-            logger.info(f"File {file_id} processed.")
-
-    logger.info("All unprocessed files processed.")
-
+    logger.info("All files processed successfully")
 
 if __name__ == "__main__":
     main()
