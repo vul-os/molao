@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, Sparkles, X, ArrowRight, BookOpen, BookText, Gavel } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, Sparkles, X, ArrowRight, BookOpen, BookText, Gavel, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,8 +43,39 @@ const suggestedSearches = [
 // const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
 const API_BASE_URL = "http://localhost:8080";
 
+// Add new component for RTF conversion status
+function ConversionStatus({ isConverting, onRetry }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-32 gap-3">
+      {isConverting ? (
+        <>
+          <Loader2 className="h-6 w-6 text-green-700 animate-spin" />
+          <span className="text-sm text-slate-600">Converting RTF to HTML...</span>
+        </>
+      ) : (
+        <>
+          <div className="text-amber-600 bg-amber-50 p-3 rounded-full">
+            <RefreshCw className="h-6 w-6" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-slate-600">Failed to convert RTF file</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRetry}
+              className="mt-2 text-green-700 hover:text-green-800"
+            >
+              Try again
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function SearchPage() {
-  const { user, refreshToken } = useAuth();
+  const { user, refreshToken, accessToken } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,6 +86,9 @@ export default function SearchPage() {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [conversionError, setConversionError] = useState(false);
 
   // Auto-scroll to bottom when results change
   useEffect(() => {
@@ -184,43 +218,116 @@ export default function SearchPage() {
     handleSearch();
   };
 
-  // Add error boundary for file content fetching
   const handleFileClick = async (file) => {
     setSelectedFile(file);
-    setIsLoading(true);
-    try {
-      const response = await fetch(file.cdn_path, {
+    setIsLoadingFile(true);
+    setFileContent(null);
+    setConversionError(false);
+
+    const makeFileRequest = async (token) => {
+      if (!token) {
+        console.error("No access token available");
+        throw new Error('missing_token');
+      }
+
+      console.log("Attempting file fetch with token length:", token.length);
+      
+      const response = await fetch(`${API_BASE_URL}/file/${file.id}`, {
         headers: {
-          'Authorization': `Bearer ${user.access_token}`
+          'Authorization': `Bearer ${token.trim()}`
         }
       });
 
       if (response.status === 401) {
+        throw new Error('unauthorized');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("File fetch error details:", errorData);
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      return await response.text();
+    };
+
+    try {
+      if (!user || !user.access_token) {
         toast({
-          title: "Session expired",
-          description: "Your session has expired. Please sign in again.",
+          title: "Authentication error",
+          description: "You need to sign in first.",
           variant: "destructive"
         });
         navigate('/signin');
         return;
       }
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch file content');
+      // For RTF files, attempt conversion first
+      if (file.mime_type === 'application/rtf') {
+        await convertRtfToHtml(file.id);
+      } else {
+        // For other file types, use existing file fetch logic
+        const content = await makeFileRequest(user.access_token);
+        setFileContent(content);
       }
-
-      const content = await response.text();
-      setFileContent(content);
     } catch (error) {
-      console.error('Error loading file:', error);
+      console.error('File fetch error details:', error);
       toast({
         title: "Error",
-        description: "Unable to load file content. Please try again.",
+        description: error.message || "Failed to load the file. Please try again.",
         variant: "destructive"
       });
-      setSelectedFile(null);
     } finally {
-      setIsLoading(false);
+      setIsLoadingFile(false);
+    }
+  };
+
+  // Add RTF conversion function
+  const convertRtfToHtml = async (fileId) => {
+    setIsConverting(true);
+    setConversionError(false);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/convert/rtf-to-html`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.access_token.trim()}`
+        },
+        body: JSON.stringify({ file_id: fileId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Conversion failed');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Conversion failed');
+      }
+
+      // Fetch the converted HTML file
+      const htmlResponse = await fetch(`${API_BASE_URL}/download/html/${data.html_path}`, {
+        headers: {
+          'Authorization': `Bearer ${user.access_token.trim()}`
+        }
+      });
+
+      if (!htmlResponse.ok) {
+        throw new Error('Failed to fetch converted file');
+      }
+
+      const htmlContent = await htmlResponse.text();
+      setFileContent(htmlContent);
+    } catch (error) {
+      console.error('RTF conversion error:', error);
+      setConversionError(true);
+      toast({
+        title: "Conversion failed",
+        description: "Failed to convert RTF file to HTML. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsConverting(false);
     }
   };
 
@@ -474,31 +581,57 @@ export default function SearchPage() {
       </div>
 
       {/* File viewer modal */}
-      {selectedFile && fileContent && (
-        <div className="fixed inset-0 bg-black/50 z-30 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 rounded-t-xl">
-              <div className="pr-4">
-                <h3 className="font-heading text-lg font-medium text-slate-900">{selectedFile.file_name}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">{selectedFile.file_type}</p>
+      {selectedFile && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-lg w-[90vw] max-w-6xl h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50 rounded-t-lg">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 bg-green-50 p-2 rounded-md">
+                  <FileText className="h-5 w-5 text-green-700" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-heading text-lg font-medium text-slate-900">{selectedFile.file_name}</h3>
+                  <Badge variant="outline" className="text-xs">
+                    {selectedFile.mime_type === 'application/rtf' ? 'RTF Document' : selectedFile.file_type}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setFileContent(null);
+                      setConversionError(false);
+                    }}
+                    className="h-8 w-8 p-0 hover:bg-slate-100"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSelectedFile(null);
-                  setFileContent(null);
-                }}
-                className="text-slate-500 hover:text-slate-900 hover:bg-slate-200"
-              >
-                Close
-              </Button>
             </div>
-            <ScrollArea className="flex-1 p-6">
-              <div className="prose prose-slate max-w-none font-heading">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {fileContent}
-                </pre>
+
+            {/* Content */}
+            <ScrollArea className="flex-1">
+              <div className="p-8">
+                {isLoadingFile ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 text-green-700 animate-spin" />
+                    <span className="ml-2 text-sm text-slate-600">Loading document...</span>
+                  </div>
+                ) : isConverting ? (
+                  <ConversionStatus isConverting={true} />
+                ) : conversionError ? (
+                  <ConversionStatus 
+                    isConverting={false} 
+                    onRetry={() => convertRtfToHtml(selectedFile.id)} 
+                  />
+                ) : fileContent ? (
+                  <div 
+                    className="prose prose-slate max-w-none"
+                    dangerouslySetInnerHTML={{ __html: fileContent }}
+                  />
+                ) : null}
               </div>
             </ScrollArea>
           </div>
