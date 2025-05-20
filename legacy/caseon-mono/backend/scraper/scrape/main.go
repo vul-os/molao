@@ -36,6 +36,7 @@ type Config struct {
 	Concurrency     int    `json:"concurrency"`
 	SupabaseURL     string `json:"supabase_url"`
 	SupabaseAPIKey  string `json:"supabase_api_key"`
+	CDNURL          string `json:"cdn_url"`
 }
 
 // LoadConfig reads the configuration from the specified JSON file
@@ -76,10 +77,13 @@ func LoadConfig(filename string) (*Config, error) {
 	if supabaseAPIKey, exists := os.LookupEnv("SUPABASE_API_KEY"); exists {
 		config.SupabaseAPIKey = supabaseAPIKey
 	}
+	if cdnURL, exists := os.LookupEnv("CDN_URL"); exists {
+		config.CDNURL = cdnURL
+	}
 
 	// Validate configuration fields
-	if config.BunnyAPIKey == "" || config.StorageZoneName == "" || config.CaseURLsFile == "" || config.Region == "" || config.SupabaseURL == "" || config.SupabaseAPIKey == "" {
-		return nil, fmt.Errorf("config fields 'bunny_api_key', 'storage_zone_name', 'region', 'case_urls_file', 'supabase_url', and 'supabase_api_key' must be set")
+	if config.BunnyAPIKey == "" || config.StorageZoneName == "" || config.CaseURLsFile == "" || config.Region == "" || config.SupabaseURL == "" || config.SupabaseAPIKey == "" || config.CDNURL == "" {
+		return nil, fmt.Errorf("config fields 'bunny_api_key', 'storage_zone_name', 'region', 'case_urls_file', 'supabase_url', 'supabase_api_key', and 'cdn_url' must be set")
 	}
 	if config.Concurrency <= 0 {
 		config.Concurrency = 2 // Default concurrency
@@ -104,6 +108,14 @@ func NewBunnyCDNUploader(apiKey, storageZone, region string) *BunnyCDNUploader {
 		Region:      region,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 100,
+				IdleConnTimeout:     90 * time.Second,
+				DisableCompression:  false,
+				MaxConnsPerHost:     100,
+				ForceAttemptHTTP2:   true,
+			},
 		},
 	}
 }
@@ -263,6 +275,32 @@ func isValidUUID(u string) bool {
 	return err == nil
 }
 
+// checkSourceExists checks if a source URL has already been processed
+func checkSourceExists(client *supabase.Client, sourceURL string) (bool, error) {
+	resp, _, err := client.From("sources").
+		Select("id", "", false).
+		Eq("source_url", sourceURL).
+		Limit(1, "").
+		Execute()
+	
+	if err != nil {
+		return false, fmt.Errorf("failed to check source existence: %v", err)
+	}
+
+	// Log the raw response for debugging
+	if len(resp) == 0 {
+		return false, nil // No results found
+	}
+
+	// Try to unmarshal the response
+	var results []map[string]interface{}
+	if err := json.Unmarshal(resp, &results); err != nil {
+		return false, fmt.Errorf("failed to parse source check response (raw response: %s): %v", string(resp), err)
+	}
+
+	return len(results) > 0, nil
+}
+
 func main() {
 	// Load configuration
 	config, err := LoadConfig("config.json")
@@ -279,9 +317,17 @@ func main() {
 		log.Fatalf("Failed to initialize Supabase client: %v", err)
 	}
 
-	// Create a single HTTP client for downloading files
+	// Create a single HTTP client for downloading files with optimized settings
 	downloadClient := &http.Client{
 		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+			DisableCompression:  false,
+			MaxConnsPerHost:     100,
+			ForceAttemptHTTP2:   true,
+		},
 	}
 
 	// Open the case URLs file
@@ -359,54 +405,72 @@ func main() {
 			defer wg.Done()
 			defer func() { <-sem }() // Release the slot
 
-			// Extract folder, year, and case number
-			folder, year, _, err := ExtractDetailsFromURL(cURL)
+			// Check if source already exists
+			exists, err := checkSourceExists(supabaseClient, cURL)
 			if err != nil {
-				log.Printf("Skipping URL '%s': %v", cURL, err)
+				log.Printf("❌ Failed to check if source exists for '%s': %v", cURL, err)
+				bar.Increment()
+				return
+			}
+			if exists {
+				log.Printf("⏭️ Skipping already processed URL: %s", cURL)
 				bar.Increment()
 				return
 			}
 
+			// Extract folder, year, and case number
+			folder, year, _, err := ExtractDetailsFromURL(cURL)
+			if err != nil {
+				log.Printf("❌ Failed to extract details from URL '%s': %v", cURL, err)
+				bar.Increment()
+				return
+			}
+			log.Printf("📁 Processing case from folder '%s', year '%s', URL: %s", folder, year, cURL)
+
 			// Construct RTF link by replacing .html with .rtf
 			rtfLink := strings.TrimSuffix(cURL, ".html") + ".rtf"
-			log.Printf("Constructed RTF link: %s", rtfLink)
+			log.Printf("🔗 Attempting to download RTF from: %s", rtfLink)
 
 			// Download the RTF file with Referer header set to case URL
 			rtfData, rtfFileName, err := DownloadFile(downloadClient, rtfLink, cURL)
 			if err != nil {
-				log.Printf("Failed to download RTF for '%s': %v", cURL, err)
+				log.Printf("❌ Failed to download RTF from '%s': %v", rtfLink, err)
 				bar.Increment()
 				return
 			}
+			log.Printf("✅ Successfully downloaded RTF file: %s (size: %.2f KB)", rtfFileName, float64(len(rtfData))/1024)
 
 			// Sanitize base filename without extension
 			baseFileName := sanitizedFileName(rtfFileName)
 
 			// Construct modified filename with folder, year, and case number
-			// Example: ZACC-2004-12.rtf
 			modifiedFileName := fmt.Sprintf("%s-%s-%s%s", folder, year, baseFileName, path.Ext(rtfFileName))
+			log.Printf("📝 Renamed file to: %s", modifiedFileName)
 
 			// Upload the RTF to BunnyCDN via REST API
+			log.Printf("⬆️ Uploading to BunnyCDN: %s", modifiedFileName)
 			err = uploader.UploadFile(ctx, modifiedFileName, rtfData)
 			if err != nil {
-				log.Printf("Failed to upload '%s' to BunnyCDN: %v", modifiedFileName, err)
+				log.Printf("❌ Failed to upload '%s' to BunnyCDN: %v", modifiedFileName, err)
 				bar.Increment()
 				return
 			}
+			log.Printf("✅ Successfully uploaded to BunnyCDN: %s", modifiedFileName)
 
 			// Prepare data for 'files' table without metadata
 			fileRecord := map[string]interface{}{
 				"file_name": modifiedFileName,
 				"file_type": "rtf",
-				"cdn_path":  fmt.Sprintf("https://%s.bunnycdn.com/%s/%s", uploader.Region, uploader.StorageZone, url.PathEscape(modifiedFileName)),
-				"file_size": len(rtfData), // Size in bytes
+				"cdn_path":  fmt.Sprintf("%s/%s", config.CDNURL, url.PathEscape(modifiedFileName)),
+				"file_size": len(rtfData),
 				"mime_type": "application/rtf",
 			}
 
 			// Insert into 'files' table
+			log.Printf("💾 Inserting file record into database: %s", modifiedFileName)
 			resp, _, err := supabaseClient.From("files").Insert(fileRecord, false, "", "representation", "").Execute()
 			if err != nil {
-				log.Printf("Failed to insert record into 'files' for '%s': %v", modifiedFileName, err)
+				log.Printf("❌ Failed to insert record into 'files' for '%s': %v", modifiedFileName, err)
 				if resp != nil {
 					log.Printf("Supabase response: %s", string(resp))
 				}
@@ -417,34 +481,33 @@ func main() {
 			// Parse the response to get the inserted 'id'
 			var insertedFiles []map[string]interface{}
 			if err := json.Unmarshal(resp, &insertedFiles); err != nil {
-				log.Printf("Failed to parse insert response for 'files' table: %v", err)
+				log.Printf("❌ Failed to parse insert response for 'files' table: %v", err)
 				return
 			}
 			if len(insertedFiles) == 0 {
-				log.Printf("No records found in insert response for 'files' table for '%s'", modifiedFileName)
+				log.Printf("❌ No records found in insert response for 'files' table for '%s'", modifiedFileName)
 				return
 			}
 			fileID, ok := insertedFiles[0]["id"].(string) // Supabase returns UUIDs as strings
 			if !ok || !isValidUUID(fileID) {
-				log.Printf("Invalid 'id' type or format for inserted file '%s'", modifiedFileName)
+				log.Printf("❌ Invalid 'id' type or format for inserted file '%s'", modifiedFileName)
 				return
 			}
-			bar.Increment()
+			log.Printf("✅ Successfully inserted file record with ID: %s", fileID)
 
 			// Prepare data for 'sources' table with source_url
 			sourceRecord := map[string]interface{}{
 				"file_id":      fileID,
 				"source_url":   cURL,
 				"status":       "active",
-				"retrieved_at": time.Now().UTC(), // Changed from string to time.Time
+				"retrieved_at": time.Now().UTC(),
 			}
-			// Log the sourceRecord being inserted
-			log.Printf("Attempting to insert into 'sources': %+v", sourceRecord)
+			log.Printf("💾 Inserting source record: %+v", sourceRecord)
 
 			// Insert into 'sources' table
 			resp, _, err = supabaseClient.From("sources").Insert(sourceRecord, false, "", "representation", "").Execute()
 			if err != nil {
-				log.Printf("Failed to insert record into 'sources' for '%s': %v", cURL, err)
+				log.Printf("❌ Failed to insert record into 'sources' for '%s': %v", cURL, err)
 				if resp != nil {
 					log.Printf("Supabase response: %s", string(resp))
 				}
@@ -454,21 +517,20 @@ func main() {
 			// Parse the response to confirm insertion
 			var insertedSources []map[string]interface{}
 			if err := json.Unmarshal(resp, &insertedSources); err != nil {
-				log.Printf("Failed to parse insert response for 'sources' table: %v", err)
+				log.Printf("❌ Failed to parse insert response for 'sources' table: %v", err)
 				return
 			}
 			if len(insertedSources) == 0 {
-				log.Printf("No records found in insert response for 'sources' table for '%s'", cURL)
+				log.Printf("❌ No records found in insert response for 'sources' table for '%s'", cURL)
 				return
 			}
 			sourceID, ok := insertedSources[0]["id"].(string)
 			if !ok || !isValidUUID(sourceID) {
-				log.Printf("Invalid 'id' type or format for inserted source for '%s'", cURL)
+				log.Printf("❌ Invalid 'id' type or format for inserted source for '%s'", cURL)
 				return
 			}
 
-			// Log success
-			log.Printf("Successfully uploaded RTF '%s' to BunnyCDN and recorded in Supabase with source ID '%s'.", modifiedFileName, sourceID)
+			log.Printf("✅ Successfully processed case: %s (file_id: %s, source_id: %s)", modifiedFileName, fileID, sourceID)
 			bar.Increment()
 		}(caseURL)
 	}
