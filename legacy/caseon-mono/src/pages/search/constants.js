@@ -1,5 +1,5 @@
 // API Base URL
-export const API_BASE_URL = "http://localhost:8080";
+export const API_BASE_URL = "https://caseon-160638720514.us-central1.run.app";
 
 // Suggested search queries with categories
 export const suggestedSearches = [

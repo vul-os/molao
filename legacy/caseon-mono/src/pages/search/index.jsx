@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Search, Loader2, Scale, ArrowUpRight, FileText, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,23 +17,76 @@ export default function SearchPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    // Initialize from session storage or location state
+    return sessionStorage.getItem('searchQuery') || location.state?.searchQuery || "";
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [searchResults, setSearchResults] = useState(() => {
+    // Initialize from session storage or location state
+    const storedResults = sessionStorage.getItem('searchResults');
+    return storedResults ? JSON.parse(storedResults) : location.state?.searchResults || [];
+  });
+  const [showSuggestions, setShowSuggestions] = useState(() => {
+    // Show suggestions if no search results
+    return !(sessionStorage.getItem('searchResults') || location.state?.searchResults);
+  });
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
 
-  // Use location state to persist search results when returning from file detail page
+  // Update session storage when search state changes
   useEffect(() => {
-    if (location.state?.searchResults) {
+    if (searchQuery) {
+      sessionStorage.setItem('searchQuery', searchQuery);
+    } else {
+      sessionStorage.removeItem('searchQuery');
+    }
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (searchResults.length > 0) {
+      sessionStorage.setItem('searchResults', JSON.stringify(searchResults));
+      setShowSuggestions(false);
+    } else {
+      sessionStorage.removeItem('searchResults');
+      setShowSuggestions(true);
+    }
+  }, [searchResults]);
+
+  // Clear search state
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSuggestions(true);
+    sessionStorage.removeItem('searchQuery');
+    sessionStorage.removeItem('searchResults');
+  }, []);
+
+  // Handle refresh
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clear session storage on page refresh
+      sessionStorage.removeItem('searchQuery');
+      sessionStorage.removeItem('searchResults');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Handle navigation state changes
+  useEffect(() => {
+    if (location.state?.searchResults?.length > 0) {
       setSearchResults(location.state.searchResults);
       setShowSuggestions(false);
+      if (location.state.searchQuery) {
+        setSearchQuery(location.state.searchQuery);
+      }
+    } else if (!location.state) {
+      // If no state in navigation, clear the search
+      clearSearch();
     }
-    if (location.state?.searchQuery) {
-      setSearchQuery(location.state.searchQuery);
-    }
-  }, [location.state]);
+  }, [location.state, clearSearch]);
 
   // Auto-scroll to bottom when results change
   useEffect(() => {
@@ -175,7 +228,7 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100">
+    <div key={location.pathname} className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100">
       {/* Add global font styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');

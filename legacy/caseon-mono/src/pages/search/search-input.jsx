@@ -19,12 +19,17 @@ export default function SearchInput({
         <div className="flex flex-col gap-3">
           {/* Modern search input with subtle shadow */}
           <div className={cn(
-            "relative rounded-full transition-all duration-300 textarea-container",
+            "relative transition-all duration-300 textarea-container",
             "hover:shadow-lg",
             isFocused ? "shadow-md ring-1 ring-slate-200" : "shadow-sm",
-            searchQuery && searchQuery.includes('\n') ? "multi-line" : ""
+            searchQuery && searchQuery.includes('\n') 
+              ? "rounded-lg" // Square with rounded corners for multiline
+              : "rounded-full" // Keep semicircle for single line
           )}>
-            <div className="relative flex items-center">
+            <div className={cn(
+              "relative flex items-center",
+              searchQuery && searchQuery.includes('\n') ? "items-start" : "items-center" // Adjust alignment for multiline
+            )}>
               {/* Search icon */}
               <div className={cn(
                 "absolute left-4 text-slate-400 flex items-center justify-center w-5 h-5 pointer-events-none",
@@ -65,11 +70,14 @@ export default function SearchInput({
                 onBlur={() => setIsFocused(false)}
                 rows={1}
                 className={cn(
-                  "w-full pl-12 pr-16 py-3 bg-white rounded-full border-0",
+                  "w-full pl-12 pr-20 sm:pr-16 py-2.5 sm:py-3 bg-white border-0",
                   "expandable-textarea resize-none overflow-hidden min-h-[52px]",
                   "text-slate-800 placeholder:text-slate-400 focus:outline-none",
                   "transition-all duration-200 multi-line-input",
-                  searchQuery && searchQuery.includes('\n') ? "pt-4" : ""
+                  searchQuery && searchQuery.includes('\n') 
+                    ? "pt-4 rounded-lg" // Square with rounded corners for multiline
+                    : "rounded-full", // Keep semicircle for single line
+                  "text-sm sm:text-base"
                 )}
                 style={{
                   height: 'auto',
@@ -98,7 +106,7 @@ export default function SearchInput({
                     }}
                     className="group flex items-center justify-center h-8 w-8 rounded-full 
                              bg-transparent p-0 hover:bg-slate-100 focus:bg-slate-100
-                             transition-colors duration-200"
+                             transition-colors duration-200 z-10" // Added z-10 to ensure button stays above text
                     aria-label="Clear search"
                   >
                     <X className="h-4 w-4 text-slate-400 group-hover:text-slate-500" />
@@ -114,6 +122,7 @@ export default function SearchInput({
                     "flex items-center justify-center h-10 w-10 rounded-full",
                     "text-white transition-all duration-300 ease-out",
                     "transform hover:scale-105 active:scale-95",
+                    "z-10", // Added z-10 to ensure button stays above text
                     searchQuery.trim() ? 
                       "bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500" : 
                       "bg-slate-200 text-slate-500"
