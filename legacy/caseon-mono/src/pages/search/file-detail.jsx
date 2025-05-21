@@ -1,94 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, FileText, DownloadCloud, ArrowLeft } from "lucide-react";
+import { Loader2, FileText, DownloadCloud, ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "./constants";
-
-// Improved PDF Viewer component
-const PDFViewer = ({ url, token, title }) => {
-  const [pdfObjectUrl, setPdfObjectUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  useEffect(() => {
-    if (!url || !token) return;
-    
-    setIsLoading(true);
-    
-    // Create a new URL with query parameter to indicate inline viewing
-    const viewUrl = new URL(url);
-    viewUrl.searchParams.append('view', 'inline');
-    
-    // Fetch the PDF with authentication
-    fetch(viewUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${token.trim()}`,
-        'Accept': 'application/pdf'
-      }
-    })
-    .then(response => {
-      // Log response headers for debugging
-      console.log('PDF Response headers:', {
-        type: response.headers.get('content-type'),
-        disposition: response.headers.get('content-disposition')
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch PDF: ${response.status}`);
-      }
-      return response.blob();
-    })
-    .then(blob => {
-      // Create an object URL from the blob
-      const objectUrl = window.URL.createObjectURL(
-        new Blob([blob], { type: 'application/pdf' })
-      );
-      setPdfObjectUrl(objectUrl);
-      setIsLoading(false);
-    })
-    .catch(err => {
-      console.error('Error loading PDF:', err);
-      setError(err.message);
-      setIsLoading(false);
-    });
-    
-    // Clean up object URL when component unmounts
-    return () => {
-      if (pdfObjectUrl) {
-        window.URL.revokeObjectURL(pdfObjectUrl);
-      }
-    };
-  }, [url, token]);
-  
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 text-green-700 animate-spin" />
-        <span className="ml-2 text-sm text-slate-600">Loading PDF...</span>
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-red-500">Error loading PDF: {error}</p>
-      </div>
-    );
-  }
-  
-  return (
-    <iframe
-      src={pdfObjectUrl}
-      type="application/pdf"
-      className="w-full h-full border-0"
-      title={title}
-    />
-  );
-};
 
 export default function FileDetailPage() {
   const { fileId } = useParams();
@@ -97,15 +14,38 @@ export default function FileDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const [fileName, setFileName] = useState("Document");
+  const [fileData, setFileData] = useState({
+    fileName: "Document",
+    fileType: "pdf",
+    mimeType: "application/pdf",
+    sourceUrl: null
+  });
   const [isLoading, setIsLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfBlob, setPdfBlob] = useState(null);
   
   // Store the incoming search state to use when going back
   const [searchState, setSearchState] = useState({
     searchResults: location.state?.searchResults || [],
     searchQuery: location.state?.searchQuery || ""
   });
+
+  // Create URL for the PDF blob
+  const pdfUrl = useMemo(() => {
+    if (!pdfBlob) return '';
+    return URL.createObjectURL(pdfBlob);
+  }, [pdfBlob]);
+
+  // Clean up the object URL when component unmounts
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
+  // Debug log for tracking component lifecycle
+  console.log('FileDetailPage render:', { fileId, hasToken: !!user?.access_token, pdfBlob });
 
   useEffect(() => {
     // Store the search state when it changes in location
@@ -119,19 +59,26 @@ export default function FileDetailPage() {
       if (location.state.searchResults) {
         const fileFromResults = location.state.searchResults.find(file => file.id === fileId);
         if (fileFromResults) {
-          setFileName(fileFromResults.file_name || "Document");
+          setFileData(prevData => ({
+            ...prevData,
+            fileName: fileFromResults.file_name || "Document"
+          }));
         }
       }
     }
   }, [location.state, fileId]);
 
   useEffect(() => {
-    if (fileId) {
-      loadPdf();
+    // Debug log to verify if effect runs
+    console.log('FileDetailPage useEffect triggered:', { fileId, hasToken: !!user?.access_token });
+    
+    if (fileId && user?.access_token) {
+      loadFileMetadata();
     }
-  }, [fileId]);
+  }, [fileId, user?.access_token]);
 
-  const loadPdf = async () => {
+  const loadFileMetadata = async () => {
+    console.log('Loading file metadata for:', fileId);
     setIsLoading(true);
 
     try {
@@ -145,12 +92,68 @@ export default function FileDetailPage() {
         return;
       }
 
-      // Direct PDF file endpoint
+      // Single API call to fetch metadata
+      const metadataEndpoint = `${API_BASE_URL}/file/${fileId}?include_metadata=true`;
+      console.log('Fetching metadata from:', metadataEndpoint);
+      
+      const response = await fetch(metadataEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${user.access_token.trim()}`
+        }
+      });
+      
+      console.log('Metadata API response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load file metadata: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Metadata received:', data);
+      
+      // Update all file data at once to prevent multiple state updates
+      if (data.metadata) {
+        setFileData({
+          fileName: data.metadata.file_name || "Document",
+          fileType: data.metadata.file_type || "pdf",
+          mimeType: data.metadata.mime_type || "application/pdf",
+          sourceUrl: data.metadata.source?.source_url || null
+        });
+      }
+
+      // Fetch the PDF content
+      await fetchPdf();
+    } catch (error) {
+      console.error('File metadata load error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load the file. Please try again.",
+        variant: "destructive"
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const fetchPdf = async () => {
+    try {
       const pdfEndpoint = `${API_BASE_URL}/file/${fileId}/pdf`;
-      setPdfUrl(pdfEndpoint);
+      
+      const response = await fetch(pdfEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${user.access_token.trim()}`,
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      setPdfBlob(blob);
       setIsLoading(false);
     } catch (error) {
-      console.error('PDF load error:', error);
+      console.error('PDF fetch error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to load the PDF. Please try again.",
@@ -169,33 +172,29 @@ export default function FileDetailPage() {
   };
 
   const downloadPdf = () => {
-    if (!pdfUrl) return;
+    if (!pdfBlob) return;
     
-    // Add the auth token to the request
-    fetch(pdfUrl, {
-      headers: {
-        'Authorization': `Bearer ${user.access_token.trim()}`
-      }
-    })
-    .then(response => response.blob())
-    .then(blob => {
-      const url = window.URL.createObjectURL(blob);
-      const linkElement = document.createElement('a');
-      linkElement.href = url;
-      linkElement.setAttribute('download', `${fileName || 'document'}.pdf`);
-      document.body.appendChild(linkElement);
-      linkElement.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(linkElement);
-    })
-    .catch(error => {
-      console.error('Download error:', error);
+    // Create a download link for the blob
+    const url = window.URL.createObjectURL(pdfBlob);
+    const linkElement = document.createElement('a');
+    linkElement.href = url;
+    linkElement.setAttribute('download', `${fileData.fileName || 'document'}.pdf`);
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(linkElement);
+  };
+
+  const openSourceUrl = () => {
+    if (fileData.sourceUrl) {
+      window.open(fileData.sourceUrl, '_blank', 'noopener,noreferrer');
+    } else {
       toast({
-        title: "Download failed",
-        description: "Failed to download the PDF. Please try again.",
-        variant: "destructive"
+        title: "Source not available",
+        description: "No source URL is available for this document.",
+        variant: "default"
       });
-    });
+    }
   };
 
   return (
@@ -216,7 +215,7 @@ export default function FileDetailPage() {
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-green-700" />
               <h1 className="font-heading text-lg font-medium text-slate-900 line-clamp-1">
-                {fileName}
+                {fileData.fileName}
               </h1>
               <Badge variant="outline" className="text-xs text-slate-600">
                 PDF
@@ -225,11 +224,23 @@ export default function FileDetailPage() {
           </div>
           
           <div className="flex items-center gap-2">
+            {fileData.sourceUrl && (
+              <Button
+                variant="outline"
+                onClick={openSourceUrl}
+                className="flex items-center gap-1 text-sm px-3"
+                size="sm"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>View Source</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={downloadPdf}
               className="flex items-center gap-1 text-sm px-3"
               size="sm"
+              disabled={!pdfBlob}
             >
               <DownloadCloud className="h-3.5 w-3.5" />
               <span>Download PDF</span>
@@ -240,26 +251,22 @@ export default function FileDetailPage() {
 
       {/* Content area - make it fill remaining space */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full bg-slate-50">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-6 w-6 text-green-700 animate-spin" />
-              <span className="ml-2 text-sm text-slate-600">Loading PDF...</span>
-            </div>
-          ) : pdfUrl ? (
-            <div className="h-full">
-              <PDFViewer 
-                url={pdfUrl} 
-                token={user.access_token} 
-                title={fileName}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-slate-500">No content available</p>
-            </div>
-          )}
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full bg-slate-50">
+            <Loader2 className="h-6 w-6 text-green-700 animate-spin" />
+            <span className="ml-2 text-sm text-slate-600">Loading document...</span>
+          </div>
+        ) : pdfUrl ? (
+          <iframe
+            src={pdfUrl}
+            className="w-full h-full border-0"
+            title={fileData.fileName}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full bg-slate-50">
+            <p className="text-slate-500">No content available</p>
+          </div>
+        )}
       </div>
     </div>
   );
