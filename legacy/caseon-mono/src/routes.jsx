@@ -10,6 +10,7 @@ import MainLayout from './components/layout/main-layout';
 import SearchPage from './pages/search';
 import LandingPage from './pages/landing';
 import MembersPage from './pages/members';
+import FileDetailPage from './pages/search/file-detail';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
@@ -64,6 +65,7 @@ const AppRoutes = () => {
         <Route element={<MainLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/search" element={<Protected><SearchPage /></Protected>} />
+          <Route path="/search/file/:fileId" element={<Protected><FileDetailPage /></Protected>} />
           <Route path="/members" element={<Protected><MembersPage /></Protected>} />
         </Route>
 

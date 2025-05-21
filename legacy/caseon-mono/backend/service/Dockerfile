@@ -1,5 +1,12 @@
 FROM python:3.10-slim
 
+# Install LibreOffice (minimal install for headless document conversion)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libreoffice-writer \
+    libreoffice-core \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create working directory
 WORKDIR /app
 
