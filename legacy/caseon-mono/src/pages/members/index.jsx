@@ -513,7 +513,7 @@ export default function MembersPage() {
                 {pendingInvites.length} pending {pendingInvites.length === 1 ? 'invite' : 'invites'}
               </span>
             </div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {pendingInvites.map((invite, index) => (
                 <motion.div
                   key={invite.id}
