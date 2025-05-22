@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -13,7 +22,7 @@ import LegalLoader from "./legal-loader";
 import { API_BASE_URL, suggestedSearches } from "./constants";
 
 export default function SearchPage() {
-  const { user, refreshToken } = useAuth();
+  const { user, refreshToken, activeFirm } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,6 +42,11 @@ export default function SearchPage() {
   });
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
+  
+  // Add state for usage limits dialog
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [limitErrorMessage, setLimitErrorMessage] = useState("");
+  const [usageStats, setUsageStats] = useState(null);
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -127,6 +141,9 @@ export default function SearchPage() {
         
         console.log("Attempting API request with token length:", token.length);
         
+        // Get firm_id from activeFirm in auth context
+        const firmId = activeFirm?.id;
+        
         const response = await fetch(`${API_BASE_URL}/search`, {
           method: 'POST',
           headers: {
@@ -135,7 +152,8 @@ export default function SearchPage() {
           },
           body: JSON.stringify({
             query: searchQuery,
-            limit: 10
+            limit: 10,
+            firm_id: firmId
           })
         });
         
@@ -146,13 +164,29 @@ export default function SearchPage() {
           throw new Error('unauthorized');
         }
         
+        // Handle rate limit exceeded (429)
+        if (response.status === 429) {
+          const errorData = await response.json();
+          setLimitErrorMessage(errorData.detail || "You've reached your usage limit for this plan.");
+          setShowLimitDialog(true);
+          throw new Error('rate_limited');
+        }
+        
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error("API error details:", errorData);
-          throw new Error(errorData.description || 'Search request failed');
+          throw new Error(errorData.detail || 'Search request failed');
         }
         
-        return await response.json();
+        const data = await response.json();
+        
+        // Store usage statistics if available
+        if (data.usage) {
+          setUsageStats(data.usage);
+          console.log("Usage stats:", data.usage);
+        }
+        
+        return data;
       };
       
       // Try with current token
@@ -172,6 +206,11 @@ export default function SearchPage() {
         setSearchResults(data.results || []);
       } catch (error) {
         console.log("Search error:", error.message);
+        
+        // If rate limited, dialog is already shown, no need for toast
+        if (error.message === 'rate_limited') {
+          return;
+        }
         
         // If unauthorized, try to refresh token and retry once
         if (error.message === 'unauthorized' || error.message === 'missing_token') {
@@ -199,13 +238,16 @@ export default function SearchPage() {
         }
       }
     } catch (error) {
-      console.error('Search error details:', error);
-      toast({
-        title: "Search failed",
-        description: error.message || "Unable to perform search. Please try again.",
-        variant: "destructive"
-      });
-      setSearchResults([]);
+      // Skip showing toast for rate limit errors since we show a dialog
+      if (error.message !== 'rate_limited') {
+        console.error('Search error details:', error);
+        toast({
+          title: "Search failed",
+          description: error.message || "Unable to perform search. Please try again.",
+          variant: "destructive"
+        });
+        setSearchResults([]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -225,6 +267,11 @@ export default function SearchPage() {
         searchQuery: searchQuery
       }
     });
+  };
+
+  const navigateToBilling = () => {
+    setShowLimitDialog(false);
+    navigate('/billing');
   };
 
   return (
@@ -264,6 +311,42 @@ export default function SearchPage() {
         }
       `}</style>
 
+      {/* Usage Limit Dialog */}
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              <span>Usage Limit Reached</span>
+            </DialogTitle>
+            <DialogDescription>
+              {limitErrorMessage}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-slate-600 mb-4">
+              Upgrade your plan to continue searching and accessing more legal documents.
+            </p>
+          </div>
+          
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setShowLimitDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={navigateToBilling}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Search input component */}
       <SearchInput
         searchQuery={searchQuery}
@@ -280,6 +363,32 @@ export default function SearchPage() {
       {/* Main content area */}
       <div className="flex-1 overflow-y-auto -mt-2 pb-6">
         <div className="max-w-4xl mx-auto px-4">
+          {/* Usage stats display when available */}
+          {usageStats && (
+            <div className="mb-4 bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-700">Daily Search Usage</h3>
+                <span className="text-xs text-slate-500">
+                  {usageStats.daily_usage} / {usageStats.daily_limit} searches
+                </span>
+              </div>
+              <Progress 
+                value={(usageStats.daily_usage / usageStats.daily_limit) * 100} 
+                className="h-2 bg-slate-200"
+                indicatorClassName={cn(
+                  "bg-green-500",
+                  usageStats.daily_usage / usageStats.daily_limit > 0.8 && "bg-amber-500",
+                  usageStats.daily_usage / usageStats.daily_limit > 0.95 && "bg-red-500"
+                )}
+              />
+              <div className="flex justify-end mt-1">
+                <span className="text-xs text-slate-500">
+                  {usageStats.daily_remaining} searches remaining today
+                </span>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 mt-8">
               <LegalLoader isLoading={isLoading} />

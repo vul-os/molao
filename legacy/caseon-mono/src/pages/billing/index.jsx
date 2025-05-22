@@ -50,7 +50,6 @@ import {
   AlertCircle,
   Newspaper
 } from "lucide-react";
-import Paystack from '@paystack/inline-js';
 
 // Import hooks and utilities
 import { formatCurrency, formatDate, useBillingData } from './hooks';
@@ -164,21 +163,21 @@ export default function BillingPage() {
 
   return (
     <div className="container mx-auto py-10 px-4 md:px-6">
-      <div className="flex flex-col space-y-6">
+      <div className="flex flex-col space-y-8">
         {/* Header Section */}
-        <header className="border-b border-slate-200 pb-5">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+        <header className="border-b border-slate-200 pb-6">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-serif font-medium text-slate-800 flex items-center">
-                <GavelIcon className="h-7 w-7 sm:h-8 sm:w-8 mr-2 sm:mr-3 text-amber-600" />
+              <h1 className="text-3xl font-serif font-medium text-slate-800 flex items-center">
+                <GavelIcon className="h-8 w-8 mr-3 text-amber-600" />
                 Billing & Subscription
               </h1>
-              <p className="text-slate-500 text-sm sm:text-base mt-1">
+              <p className="text-slate-500 mt-1">
                 Manage your subscription, payment methods, and billing history
               </p>
             </div>
             {currentPlan && (
-              <Badge variant="outline" className="text-base py-1.5 px-3 bg-amber-50 text-amber-800 border-amber-200 self-start sm:self-auto">
+              <Badge variant="outline" className="text-base py-1.5 px-3 bg-amber-50 text-amber-800 border-amber-200">
                 <Scale className="h-4 w-4 mr-2" />
                 {currentPlan.name}
               </Badge>
@@ -188,71 +187,29 @@ export default function BillingPage() {
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div>
-            <TabsList className="w-full h-[72px] bg-white shadow-sm border border-slate-200 rounded-lg grid grid-cols-3">
-              {/* Billing Tab */}
-              <TabsTrigger 
-                value="billing" 
-                className="relative h-full flex flex-col items-center justify-center 
-                           border-r border-slate-200 
-                           text-slate-700 hover:bg-slate-50
-                           data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 
-                           transition-all"
-              >
-                <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-center gap-2">
-                  <CreditCard className="h-5 w-5 text-slate-500 data-[state=active]:text-amber-600" />
-                  <span className="text-xs font-medium text-center sm:text-sm">
-                    Subscription
-                  </span>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 opacity-0 data-[state=active]:opacity-100 transition-opacity"></div>
-              </TabsTrigger>
+          <TabsList className="w-full max-w-md mb-8">
+            <TabsTrigger value="billing" className="flex-1">
+              <CreditCard className="h-4 w-4 mr-2" />
+              Subscription
+            </TabsTrigger>
+            <TabsTrigger value="payment" className="flex-1">
+              <Receipt className="h-4 w-4 mr-2" />
+              Payment Methods
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">
+              <FileText className="h-4 w-4 mr-2" />
+              Billing History
+            </TabsTrigger>
+          </TabsList>
 
-              {/* Payment Tab */}
-              <TabsTrigger
-                value="payment"
-                className="relative h-full flex flex-col items-center justify-center
-                border-r border-slate-200
-                text-slate-700 hover:bg-slate-50
-                data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700
-                transition-all"
-              >
-                <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-center gap-2">
-                  <Receipt className="h-5 w-5 text-slate-500 data-[state=active]:text-amber-600" />
-                  <span className="text-xs font-medium text-center sm:text-sm">
-                    Payment Methods
-                  </span>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 opacity-0 data-[state=active]:opacity-100 transition-opacity"></div>
-              </TabsTrigger>
-
-              {/* History Tab */}
-              <TabsTrigger 
-                value="history" 
-                className="relative h-full flex flex-col items-center justify-center 
-                           text-slate-700 hover:bg-slate-50
-                           data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 
-                           transition-all"
-              >
-                <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-center gap-2">
-                  <FileText className="h-5 w-5 text-slate-500 data-[state=active]:text-amber-600" />
-                  <span className="text-xs font-medium text-center sm:text-sm">
-                    Billing History
-                  </span>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 opacity-0 data-[state=active]:opacity-100 transition-opacity"></div>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          <div className="mt-15">
-          <TabsContent value="billing" className="space-y-6">
+          <TabsContent value="billing" className="space-y-8">
             {/* Available Plans - Moved to top for visibility */}
             <div id="available-plans">
-              <h2 className="text-lg sm:text-xl font-serif font-medium text-slate-800 mb-4 flex items-center">
-                <Newspaper className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-slate-600" />
+              <h2 className="text-xl font-serif font-medium text-slate-800 mb-6 flex items-center">
+                <Newspaper className="h-5 w-5 mr-2 text-slate-600" />
                 Available Plans
               </h2>
-              <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-3">
+              <div className="grid gap-6 md:grid-cols-3">
                 {plans.map((plan) => (
                   <motion.div
                     key={plan.id}
@@ -381,7 +338,7 @@ export default function BillingPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="payment" className="space-y-6 mt-2">
+          <TabsContent value="payment" className="space-y-8">
             <Card className="shadow-sm">
               <CardHeader className="bg-slate-50 border-b border-slate-100">
                 <CardTitle className="text-xl font-serif flex items-center">
@@ -398,9 +355,9 @@ export default function BillingPage() {
                     {paymentMethods.map((method) => (
                       <div 
                         key={method.id}
-                        className="flex flex-wrap items-center justify-between p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                        className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
                       >
-                        <div className="flex items-center gap-4 mb-2 sm:mb-0">
+                        <div className="flex items-center gap-4">
                           <div className="w-12 h-8 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
                             {method.brand === 'visa' && (
                               <span className="font-bold text-blue-600">VISA</span>
@@ -413,17 +370,19 @@ export default function BillingPage() {
                             <p className="font-medium text-slate-800">
                               {method.brand.charAt(0).toUpperCase() + method.brand.slice(1)} •••• {method.last4}
                             </p>
-                            <p className="text-sm text-slate-500">
-                              Expires {method.exp_month}/{method.exp_year}
+                            <div className="flex items-center text-sm text-slate-500">
+                              <span>Expires {method.exp_month}/{method.exp_year}</span>
                               {method.is_default && (
-                                <Badge variant="outline" className="ml-2 py-0 h-5 text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  Default
-                                </Badge>
+                                <span className="ml-2">
+                                  <Badge variant="outline" className="py-0 h-5 text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    Default
+                                  </Badge>
+                                </span>
                               )}
-                            </p>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto justify-end">
+                        <div className="flex gap-2">
                           <Button variant="outline" size="sm">Edit</Button>
                           <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">Remove</Button>
                         </div>
@@ -453,7 +412,7 @@ export default function BillingPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="history" className="space-y-6 mt-2">
+          <TabsContent value="history" className="space-y-8">
             {/* Invoices */}
             <Card className="shadow-sm">
               <CardHeader className="bg-slate-50 border-b border-slate-100">
@@ -467,15 +426,14 @@ export default function BillingPage() {
               </CardHeader>
               <CardContent className="pt-6">
                 {invoices.length > 0 ? (
-                  <div className="overflow-x-auto -mx-6 px-6">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Invoice</TableHead>
                         <TableHead>Date</TableHead>
-                          <TableHead className="hidden sm:table-cell">Plan</TableHead>
+                        <TableHead>Plan</TableHead>
                         <TableHead>Amount</TableHead>
-                          <TableHead className="hidden sm:table-cell">Status</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -484,9 +442,9 @@ export default function BillingPage() {
                         <TableRow key={invoice.id}>
                           <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                           <TableCell>{formatDate(invoice.created_at)}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{invoice.plan?.name || 'N/A'}</TableCell>
+                          <TableCell>{invoice.plan?.name || 'N/A'}</TableCell>
                           <TableCell>{formatCurrency(invoice.total_cents)}</TableCell>
-                            <TableCell className="hidden sm:table-cell">
+                          <TableCell>
                             <Badge 
                               variant="outline" 
                               className={`
@@ -506,16 +464,16 @@ export default function BillingPage() {
                                 size="sm"
                                 onClick={() => handleViewInvoice(invoice)}
                               >
-                                  <FileText className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">View</span>
+                                <FileText className="h-4 w-4 mr-2" />
+                                View
                               </Button>
                               <Button 
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => handleDownloadInvoice(invoice)}
                               >
-                                  <Download className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Download</span>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
                               </Button>
                             </div>
                           </TableCell>
@@ -523,7 +481,6 @@ export default function BillingPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <div className="mx-auto w-16 h-16 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center mb-4">
@@ -551,15 +508,14 @@ export default function BillingPage() {
               </CardHeader>
               <CardContent className="pt-6">
                 {transactions.length > 0 ? (
-                  <div className="overflow-x-auto -mx-6 px-6">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Reference</TableHead>
                         <TableHead>Date</TableHead>
-                          <TableHead className="hidden sm:table-cell">Type</TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Amount</TableHead>
-                          <TableHead className="hidden sm:table-cell">Status</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -567,9 +523,9 @@ export default function BillingPage() {
                         <TableRow key={transaction.id}>
                           <TableCell className="font-medium">{transaction.reference}</TableCell>
                           <TableCell>{formatDate(transaction.created_at)}</TableCell>
-                            <TableCell className="hidden sm:table-cell capitalize">{transaction.type}</TableCell>
+                          <TableCell className="capitalize">{transaction.type}</TableCell>
                           <TableCell>{formatCurrency(transaction.amount_cents)}</TableCell>
-                            <TableCell className="hidden sm:table-cell">
+                          <TableCell>
                             <Badge 
                               variant="outline" 
                               className={`
@@ -585,7 +541,6 @@ export default function BillingPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <div className="mx-auto w-16 h-16 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center mb-4">
@@ -600,7 +555,6 @@ export default function BillingPage() {
               </CardContent>
             </Card>
           </TabsContent>
-          </div>
         </Tabs>
 
         {/* Change Plan Dialog */}
@@ -664,15 +618,15 @@ export default function BillingPage() {
             </DialogHeader>
             {viewingInvoice && (
               <div className="py-4">
-                <div className="border border-slate-200 rounded-lg p-4 sm:p-6 mb-4">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6">
+                <div className="border border-slate-200 rounded-lg p-6 mb-4">
+                  <div className="flex justify-between items-start mb-6">
                     <div>
                       <h3 className="font-serif text-xl font-medium text-slate-800">INVOICE</h3>
                       <p className="text-slate-600 text-sm">{viewingInvoice.invoice_number}</p>
                       <p className="text-slate-600 text-sm mt-1">Date: {formatDate(viewingInvoice.created_at)}</p>
                       <p className="text-slate-600 text-sm">Due Date: {formatDate(viewingInvoice.due_date)}</p>
                     </div>
-                    <div className="text-left sm:text-right mt-3 sm:mt-0">
+                    <div className="text-right">
                       <Badge 
                         variant="outline" 
                         className={`
@@ -689,13 +643,12 @@ export default function BillingPage() {
                   
                   <div className="border-t border-slate-200 my-4 pt-4">
                     <h4 className="font-medium text-slate-800 mb-2">Line Items</h4>
-                    <div className="overflow-x-auto -mx-4 px-4">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Qty</TableHead>
-                            <TableHead className="text-right">Price</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">Unit Price</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -710,7 +663,6 @@ export default function BillingPage() {
                         ))}
                       </TableBody>
                     </Table>
-                    </div>
                   </div>
                   
                   <div className="border-t border-slate-200 mt-4 pt-4">

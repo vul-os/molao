@@ -253,15 +253,6 @@ async function handlePaymentAuthorization(data: any, isSuccess: boolean) {
   
   // If failed, schedule retry using handle_authorization_failure function
   if (!isSuccess) {
-    // Update firm status
-    await supabase
-      .from('firms')
-      .update({
-        payment_failed: true,
-        payment_failed_at: new Date()
-      })
-      .eq('id', firm_id)
-    
     // Call database function to handle failure and schedule retry
     const { data: retryData, error: retryError } = await supabase.rpc(
       'handle_authorization_failure',
@@ -384,33 +375,37 @@ async function handleChargeSuccess(data: any) {
   // Handle invoice creation and payment
   if (status === 'success') {
     let invoice = null
+    let plan_id = null
 
     // If invoice_id is provided in metadata, use that invoice
     if (metadata?.invoice_id) {
       const { data: existingInvoice, error: invoiceError } = await supabase
         .from('invoices')
-        .select('*')
+        .select('*, plan_id')
         .eq('id', metadata.invoice_id)
         .single()
 
       if (!invoiceError && existingInvoice) {
         invoice = existingInvoice
+        plan_id = existingInvoice.plan_id
         
         // Update invoice payment status
         const { data: statusResult, error: statusError } = await supabase.rpc(
           'update_invoice_payment_status',
-          { invoice_id_param: invoice.id }
+          { invoice_id_param: existingInvoice.id }
         )
         
         if (statusError) {
           console.error('Error updating invoice payment status:', statusError)
         } else {
-          console.log(`Updated invoice ${invoice.id} status to: ${statusResult}`)
+          console.log(`Updated invoice ${existingInvoice.id} status to: ${statusResult}`)
         }
       }
     }
     // If plan_id is provided, create invoice from plan
     else if (metadata?.plan_id) {
+      plan_id = metadata.plan_id
+      
       // Generate an invoice using the new function
       const { data: invoiceData, error: invoiceError } = await supabase.rpc(
         'generate_subscription_invoice',
@@ -435,7 +430,7 @@ async function handleChargeSuccess(data: any) {
           invoice = newInvoice
           
           // Update transaction with invoice_id
-          if (invoice && transaction) {
+          if (invoice && transaction && transaction.id) {
             await supabase
               .from('transactions')
               .update({ invoice_id: invoice.id })
@@ -444,8 +439,101 @@ async function handleChargeSuccess(data: any) {
         }
       }
     }
+    
+    // Create or update subscription record when plan_id is available
+    if (plan_id) {
+      const now = new Date()
+      const nextBillingDate = new Date(now)
+      
+      // Set next billing date based on plan billing cycle (default to monthly)
+      const { data: planData } = await supabase
+        .from('plans')
+        .select('billing_cycle')
+        .eq('id', plan_id)
+        .single()
+        
+      const billingCycle = planData?.billing_cycle || 'monthly'
+      
+      if (billingCycle === 'monthly') {
+        nextBillingDate.setMonth(nextBillingDate.getMonth() + 1)
+      } else if (billingCycle === 'quarterly') {
+        nextBillingDate.setMonth(nextBillingDate.getMonth() + 3)
+      } else if (billingCycle === 'yearly') {
+        nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1)
+      }
+      
+      // Check for existing active subscription
+      const { data: existingSubscription } = await supabase
+        .from('subscriptions')
+        .select('id, status, plan_id, metadata')
+        .eq('firm_id', firm_id)
+        .eq('status', 'active')
+        .single()
+      
+      if (existingSubscription) {
+        if (existingSubscription.plan_id !== plan_id) {
+          // Plan change: Cancel old subscription and create new one
+          await supabase
+            .from('subscriptions')
+            .update({
+              status: 'canceled',
+              canceled_at: now,
+              updated_at: now
+            })
+            .eq('id', existingSubscription.id)
+            
+          // Create new subscription
+          await supabase
+            .from('subscriptions')
+            .insert({
+              firm_id,
+              plan_id,
+              status: 'active',
+              start_date: now,
+              auto_renew: true,
+              next_billing_date: nextBillingDate,
+              metadata: {
+                previous_subscription_id: existingSubscription?.id || null,
+                invoice_id: invoice ? (invoice as any).id || null : null,
+                transaction_id: transaction ? (transaction as any).id || null : null
+              }
+            })
+        } else {
+          // Same plan: Update existing subscription's next_billing_date
+          await supabase
+            .from('subscriptions')
+            .update({
+              next_billing_date: nextBillingDate,
+              updated_at: now,
+              metadata: {
+                ...(existingSubscription.metadata || {}),
+                last_invoice_id: invoice ? (invoice as any).id || null : null,
+                last_transaction_id: transaction ? (transaction as any).id || null : null
+              }
+            })
+            .eq('id', existingSubscription.id)
+        }
+      } else {
+        // No existing subscription: Create new one
+        await supabase
+          .from('subscriptions')
+          .insert({
+            firm_id,
+            plan_id,
+            status: 'active',
+            start_date: now,
+            auto_renew: true,
+            next_billing_date: nextBillingDate,
+            metadata: {
+              first_invoice_id: invoice ? (invoice as any).id || null : null,
+              first_transaction_id: transaction ? (transaction as any).id || null : null
+            }
+          })
+      }
+    }
+
     // If no invoice_id or plan_id, but transaction exists, generate invoice from transaction
-    else if (transaction) {
+    else if (transaction && transaction.id) {
       const { data: invoiceData, error: invoiceError } = await supabase.rpc(
         'generate_invoice_from_transaction',
         { 
@@ -456,23 +544,35 @@ async function handleChargeSuccess(data: any) {
 
       if (invoiceError) {
         console.error('Error generating invoice from transaction:', invoiceError)
-      } else {
+      } else if (invoiceData && transaction) {
         console.log('Generated invoice from transaction:', invoiceData)
+        
+        // Update transaction with the new invoice_id if it exists
+        if (typeof invoiceData === 'string' || typeof invoiceData === 'number' || (typeof invoiceData === 'object' && invoiceData !== null)) {
+          const invoiceId = typeof invoiceData === 'object' ? (invoiceData as any).id || invoiceData : invoiceData
+          
+          await supabase
+            .from('transactions')
+            .update({ invoice_id: invoiceId })
+            .eq('id', (transaction as any).id)
+        }
       }
     }
 
-    // Reset firm payment_failed status if it was previously failed
-    const { error: firmUpdateError } = await supabase
-      .from('firms')
-      .update({
-        payment_failed: false,
-        payment_failed_at: null
-      })
-      .eq('id', firm_id)
-      .eq('payment_failed', true)
-    
-    if (firmUpdateError) {
-      console.error('Error updating firm payment status:', firmUpdateError)
+    // Reset subscription status if it was previously past_due
+    if (firm_id) {
+      const { error: subscriptionUpdateError } = await supabase
+        .from('subscriptions')
+        .update({
+          status: 'active',
+          updated_at: new Date()
+        })
+        .eq('firm_id', firm_id)
+        .eq('status', 'past_due')
+      
+      if (subscriptionUpdateError) {
+        console.error('Error updating subscription status:', subscriptionUpdateError)
+      }
     }
 
     // Create payment authorization for future use
@@ -545,6 +645,17 @@ async function handleChargeFailed(data: any) {
     
     if (invoiceError) {
       console.error('Error generating pending invoice for failed renewal:', invoiceError)
+      
+      // Still update subscription status to past_due even if invoice generation fails
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'past_due',
+          updated_at: new Date()
+        })
+        .eq('firm_id', firm_id)
+        .eq('status', 'active')
+        .eq('plan_id', metadata.plan_id)
     } else {
       console.log('Generated pending invoice for failed renewal:', invoiceData)
       
@@ -553,19 +664,31 @@ async function handleChargeFailed(data: any) {
         await supabase
           .from('transactions')
           .update({ invoice_id: invoiceData })
-          .eq('id', transaction.id)
+          .eq('id', (transaction as any).id)
       }
+      
+      // Update subscription status to past_due
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'past_due',
+          updated_at: new Date()
+        })
+        .eq('firm_id', firm_id)
+        .eq('status', 'active')
+        .eq('plan_id', metadata.plan_id)
     }
+  } else {
+    // Update all active subscriptions to past_due
+    await supabase
+      .from('subscriptions')
+      .update({
+        status: 'past_due',
+        updated_at: new Date()
+      })
+      .eq('firm_id', firm_id)
+      .eq('status', 'active')
   }
-  
-  // Update firm status
-  await supabase
-    .from('firms')
-    .update({
-      payment_failed: true,
-      payment_failed_at: new Date()
-    })
-    .eq('id', firm_id)
   
   // Handle authorization failure if authorization data exists
   if (data.authorization) {
