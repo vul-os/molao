@@ -1,4 +1,8 @@
 steps:
+  # Download model files from Cloud Storage
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['cp', '-r', 'gs://caseon-models/*', '/workspace/models/']
+    
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
@@ -6,6 +10,7 @@ steps:
       '-t', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--cache-from', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
+      '--build-arg', 'COPY_MODELS=true',
       '.'
     ]
     dir: './backend/service'  # Changed to your specific subdirectory path

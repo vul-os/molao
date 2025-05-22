@@ -10,10 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create working directory
 WORKDIR /app
 
+# Create models directory
+RUN mkdir -p /models
+
 # Set environment vars (optional, good hygiene)
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
+
 
 # Copy just requirements first to leverage Docker cache
 COPY requirements.txt .
@@ -22,6 +26,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy app code (only after installing dependencies)
 COPY . .
+
+# Set ARG for conditional copy
+ARG COPY_MODELS=false
+
+# Copy models if available (controlled by build arg)
+COPY ../../../models/ /models/ 2>/dev/null || true
 
 # Expose port for Cloud Run
 EXPOSE 8080
