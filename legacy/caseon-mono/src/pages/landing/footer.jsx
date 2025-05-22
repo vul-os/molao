@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Mail } from 'lucide-react';
+import { ArrowRight, Mail, Scale, Shield, Cookie } from 'lucide-react';
 
 const Footer = () => {
   return (
@@ -59,10 +59,10 @@ const Footer = () => {
             <h3 className="text-slate-900 font-medium mb-4">Resources & Account</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="/docs" className="flex items-center group hover:text-indigo-600 transition-colors">
+                <Link to="/docs" className="flex items-center group hover:text-indigo-600 transition-colors">
                   Documentation
                   <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
-                </a>
+                </Link>
               </li>
               <li>
                 <a href="/sitemap" className="flex items-center group hover:text-indigo-600 transition-colors">
@@ -90,13 +90,35 @@ const Footer = () => {
           </div>
         </div>
         
+        {/* Legal links section */}
+        <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Scale className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/terms-of-service" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Shield className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/privacy-policy" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Cookie className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/cookie-policy" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Cookie Policy
+            </Link>
+          </div>
+        </div>
+        
         {/* Bottom footer */}
-        <div className="mt-12 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} CaseOn. All rights reserved.</p>
-          <div className="flex items-center flex-wrap justify-center gap-6">
-            <a href="#" className="text-xs hover:text-indigo-600 transition-colors">Terms of Service</a>
-            <a href="#" className="text-xs hover:text-indigo-600 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-xs hover:text-indigo-600 transition-colors">Cookie Policy</a>
+          <div className="flex items-center">
+            <span className="text-xs text-slate-400">Made with AI-powered legal intelligence for South African professionals</span>
           </div>
         </div>
       </div>

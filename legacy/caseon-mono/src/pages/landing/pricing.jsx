@@ -94,10 +94,10 @@ const Pricing = () => {
             </CardHeader>
             <CardContent className="border-t border-slate-100 pb-6">
               <div className="pt-4 space-y-2">
-                <PricingFeature>Extended usage</PricingFeature>
-                <PricingFeature>Priority support</PricingFeature>
-                <PricingFeature>Detailed case insights</PricingFeature>
-                <PricingFeature>Additional search tools</PricingFeature>
+                <PricingFeature>Core research capabilities</PricingFeature>
+                <PricingFeature>Standard support</PricingFeature>
+                <PricingFeature>Basic case insights</PricingFeature>
+                <PricingFeature>Standard search tools</PricingFeature>
               </div>
             </CardContent>
             <CardFooter className="pt-2 pb-6">
@@ -128,8 +128,9 @@ const Pricing = () => {
             <CardContent className="border-t border-slate-100 pb-6">
               <div className="pt-4 space-y-2">
                 <PricingFeature>Unlimited usage</PricingFeature>
-                <PricingFeature>Dedicated support</PricingFeature>
-                <PricingFeature>Fair usage policy</PricingFeature>
+                <PricingFeature>Priority dedicated support</PricingFeature>
+                <PricingFeature>Billing access & management</PricingFeature>
+                <PricingFeature>Advanced team controls</PricingFeature>
                 <PricingFeature>Premium research tools</PricingFeature>
               </div>
             </CardContent>

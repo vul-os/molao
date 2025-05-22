@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const TOP_BAR_HEIGHT = '4rem';
 
-const TopBar = ({ showPortalButton = false }) => {
+const TopBar = () => {
   const { 
     user, 
     signOut, 
@@ -27,9 +27,6 @@ const TopBar = ({ showPortalButton = false }) => {
   } = useAuth();
   const navigate = useNavigate();
   
-  // Convert string "true" to boolean
-  const shouldShowPortalButton = showPortalButton === "true" || showPortalButton === true;
-
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -62,38 +59,26 @@ const TopBar = ({ showPortalButton = false }) => {
       <nav className="h-16 px-4">
         <div className="h-full flex items-center justify-between max-w-7xl mx-auto">
           {/* Left: App Name and Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <img 
-              src="/icon.svg" 
-              alt="CaseOn Logo" 
-              className="h-8 w-8 text-indigo-800 transition-colors group-hover:text-indigo-700" 
-            />
-            <div className="hidden md:flex flex-col">
-              <span className="text-lg font-serif font-bold tracking-tight text-gray-900 group-hover:text-indigo-800 transition-colors">
-                CaseOn
+          <Link to="/" className="flex items-center group">
+            <div className="flex items-center -space-x-1">
+              <span className="text-2xl font-serif font-bold tracking-tight text-gray-900 group-hover:text-indigo-800 transition-colors">
+                Case
               </span>
-              <span className="text-[10px] font-medium tracking-wider text-gray-500 uppercase">
-                Legal Intelligence
-              </span>
+              <img 
+                src="/icon.svg" 
+                alt="CaseOn Logo" 
+                className="h-10 w-10 mt-2 text-indigo-800 transition-colors group-hover:text-indigo-700" 
+              />
             </div>
+            <span className="hidden sm:inline-block ml-2 text-[10px] font-medium tracking-wider text-gray-500 uppercase">
+              Legal Intelligence
+            </span>
           </Link>
 
           {/* Right: Firm Selector and Avatar */}
           <div className="flex items-center gap-3">
             {user ? (
               <>
-                {/* Portal Button */}
-                {shouldShowPortalButton && (
-                  <Button
-                    variant="ghost"
-                    className="h-9 px-3 text-sm font-medium flex items-center gap-2 border border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/80 transition-colors"
-                    onClick={() => navigate('/search')}
-                  >
-                    <Search className="h-4 w-4 text-gray-500" />
-                    <span>Portal</span>
-                  </Button>
-                )}
-
                 {/* Firm Selector */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -170,6 +155,15 @@ const TopBar = ({ showPortalButton = false }) => {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
+                      <DropdownMenuItem asChild>
+                        <Link to="/search" className="flex items-center gap-2 cursor-pointer">
+                          <Search className="h-4 w-4 text-gray-500" />
+                          <div className="flex flex-col">
+                            <span>Search</span>
+                            <span className="text-xs text-gray-500">Search legal documents</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link to="/members" className="flex items-center gap-2 cursor-pointer">
                           <Users className="h-4 w-4 text-gray-500" />

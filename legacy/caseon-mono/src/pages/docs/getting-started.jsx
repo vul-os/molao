@@ -72,15 +72,15 @@ const GettingStarted = () => {
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
-                <span><strong>Recent Searches:</strong> Quick access to your recent research queries</span>
-              </li>
-              <li className="flex items-start">
-                <Check className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
-                <span><strong>Saved Collections:</strong> View and manage your saved case collections</span>
+                <span><strong>Results View:</strong> See your search results with key information highlighted</span>
               </li>
               <li className="flex items-start">
                 <Check className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
                 <span><strong>Account Settings:</strong> Manage your profile, subscription, and preferences</span>
+              </li>
+              <li className="flex items-start">
+                <Check className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
+                <span><strong>Advanced Filters:</strong> Refine results by date, court, judge, or topic</span>
               </li>
             </ul>
           </div>
@@ -89,8 +89,12 @@ const GettingStarted = () => {
               Dashboard Preview
             </div>
             <div className="p-4 bg-white">
-              <div className="aspect-w-16 aspect-h-9 bg-slate-200 rounded-lg flex items-center justify-center">
-                <span className="text-slate-500">Dashboard image placeholder</span>
+              <div className="relative max-w-md mx-auto rounded-lg overflow-hidden border border-slate-200">
+                <img 
+                  src="/portal.png" 
+                  alt="CaseOn Dashboard" 
+                  className="w-full object-contain" 
+                />
               </div>
             </div>
           </div>
