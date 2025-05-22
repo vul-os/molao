@@ -1,7 +1,8 @@
-# Stage 1: Download from bucket
-FROM google/cloud-sdk:alpine as downloader
+# Stage 1: Download models from bucket using cloud-sdk image
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine AS downloader
+ARG BUCKET_NAME
 RUN mkdir -p /models
-RUN gsutil cp -r gs://caseon-models/* /models/
+RUN gsutil -m cp -r gs://${BUCKET_NAME}/* /models/
 
 # Stage 2: Final image
 FROM python:3.10-slim

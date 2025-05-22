@@ -4,13 +4,14 @@ steps:
     entrypoint: 'bash'
     dir: './backend/service'
     
-  # Build the container image
+  # Build the container image (using substitution for bucket name)
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build',
       '-t', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--cache-from', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
+      '--build-arg', 'BUCKET_NAME=caseon-models',
       '.'
     ]
     dir: './backend/service'
@@ -45,4 +46,5 @@ images:
 # Substitutions
 substitutions:
   _SERVICE_ACCOUNT: 'YOUR-SERVICE-ACCOUNT@${PROJECT_ID}.iam.gserviceaccount.com'  # Replace with your service account
+  _BUCKET_NAME: 'caseon-models'  # Replace with your bucket name (e.g. caseon-models)
 
