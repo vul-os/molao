@@ -140,7 +140,8 @@ const Hero = () => {
                 />
                 <Button 
                   size="sm" 
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1 px-3 transition-all duration-200"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1 px-3 transition-all duration-200"
+                  onClick={() => window.location.href = '/signup'}
                 >
                   <ArrowRight className="h-4 w-4" />
                 </Button>
