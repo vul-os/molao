@@ -1,5 +1,11 @@
 # Stage 1: Download models from bucket using cloud-sdk image
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine AS downloader
+
+# Copy a service account key (if available) and authenticate
+COPY ./.gcp-key.json /root/key.json 2>/dev/null || echo "No credentials file found"
+ENV GOOGLE_APPLICATION_CREDENTIALS=/root/key.json
+RUN gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS || echo "Using default credentials"
+
 ARG BUCKET_NAME
 RUN mkdir -p /models
 RUN gsutil -m cp -r gs://${BUCKET_NAME}/* /models/
