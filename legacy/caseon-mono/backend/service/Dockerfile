@@ -1,16 +1,3 @@
-# Stage 1: Download models from bucket using cloud-sdk image
-FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine AS downloader
-
-# Copy a service account key (if available) and authenticate
-COPY ./.gcp-key.json /root/key.json 2>/dev/null || echo "No credentials file found"
-ENV GOOGLE_APPLICATION_CREDENTIALS=/root/key.json
-RUN gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS || echo "Using default credentials"
-
-ARG BUCKET_NAME
-RUN mkdir -p /models
-RUN gsutil -m cp -r gs://${BUCKET_NAME}/* /models/
-
-# Stage 2: Final image
 FROM python:3.10-slim
 
 # Install LibreOffice (minimal install for headless document conversion)
@@ -36,8 +23,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy app code (only after installing dependencies)
 COPY . .
 
-# Copy models from the downloader stage
-COPY --from=downloader /models/ /models/
+# Copy models from the build context
+COPY models /models/
 
 # Expose port for Cloud Run
 EXPOSE 8080
