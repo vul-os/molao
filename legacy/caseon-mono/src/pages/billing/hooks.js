@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/services/supabase-client';
 import { toast } from 'sonner';
 import { paystack_public_key } from '@/services/paystack';
@@ -87,24 +87,71 @@ export const useBillingData = (activeFirm, user) => {
   const fetchActiveSubscription = async () => {
     if (!activeFirm?.id) return;
     
-    // Get active subscription
-    const { data: subscriptionData, error: subscriptionError } = await supabase
-      .from('subscriptions')
-      .select('*, plan:plan_id(*)')
-      .eq('firm_id', activeFirm.id)
-      .eq('status', 'active')
-      .single();
-    
-    if (subscriptionError && subscriptionError.code !== 'PGRST116') {
-      console.error('Error fetching active subscription:', subscriptionError);
-    }
-    
-    if (subscriptionData) {
-      setActiveSubscription(subscriptionData);
-      setCurrentPlan(subscriptionData.plan);
-    } else {
-      // If no active subscription, we don't have a current plan
+    try {
+      // Get active or cancelled subscription (most recent one)
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .select('*, plan:plan_id(*)')
+        .eq('firm_id', activeFirm.id)
+        .in('status', ['active', 'canceled'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (subscriptionError) {
+        // If no subscription found (PGRST116), set to free tier
+        if (subscriptionError.code === 'PGRST116') {
+          // Get the free tier plan
+          const { data: freePlan, error: freePlanError } = await supabase
+            .from('plans')
+            .select('*')
+            .eq('name', 'Free')
+            .single();
+            
+          if (freePlanError) {
+            console.error('Error fetching free plan:', freePlanError);
+            setCurrentPlan(null);
+            setActiveSubscription(null);
+            return;
+          }
+          
+          setCurrentPlan(freePlan);
+          setActiveSubscription(null);
+          return;
+        }
+        
+        // For other errors, log and reset
+        console.error('Error fetching subscription:', subscriptionError);
+        setCurrentPlan(null);
+        setActiveSubscription(null);
+        return;
+      }
+      
+      if (subscriptionData) {
+        setActiveSubscription(subscriptionData);
+        setCurrentPlan(subscriptionData.plan);
+      } else {
+        // If no subscription data, set to free tier
+        const { data: freePlan, error: freePlanError } = await supabase
+          .from('plans')
+          .select('*')
+          .eq('name', 'Free')
+          .single();
+          
+        if (freePlanError) {
+          console.error('Error fetching free plan:', freePlanError);
+          setCurrentPlan(null);
+          setActiveSubscription(null);
+          return;
+        }
+        
+        setCurrentPlan(freePlan);
+        setActiveSubscription(null);
+      }
+    } catch (error) {
+      console.error('Error in fetchActiveSubscription:', error);
       setCurrentPlan(null);
+      setActiveSubscription(null);
     }
   };
   
@@ -316,19 +363,48 @@ export const useBillingData = (activeFirm, user) => {
   };
 };
 
-// Mock data for usage stats - replace with actual data later
-export const useUsageData = () => {
-  const [loading, setLoading] = useState(false);
-  const [usageData, setUsageData] = useState({
-    searches: {
-      used: 120,
-      limit: 200,
-      percentage: 60
+// Custom hook for usage data
+export function useUsageData(activeFirm) {
+  const [usageLoading, setUsageLoading] = useState(true);
+  const [usageStats, setUsageStats] = useState(null);
+  const [usageError, setUsageError] = useState(null);
+
+  const fetchUsageData = useCallback(async () => {
+    if (!activeFirm?.id) {
+      setUsageStats(null);
+      setUsageLoading(false);
+      return;
     }
-  });
-  
+    
+    setUsageLoading(true);
+    setUsageError(null);
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('check_firm_usage_limits', {
+          input_firm_id: activeFirm.id
+        });
+      
+      if (error) throw error;
+      
+      setUsageStats(data[0]);
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+      setUsageError(error.message);
+    } finally {
+      setUsageLoading(false);
+    }
+  }, [activeFirm]);
+
+  // Fetch usage data on mount and when activeFirm changes
+  useEffect(() => {
+    fetchUsageData();
+  }, [fetchUsageData]);
+
   return {
-    loading,
-    usageData
+    usageLoading,
+    usageStats,
+    usageError,
+    fetchUsageData
   };
-}; 
+} 

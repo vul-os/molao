@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { useUsageData, formatPercentage } from './hooks';
-import { Progress } from "@/components/ui/progress";
+import { useUsageData } from './hooks';
 import { Card, CardContent } from "@/components/ui/card";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertCircle } from "lucide-react";
+import UsageDonut from './usage-donut';
 
 export default function UsageCharts() {
-  const { user } = useAuth();
-  const { usageLoading, usageStats, usageError, fetchUsageData } = useUsageData(user);
+  const { activeFirm } = useAuth();
+  const { usageLoading, usageStats, usageError, fetchUsageData } = useUsageData(activeFirm);
 
   if (usageLoading) {
     return (
@@ -20,7 +20,10 @@ export default function UsageCharts() {
   if (usageError || !usageStats) {
     return (
       <div className="w-full text-center py-6">
-        <p className="text-slate-500">Unable to load usage data</p>
+        <div className="mx-auto w-16 h-16 bg-red-50 border border-red-200 rounded-full flex items-center justify-center mb-4">
+          <AlertCircle className="h-8 w-8 text-red-400" />
+        </div>
+        <p className="text-slate-600">Unable to load usage data</p>
         <button 
           onClick={fetchUsageData}
           className="mt-2 text-sm text-amber-600 hover:text-amber-700"
@@ -31,48 +34,64 @@ export default function UsageCharts() {
     );
   }
 
-  // Default usage data if not available
-  const dailyUsage = usageStats.daily_usage || 0;
-  const dailyLimit = usageStats.daily_limit || 100;
-  const dailyPercentage = Math.min(100, Math.round((dailyUsage / dailyLimit) * 100));
-
-  const monthlyUsage = usageStats.monthly_usage || 0; 
-  const monthlyLimit = usageStats.monthly_limit || 1000;
-  const monthlyPercentage = Math.min(100, Math.round((monthlyUsage / monthlyLimit) * 100));
-
   return (
-    <div className="w-full grid gap-6 md:grid-cols-2">
-      <Card className="shadow-sm">
-        <CardContent className="pt-6">
-          <div className="mb-2 flex justify-between">
-            <h3 className="text-sm font-medium text-slate-700">Daily Usage</h3>
-            <span className="text-sm text-slate-500">{dailyUsage} / {dailyLimit}</span>
-          </div>
-          <Progress 
-            value={dailyPercentage} 
-            className="h-2 bg-slate-100"
-            indicatorClassName={dailyPercentage > 90 ? "bg-red-500" : "bg-amber-500"}
-          />
-          <p className="mt-2 text-xs text-slate-500 text-right">
-            {dailyPercentage}% Used
-          </p>
-        </CardContent>
-      </Card>
+    <div className="w-full space-y-8">
+      {/* Donut Charts */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            <h3 className="text-sm font-medium text-slate-700 mb-4 text-center">Daily Usage</h3>
+            <div className="flex justify-center">
+              <UsageDonut 
+                type="daily"
+                usageStats={usageStats}
+                usageLoading={usageLoading}
+                usageError={usageError}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
+        <Card className="shadow-sm">
+          <CardContent className="pt-6">
+            <h3 className="text-sm font-medium text-slate-700 mb-4 text-center">Monthly Usage</h3>
+            <div className="flex justify-center">
+              <UsageDonut 
+                type="monthly"
+                usageStats={usageStats}
+                usageLoading={usageLoading}
+                usageError={usageError}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Usage Summary */}
       <Card className="shadow-sm">
         <CardContent className="pt-6">
-          <div className="mb-2 flex justify-between">
-            <h3 className="text-sm font-medium text-slate-700">Monthly Usage</h3>
-            <span className="text-sm text-slate-500">{monthlyUsage} / {monthlyLimit}</span>
+          <div className="text-center">
+            <h3 className="text-lg font-serif font-medium text-slate-800 mb-2">
+              {usageStats.plan_name} Plan
+            </h3>
+            <p className="text-slate-600">
+              {usageStats.can_query 
+                ? "You can continue making queries within your plan limits."
+                : "You have reached your usage limits. Please upgrade your plan to continue."}
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 max-w-md mx-auto">
+              <div className="text-center p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600">Daily Remaining</p>
+                <p className="text-2xl font-bold text-slate-800">{usageStats.daily_remaining}</p>
+                <p className="text-xs text-slate-500">queries</p>
+              </div>
+              <div className="text-center p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600">Monthly Remaining</p>
+                <p className="text-2xl font-bold text-slate-800">{usageStats.monthly_remaining}</p>
+                <p className="text-xs text-slate-500">queries</p>
+              </div>
+            </div>
           </div>
-          <Progress 
-            value={monthlyPercentage} 
-            className="h-2 bg-slate-100"
-            indicatorClassName={monthlyPercentage > 90 ? "bg-red-500" : "bg-amber-500"}
-          />
-          <p className="mt-2 text-xs text-slate-500 text-right">
-            {monthlyPercentage}% Used
-          </p>
         </CardContent>
       </Card>
     </div>

@@ -46,7 +46,6 @@ export default function SearchPage() {
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitErrorMessage, setLimitErrorMessage] = useState("");
-  const [usageStats, setUsageStats] = useState(null);
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -179,13 +178,6 @@ export default function SearchPage() {
         }
         
         const data = await response.json();
-        
-        // Store usage statistics if available
-        if (data.usage) {
-          setUsageStats(data.usage);
-          console.log("Usage stats:", data.usage);
-        }
-        
         return data;
       };
       
@@ -269,11 +261,6 @@ export default function SearchPage() {
     });
   };
 
-  const navigateToBilling = () => {
-    setShowLimitDialog(false);
-    navigate('/billing');
-  };
-
   return (
     <div key={location.pathname} className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100">
       {/* Add global font styles */}
@@ -338,7 +325,10 @@ export default function SearchPage() {
               Close
             </Button>
             <Button
-              onClick={navigateToBilling}
+              onClick={() => {
+                setShowLimitDialog(false);
+                navigate('/billing');
+              }}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               Upgrade Plan
@@ -363,32 +353,6 @@ export default function SearchPage() {
       {/* Main content area */}
       <div className="flex-1 overflow-y-auto -mt-2 pb-6">
         <div className="max-w-4xl mx-auto px-4">
-          {/* Usage stats display when available */}
-          {usageStats && (
-            <div className="mb-4 bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-slate-700">Daily Search Usage</h3>
-                <span className="text-xs text-slate-500">
-                  {usageStats.daily_usage} / {usageStats.daily_limit} searches
-                </span>
-              </div>
-              <Progress 
-                value={(usageStats.daily_usage / usageStats.daily_limit) * 100} 
-                className="h-2 bg-slate-200"
-                indicatorClassName={cn(
-                  "bg-green-500",
-                  usageStats.daily_usage / usageStats.daily_limit > 0.8 && "bg-amber-500",
-                  usageStats.daily_usage / usageStats.daily_limit > 0.95 && "bg-red-500"
-                )}
-              />
-              <div className="flex justify-end mt-1">
-                <span className="text-xs text-slate-500">
-                  {usageStats.daily_remaining} searches remaining today
-                </span>
-              </div>
-            </div>
-          )}
-
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 mt-8">
               <LegalLoader isLoading={isLoading} />
