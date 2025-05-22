@@ -1,11 +1,4 @@
-steps:
-  # Download model files from Cloud Storage
-  - name: 'gcr.io/cloud-builders/bash'
-    args: ['-c', 'mkdir -p /workspace/models']
-    
-  - name: 'gcr.io/cloud-builders/gsutil'
-    args: ['rsync', '-r', 'gs://caseon-models/', '/workspace/models/']
-    
+steps:   
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
