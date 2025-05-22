@@ -11,12 +11,14 @@ import SearchPage from './pages/search';
 import LandingPage from './pages/landing';
 import MembersPage from './pages/members';
 import FileDetailPage from './pages/search/file-detail';
+import BillingPage from './pages/billing';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
   if (pathname.includes('/signin')) return 'Loading sign in...';
   if (pathname.includes('/signup')) return 'Loading sign up...';
   if (pathname === '/') return 'Loading homepage...';
+  if (pathname.includes('/billing')) return 'Loading billing information...';
   return 'Loading...';
 };
 
@@ -67,6 +69,7 @@ const AppRoutes = () => {
           <Route path="/search" element={<Protected><SearchPage /></Protected>} />
           <Route path="/search/file/:fileId" element={<Protected><FileDetailPage /></Protected>} />
           <Route path="/members" element={<Protected><MembersPage /></Protected>} />
+          <Route path="/billing" element={<Protected><BillingPage /></Protected>} />
         </Route>
 
         {/* Global catch-all route */}
