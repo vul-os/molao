@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy app code (only after installing dependencies)
 COPY . .
+#
 
 # Set ARG for conditional copy
 ARG COPY_MODELS=false
