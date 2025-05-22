@@ -4,7 +4,7 @@ steps:
     args: ['-c', 'mkdir -p /workspace/models']
     
   - name: 'gcr.io/cloud-builders/gsutil'
-    args: ['cp', '-r', 'gs://caseon-models/*', '/workspace/models/']
+    args: ['rsync', '-r', 'gs://caseon-models/', '/workspace/models/']
     
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
