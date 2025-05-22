@@ -5,3 +5,5 @@ node_modules
 dist
 
 .firebase
+
+backend/service/models

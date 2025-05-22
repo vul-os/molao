@@ -1,24 +1,12 @@
 steps:
-  # Copy models from GCS to the build context
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        mkdir -p ./backend/service/models
-        gsutil -m cp -r gs://${_BUCKET_NAME}/* ./backend/service/models/
-
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build',
       '-t', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--cache-from', 'gcr.io/${PROJECT_ID}/caseon:latest',
-      '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
       '.'
     ]
-    dir: './backend/service'
-
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/${PROJECT_ID}/caseon:latest']
