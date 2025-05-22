@@ -5,7 +5,7 @@ RUN gsutil cp -r gs://caseon-models/* /models/
 
 # Stage 2: Final image
 FROM python:3.10-slim
-
+#
 # Install LibreOffice (minimal install for headless document conversion)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer \
