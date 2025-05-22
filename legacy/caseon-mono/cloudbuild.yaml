@@ -1,4 +1,9 @@
 steps:   
+  # Setup Google Cloud credentials for the build
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    dir: './backend/service'
+    
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args: [
@@ -6,10 +11,9 @@ steps:
       '-t', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--cache-from', 'gcr.io/${PROJECT_ID}/caseon:latest',
       '--build-arg', 'BUILDKIT_INLINE_CACHE=1',
-      '--build-arg', 'COPY_MODELS=true',
       '.'
     ]
-    dir: './backend/service'  # Changed to your specific subdirectory path
+    dir: './backend/service'
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -33,7 +37,12 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
   env: ['DOCKER_BUILDKIT=1']
+
 # Store image in Artifact Registry
 images:
   - 'gcr.io/${PROJECT_ID}/caseon:latest'
+
+# Substitutions
+substitutions:
+  _SERVICE_ACCOUNT: 'YOUR-SERVICE-ACCOUNT@${PROJECT_ID}.iam.gserviceaccount.com'  # Replace with your service account
 
