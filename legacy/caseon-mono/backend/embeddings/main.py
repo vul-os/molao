@@ -1,7 +1,8 @@
 import os
 import tomli
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
 import psycopg2
-from psycopg2.extras import execute_values
 import uuid
 import logging
 import re
@@ -16,26 +17,46 @@ from striprtf.striprtf import rtf_to_text
 import docx
 import fitz
 import json
+import httpx
+import tempfile
+from pathlib import Path
 from optimum.onnxruntime import ORTModelForFeatureExtraction
 from transformers import AutoModel
-from pathlib import Path
 
 # Setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add raw files directory constant
-RAW_FILES_DIR = Path("/raw")
-
 def load_config() -> Dict[str, Any]:
     with open("config.toml", "rb") as f:
         return tomli.load(f)
 
-def get_db_connection():
+def get_qdrant_client():
     config = load_config()
-    conn = psycopg2.connect(config['database']['connection_string'])
-    conn.cursor().execute("SET statement_timeout = 0")
-    return conn
+    qdrant_config = config['qdrant']
+    
+    client = QdrantClient(
+        url=qdrant_config['url'],
+        api_key=qdrant_config['api_key'] if qdrant_config['api_key'] != "your-qdrant-api-key-here" else None
+    )
+    
+    return client, qdrant_config['collection_name']
+
+def ensure_collection_exists():
+    """Ensure the Qdrant collection exists, create it if it doesn't."""
+    client, collection_name = get_qdrant_client()
+    
+    try:
+        client.get_collection(collection_name)
+        logger.info(f"Collection '{collection_name}' already exists")
+    except Exception:
+        # Collection doesn't exist, create it
+        # We'll use 1024 as the vector size for BAAI/bge-large-en-v1.5
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(size=1024, distance=Distance.COSINE)
+        )
+        logger.info(f"Created collection '{collection_name}'")
 
 def is_text_file(mime_type: str) -> bool:
     return mime_type.startswith("text/")
@@ -43,33 +64,65 @@ def is_text_file(mime_type: str) -> bool:
 def normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
-def get_local_file_path(file_name: str) -> Path:
-    """Get the local path for a file from the raw directory."""
-    return RAW_FILES_DIR / file_name
+async def download_file_from_cdn(cdn_url: str, file_name: str) -> bytes:
+    """Download file content from CDN URL."""
+    logger.info(f"Downloading file from CDN: {file_name}")
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            response = await client.get('https://' + cdn_url)
+            response.raise_for_status()
+            
+            logger.info(f"Successfully downloaded {file_name} ({len(response.content)} bytes)")
+            return response.content
+            
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error downloading {file_name} from {cdn_url}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error downloading {file_name}: {e}")
+            raise
 
-def process_file(file_path: str, mime_type: str, tokenizer) -> str:
+def process_file_content(file_content: bytes, file_name: str, mime_type: str, tokenizer) -> str:
+    """Process file content based on mime type."""
     try:
         if mime_type == "application/rtf":
-            with open(file_path, "rb") as f:
-                raw_rtf = f.read()
             try:
-                rtf_string = raw_rtf.decode('utf-8', errors='ignore')  
+                rtf_string = file_content.decode('utf-8', errors='ignore')  
                 return normalize_whitespace(rtf_to_text(rtf_string))
             except Exception as e:
-                logger.error(f"Failed to parse RTF for file {file_path}: {e}")
+                logger.error(f"Failed to parse RTF for file {file_name}: {e}")
                 return ""
         elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            doc = docx.Document(file_path)
-            return normalize_whitespace("\n\n".join([para.text for para in doc.paragraphs]))
+            # Save to temporary file for docx processing
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_file:
+                temp_file.write(file_content)
+                temp_file.flush()
+                
+                try:
+                    doc = docx.Document(temp_file.name)
+                    text = normalize_whitespace("\n\n".join([para.text for para in doc.paragraphs]))
+                    return text
+                finally:
+                    os.unlink(temp_file.name)
         elif mime_type == "application/pdf":
-            with fitz.open(file_path) as doc:
-                text = "\n\n".join([page.get_text() for page in doc])
-                return normalize_whitespace(text)
+            # Save to temporary file for PDF processing
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                temp_file.write(file_content)
+                temp_file.flush()
+                
+                try:
+                    with fitz.open(temp_file.name) as doc:
+                        text = "\n\n".join([page.get_text() for page in doc])
+                        return normalize_whitespace(text)
+                finally:
+                    os.unlink(temp_file.name)
         else:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return normalize_whitespace(f.read())
+            # Treat as text file
+            text = file_content.decode('utf-8', errors='ignore')
+            return normalize_whitespace(text)
     except Exception as e:
-        logger.error(f"Failed to process file {file_path}: {e}")
+        logger.error(f"Failed to process file {file_name}: {e}")
         return ""
 
 def chunk_text(text: str, tokenizer, config: Dict[str, Any]) -> Generator[Tuple[str, int, int], None, None]:
@@ -97,32 +150,46 @@ def chunk_text(text: str, tokenizer, config: Dict[str, Any]) -> Generator[Tuple[
         if end == total_length:
             break
 
-def save_to_database(file_id: uuid.UUID, chunks: List[Tuple[str, int, int]], embeddings: List[List[float]], model_name: str):
-    conn = get_db_connection()
+def save_to_qdrant(file_id: uuid.UUID, file_name: str, chunks: List[Tuple[str, int, int]], embeddings: List[List[float]], model_name: str):
+    client, collection_name = get_qdrant_client()
+    
     try:
-        with conn.cursor() as cur:
-            data = []
-            now = datetime.utcnow().isoformat()
-            for (chunk_text, start, end), embed in zip(chunks, embeddings):
-                metadata = {
-                    "tokens": end - start,
-                    "chunk_text": chunk_text,
-                    "start_token": start,
-                    "end_token": end,
-                    "created_at": now
-                }
-                data.append((file_id, model_name, embed, start, end, json.dumps(metadata)))
-
-            execute_values(cur, """
-                INSERT INTO file_vectors (file_id, model, embedding, chunk_start, chunk_end, metadata)
-                VALUES %s
-            """, data)
-            conn.commit()
+        points = []
+        now = datetime.utcnow().isoformat()
+        
+        for i, ((chunk_text, start, end), embed) in enumerate(zip(chunks, embeddings)):
+            point_id = str(uuid.uuid4())
+            
+            payload = {
+                "file_id": str(file_id),
+                "file_name": file_name,
+                "model": model_name,
+                "chunk_index": i,
+                "chunk_start": start,
+                "chunk_end": end,
+                "tokens": end - start,
+                "chunk_text": chunk_text,
+                "created_at": now
+            }
+            
+            point = PointStruct(
+                id=point_id,
+                vector=embed,
+                payload=payload
+            )
+            points.append(point)
+        
+        # Upload points to Qdrant
+        client.upsert(
+            collection_name=collection_name,
+            points=points
+        )
+        
+        logger.info(f"Successfully saved {len(points)} vectors to Qdrant for file {file_id}")
+        
     except Exception as e:
-        logger.error(f"Failed saving to database: {e}", exc_info=True)
-        conn.rollback()
-    finally:
-        conn.close()
+        logger.error(f"Failed saving to Qdrant: {e}", exc_info=True)
+        raise
 
 def get_embeddings_batched(chunks: List[str], model, tokenizer, config: Dict[str, Any]) -> List[List[float]]:
     embeddings = []
@@ -207,20 +274,23 @@ def get_embeddings_batched(chunks: List[str], model, tokenizer, config: Dict[str
     logger.info(f"Completed processing all {len(chunks)} chunks")
     return embeddings
 
-def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tokenizer, config: Dict[str, Any]):
-    for file_id, file_name, mime_type in file_batch:
+async def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str, str]], model, tokenizer, config: Dict[str, Any]):
+    """Process a batch of files by downloading from CDN and generating embeddings."""
+    for file_id, file_name, mime_type, cdn_path in file_batch:
         logger.info(f"Processing file {file_id} ({file_name}) with mime type: {mime_type}")
         
         try:
-            # Get local file path
-            local_path = get_local_file_path(file_name)
-            if not local_path.exists():
-                logger.error(f"File not found in raw directory: {file_name}")
+            # Download file from CDN
+            logger.info(f"Downloading file from CDN: {file_name}")
+            file_content = await download_file_from_cdn(cdn_path, file_name)
+            
+            if not file_content:
+                logger.error(f"No content downloaded for file {file_id}")
                 continue
 
-            # Process the file to get text
+            # Process the file content to get text
             logger.info(f"Extracting text from file {file_id}")
-            text = process_file(str(local_path), mime_type, tokenizer)
+            text = process_file_content(file_content, file_name, mime_type, tokenizer)
             if not text:
                 logger.error(f"No text extracted from file {file_id}")
                 continue
@@ -256,7 +326,7 @@ def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tok
             # Save to database
             logger.info(f"Saving embeddings to database for file {file_id}")
             try:
-                save_to_database(file_id, chunks, embeddings, config['embedding']['model_name'])
+                save_to_qdrant(file_id, file_name, chunks, embeddings, config['embedding']['model_name'])
                 logger.info(f"Successfully processed file {file_id}")
             except Exception as e:
                 logger.error(f"Error saving to database for file {file_id}: {str(e)}", exc_info=True)
@@ -266,7 +336,7 @@ def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tok
             logger.error(f"Error processing file {file_id}: {str(e)}", exc_info=True)
             continue
 
-def main():
+async def main():
     # Configure PyTorch
     config = load_config()
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = f"max_split_size_mb:{config['processing']['cuda_memory_mb']},expandable_segments:True"
@@ -295,17 +365,47 @@ def main():
         if torch.cuda.is_available():
             model = model.cuda()
 
-    # Get unprocessed files
-    conn = get_db_connection()
+    # Ensure Qdrant collection exists (only once at startup)
+    logger.info("Ensuring Qdrant collection exists...")
+    ensure_collection_exists()
+
+    # Get processed file IDs from Qdrant
+    client, collection_name = get_qdrant_client()
+    
+    try:
+        processed_file_ids = set()
+        scroll_result = client.scroll(
+            collection_name=collection_name,
+            limit=10000,
+            with_payload=["file_id"]
+        )
+        
+        for point in scroll_result[0]:
+            if point.payload and "file_id" in point.payload:
+                processed_file_ids.add(point.payload["file_id"])
+        
+        logger.info(f"Found {len(processed_file_ids)} already processed files in Qdrant")
+        
+    except Exception as e:
+        logger.error(f"Error getting processed files from Qdrant: {e}")
+        processed_file_ids = set()
+
+    # Get unprocessed files from Supabase/PostgreSQL
+    conn = psycopg2.connect(config['database']['connection_string'])
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT f.id, f.file_name, f.mime_type 
+                SELECT f.id, f.file_name, f.mime_type, f.cdn_path 
                 FROM files f 
-                LEFT JOIN file_vectors fv ON f.id = fv.file_id 
-                WHERE fv.file_id IS NULL
+                WHERE f.cdn_path IS NOT NULL
             """)
-            unprocessed_files = cur.fetchall()
+            all_files = cur.fetchall()
+            
+            # Filter out already processed files
+            unprocessed_files = [
+                file_info for file_info in all_files 
+                if str(file_info[0]) not in processed_file_ids
+            ]
     finally:
         conn.close()
 
@@ -318,9 +418,10 @@ def main():
     # Process files in batches
     for i in range(0, len(unprocessed_files), config['processing']['batch_size']):
         file_batch = unprocessed_files[i:i + config['processing']['batch_size']]
-        process_files_batch(file_batch, model, tokenizer, config)
+        await process_files_batch(file_batch, model, tokenizer, config)
 
     logger.info("All files processed successfully")
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

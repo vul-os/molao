@@ -120,7 +120,7 @@ func NewBunnyCDNUploader(apiKey, storageZone, region string) *BunnyCDNUploader {
 // UploadFile uploads a file to Bunny CDN with retry logic
 func (u *BunnyCDNUploader) UploadFile(fileName string, data []byte) error {
 	// Create the upload URL
-	uploadURL := fmt.Sprintf("https://jh.storage.bunnycdn.com/caseon/%s",  url.PathEscape(fileName))
+	uploadURL := fmt.Sprintf("https://jh.storage.bunnycdn.com/caseonza/%s",  url.PathEscape(fileName))
 	log.Printf("🔗 [%s] Upload URL: %s", fileName, uploadURL)
 	log.Printf("📊 [%s] Storage Zone: %s, Region: %s", fileName, u.storageZone, u.region)
 	log.Printf("🔑 [%s] API Key (first 10 chars): %s...", fileName, u.apiKey[:10])
@@ -238,7 +238,7 @@ func (u *BunnyCDNUploader) UploadFile(fileName string, data []byte) error {
 
 // GetFileURL returns the public URL for a file
 func (u *BunnyCDNUploader) GetFileURL(fileName string) string {
-	return fmt.Sprintf("https://%s.%s.bunnycdn.com/%s", u.storageZone, u.region, url.PathEscape(fileName))
+	return fmt.Sprintf("https://jh.storage.bunnycdn.com/%s", u.storageZone, u.region, url.PathEscape(fileName))
 }
 
 // ExtractDetailsFromURL extracts the folder, year, and case number from the case URL
@@ -595,12 +595,12 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	log.Printf("👷‍♂️ Worker %d: Processing %s", workerID, cURL)
 	
 	// Extract folder, year, and case number
-	folder, year, _, err := ExtractDetailsFromURL(cURL)
+	folder, year, caseNumber, err := ExtractDetailsFromURL(cURL)
 	if err != nil {
 		log.Printf("❌ Worker %d: Failed to extract details from URL '%s': %v", workerID, cURL, err)
 		return
 	}
-	log.Printf("👷‍♂️ Worker %d: Extracted folder '%s', year '%s' from %s", workerID, folder, year, cURL)
+	log.Printf("👷‍♂️ Worker %d: Extracted folder '%s', year '%s', case '%s' from %s", workerID, folder, year, caseNumber, cURL)
 
 	// First, download the HTML page to extract the title
 	log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
@@ -630,27 +630,26 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	}
 	log.Printf("✅ Worker %d: Successfully downloaded RTF file: %s (size: %.2f KB)", workerID, rtfFileName, float64(len(rtfData))/1024)
 
-	// Sanitize base filename without extension
-	baseFileName := sanitizedFileName(rtfFileName)
-
-	// Construct modified filename with folder, year, and case number
-	modifiedFileName := fmt.Sprintf("%s-%s-%s%s", folder, year, baseFileName, path.Ext(rtfFileName))
-	log.Printf("📝 Worker %d: Renamed file to: %s", workerID, modifiedFileName)
+	// Construct filename using court code, year, and case number
+	fileName := fmt.Sprintf("%s-%s-%s.rtf", folder, year, caseNumber)
+	// Construct CDN path with the full path prefix
+	cdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", fileName)
+	log.Printf("📝 Worker %d: File name: %s, CDN path: %s", workerID, fileName, cdnPath)
 
 	// Upload the RTF to Bunny CDN
-	log.Printf("⬆️ Worker %d: Uploading to Bunny CDN: %s", workerID, modifiedFileName)
-	err = uploader.UploadFile(modifiedFileName, rtfData)
+	log.Printf("⬆️ Worker %d: Uploading to Bunny CDN: %s", workerID, cdnPath)
+	err = uploader.UploadFile(fileName, rtfData)
 	if err != nil {
-		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, modifiedFileName, err)
+		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, cdnPath, err)
 		return
 	}
-	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, modifiedFileName)
+	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, cdnPath)
 
 	// Prepare data for 'files' table with source_url and file_title
 	fileRecord := map[string]interface{}{
-		"file_name":  modifiedFileName,
+		"file_name":  fileName,
 		"file_type":  "rtf",
-		"cdn_path":   uploader.GetFileURL(modifiedFileName),
+		"cdn_path":   cdnPath,
 		"file_size":  len(rtfData),
 		"mime_type":  "application/rtf",
 		"source_url": cURL,
@@ -658,11 +657,11 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	}
 
 	// Insert into 'files' table
-	log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, modifiedFileName)
-	fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, modifiedFileName)
+	log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, fileName)
+	fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, fileName)
 	if err != nil {
-		log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, modifiedFileName, err)
+		log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, fileName, err)
 		return
 	}
-	log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, modifiedFileName, fileID)
+	log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, fileName, fileID)
 }
