@@ -5,3 +5,6 @@ node_modules
 dist
 
 .firebase
+
+backend/scraper/base_urls_2025-05-20.txt
+backend/scraper/case_urls_2025-05-20.txt

@@ -5,7 +5,6 @@ from psycopg2.extras import execute_values
 import uuid
 import logging
 import re
-import requests
 import gc
 import torch
 import torch.nn.functional as F
@@ -19,10 +18,14 @@ import fitz
 import json
 from optimum.onnxruntime import ORTModelForFeatureExtraction
 from transformers import AutoModel
+from pathlib import Path
 
 # Setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Add raw files directory constant
+RAW_FILES_DIR = Path("/raw")
 
 def load_config() -> Dict[str, Any]:
     with open("config.toml", "rb") as f:
@@ -40,19 +43,9 @@ def is_text_file(mime_type: str) -> bool:
 def normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
-def download_file(cdn_path: str, local_path: str) -> bool:
-    try:
-        if not cdn_path.startswith(('http://', 'https://')):
-            cdn_path = f"https://{cdn_path}"
-        resp = requests.get(cdn_path, stream=True)
-        resp.raise_for_status()
-        with open(local_path, 'wb') as f:
-            for chunk in resp.iter_content(8192):
-                f.write(chunk)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to download {cdn_path}: {e}")
-        return False
+def get_local_file_path(file_name: str) -> Path:
+    """Get the local path for a file from the raw directory."""
+    return RAW_FILES_DIR / file_name
 
 def process_file(file_path: str, mime_type: str, tokenizer) -> str:
     try:
@@ -73,7 +66,7 @@ def process_file(file_path: str, mime_type: str, tokenizer) -> str:
                 text = "\n\n".join([page.get_text() for page in doc])
                 return normalize_whitespace(text)
         else:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 return normalize_whitespace(f.read())
     except Exception as e:
         logger.error(f"Failed to process file {file_path}: {e}")
@@ -215,19 +208,19 @@ def get_embeddings_batched(chunks: List[str], model, tokenizer, config: Dict[str
     return embeddings
 
 def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tokenizer, config: Dict[str, Any]):
-    for file_id, cdn_path, mime_type in file_batch:
-        local_path = f"temp_{file_id}.bin"
-        logger.info(f"Processing file {file_id} from {cdn_path} (mime type: {mime_type})")
+    for file_id, file_name, mime_type in file_batch:
+        logger.info(f"Processing file {file_id} ({file_name}) with mime type: {mime_type}")
         
         try:
-            logger.info(f"Downloading file {file_id}")
-            if not download_file(cdn_path, local_path):
-                logger.error(f"Failed to download file {file_id}")
+            # Get local file path
+            local_path = get_local_file_path(file_name)
+            if not local_path.exists():
+                logger.error(f"File not found in raw directory: {file_name}")
                 continue
 
             # Process the file to get text
             logger.info(f"Extracting text from file {file_id}")
-            text = process_file(local_path, mime_type, tokenizer)
+            text = process_file(str(local_path), mime_type, tokenizer)
             if not text:
                 logger.error(f"No text extracted from file {file_id}")
                 continue
@@ -272,10 +265,6 @@ def process_files_batch(file_batch: List[Tuple[uuid.UUID, str, str]], model, tok
         except Exception as e:
             logger.error(f"Error processing file {file_id}: {str(e)}", exc_info=True)
             continue
-        finally:
-            if os.path.exists(local_path):
-                os.remove(local_path)
-                logger.info(f"Cleaned up temporary file for {file_id}")
 
 def main():
     # Configure PyTorch
@@ -295,7 +284,7 @@ def main():
         model = ORTModelForFeatureExtraction.from_pretrained(
             model_name,
             revision="refs/pr/13",
-            file_name="model.onnx",  # Updated path to match example
+            file_name="model.onnx",
             provider="CUDAExecutionProvider" if torch.cuda.is_available() else "CPUExecutionProvider"
         )
         logger.info("ONNX model loaded successfully")
@@ -311,7 +300,7 @@ def main():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT f.id, f.cdn_path, f.mime_type 
+                SELECT f.id, f.file_name, f.mime_type 
                 FROM files f 
                 LEFT JOIN file_vectors fv ON f.id = fv.file_id 
                 WHERE fv.file_id IS NULL
