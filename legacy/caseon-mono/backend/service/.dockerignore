@@ -49,3 +49,6 @@ test_*.py
 # Local development
 *.log
 *.sqlite3 
+
+runpod
+models

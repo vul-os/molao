@@ -10,12 +10,31 @@ import MainLayout from './components/layout/main-layout';
 import SearchPage from './pages/search';
 import LandingPage from './pages/landing';
 import MembersPage from './pages/members';
+import FileDetailPage from './pages/search/file-detail';
+import BillingPage from './pages/billing';
+
+// Documentation pages
+import DocsPage from './pages/docs';
+import GettingStarted from './pages/docs/getting-started';
+import SearchDocs from './pages/docs/search';
+import Members from './pages/docs/members';
+import Contact from './pages/docs/contact';
+import SitemapPage from './pages/docs/sitemap';
+
+// Legal pages
+import TermsOfService from './pages/docs/legal/terms-of-service';
+import PrivacyPolicy from './pages/docs/legal/privacy-policy';
+import CookiePolicy from './pages/docs/legal/cookie-policy';
 
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
   if (pathname.includes('/signin')) return 'Loading sign in...';
   if (pathname.includes('/signup')) return 'Loading sign up...';
   if (pathname === '/') return 'Loading homepage...';
+  if (pathname.includes('/billing')) return 'Loading billing information...';
+  if (pathname.includes('/docs')) return 'Loading documentation...';
+  if (pathname.includes('/legal')) return 'Loading legal information...';
+  if (pathname.includes('/sitemap')) return 'Loading sitemap...';
   return 'Loading...';
 };
 
@@ -57,14 +76,29 @@ const AppRoutes = () => {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
-        
         </Route>
 
+        {/* Documentation Routes */}
+        <Route path="/docs" element={<DocsPage />}>
+          <Route index element={null} />
+          <Route path="getting-started" element={<GettingStarted />} />
+          <Route path="search" element={<SearchDocs />} />
+          <Route path="members" element={<Members />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="sitemap" element={<SitemapPage />} />
+          
+          {/* Legal Routes */}
+          <Route path="legal/terms-of-service" element={<TermsOfService />} />
+          <Route path="legal/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="legal/cookie-policy" element={<CookiePolicy />} />
+        </Route>
 
         <Route element={<MainLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/search" element={<Protected><SearchPage /></Protected>} />
+          <Route path="/search/file/:fileId" element={<Protected><FileDetailPage /></Protected>} />
           <Route path="/members" element={<Protected><MembersPage /></Protected>} />
+          <Route path="/billing" element={<Protected><BillingPage /></Protected>} />
         </Route>
 
         {/* Global catch-all route */}

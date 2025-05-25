@@ -1,12 +1,14 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Mail, Scale, Shield, Cookie } from 'lucide-react';
 
 const Footer = () => {
   return (
     <footer className="py-12 px-4 md:px-8 bg-white border-t border-slate-100 text-slate-600">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between gap-8">
-          <div className="max-w-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Company Information */}
+          <div className="col-span-1">
             <div className="flex items-center gap-2 text-slate-900 mb-4">
               <img src="/icon.svg" alt="CaseOn Logo" className="h-8 w-8" />
               <div className="flex flex-col">
@@ -17,7 +19,7 @@ const Footer = () => {
             <p className="text-sm text-slate-500 mb-4">
               Transforming legal research with cutting-edge technology and comprehensive case databases.
             </p>
-            <div className="flex space-x-3 mt-6">
+            <div className="flex space-x-3 mt-4">
               <a href="#" aria-label="Twitter" className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path></svg>
               </a>
@@ -27,33 +29,96 @@ const Footer = () => {
             </div>
           </div>
           
-          <div className="mt-8 md:mt-0">
-            <div>
-              <h3 className="text-slate-900 font-medium mb-4">Account</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a href="#" className="flex items-center group hover:text-indigo-600 transition-colors">
-                    Sign In
-                    <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="flex items-center group hover:text-indigo-600 transition-colors">
-                    Sign Up
-                    <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
-                  </a>
-                </li>
-                <li><a href="#" className="hover:text-indigo-600 transition-colors">Documentation</a></li>
-              </ul>
-            </div>
+          {/* Pages */}
+          <div>
+            <h3 className="text-slate-900 font-medium mb-4">Pages</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a href="#" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Home
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </a>
+              </li>
+              <li>
+                <a href="#features" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Features
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </a>
+              </li>
+              <li>
+                <a href="#pricing" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Pricing
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </a>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Resources & Account */}
+          <div>
+            <h3 className="text-slate-900 font-medium mb-4">Resources & Account</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <Link to="/docs" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Documentation
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </Link>
+              </li>
+              <li>
+                <a href="/sitemap" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Sitemap
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </a>
+              </li>
+              <li>
+                <Link to="/signin" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Sign In
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </Link>
+              </li>
+              <li>
+                <Link to="/signup" className="flex items-center group hover:text-indigo-600 transition-colors">
+                  Sign Up
+                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
+                </Link>
+              </li>
+              <li className="flex items-center pt-2 text-slate-500">
+                <Mail className="h-4 w-4 mr-2" />
+                <span>caseonza@gmail.com</span>
+              </li>
+            </ul>
           </div>
         </div>
         
-        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+        {/* Legal links section */}
+        <div className="mt-10 pt-8 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Scale className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/terms-of-service" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Shield className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/privacy-policy" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
+          
+          <div className="flex items-center space-x-2 text-slate-700">
+            <Cookie className="h-5 w-5 text-indigo-600" />
+            <Link to="/docs/legal/cookie-policy" className="text-sm font-medium hover:text-indigo-600 transition-colors">
+              Cookie Policy
+            </Link>
+          </div>
+        </div>
+        
+        {/* Bottom footer */}
+        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} CaseOn. All rights reserved.</p>
-          <div className="flex items-center flex-wrap justify-center gap-6">
-            <a href="#" className="text-xs hover:text-indigo-600 transition-colors">Terms of Service</a>
-            <a href="#" className="text-xs hover:text-indigo-600 transition-colors">Privacy Policy</a>
+          <div className="flex items-center">
+            <span className="text-xs text-slate-400">Made with AI-powered legal intelligence for South African professionals</span>
           </div>
         </div>
       </div>
