@@ -8,11 +8,12 @@ import os
 import logging
 from pathlib import Path
 from google.cloud import storage
+from fastapi.middleware.cors import CORSMiddleware
 
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Starting FastAPI service...")
+logger.info("Starting FastAPI service, with cors...")
 
 # ---------- Environment Variables ----------
 BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
@@ -86,8 +87,7 @@ else:
 # ---------- FastAPI App ----------
 app = FastAPI()
 
-# --- Add CORS Middleware ---
-from fastapi.middleware.cors import CORSMiddleware
+# --- CORS Middleware ---
 
 origins = [
     "http://localhost:5176"
