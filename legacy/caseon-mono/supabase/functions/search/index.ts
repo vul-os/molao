@@ -30,7 +30,6 @@ interface FileResult {
   file_name: string
   file_title: string
   pdf_url: string
-  score: number
   file_size?: number
 }
 
@@ -143,7 +142,7 @@ serve(async (req) => {
     }
 
     // CDN base URL
-    const CDN_URL = 'https://caseonza.b-cdn.net/'
+    const CDN_URL = 'https://cdn.caseon.io/'
 
     // Call the simplified Modal search endpoint (only query and limit)
     const modalSearchPayload = {
@@ -233,7 +232,6 @@ serve(async (req) => {
             file_name: modalResult.file_name,
             file_title: modalResult.file_name, // Use filename as title if no local data
             pdf_url: pdfUrl,
-            score: modalResult.score,
             file_size: modalResult.file_size
           }
         }
@@ -250,7 +248,6 @@ serve(async (req) => {
           file_name: localFile.file_name,
           file_title: localFile.file_title || localFile.file_name,
           pdf_url: pdfUrl,
-          score: modalResult.score,
           file_size: localFile.file_size
         }
       })
