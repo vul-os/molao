@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { supabase } from '@/services/supabase-client';
-import { paystack_public_key } from '@/services/paystack';
 import { 
   Card, 
   CardContent, 

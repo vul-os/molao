@@ -1,1 +1,0 @@
-export const paystack_public_key = "pk_test_112a8d5854087ac9ba053303fc9154ec9688249c"
