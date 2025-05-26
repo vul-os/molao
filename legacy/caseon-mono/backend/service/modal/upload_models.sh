@@ -1,9 +1,13 @@
 #!/bin/bash
 
-# CaseOn Modal Models Upload Script
-# This script uploads models from local /models directory to Modal storage volume
+# Upload Models to Modal Volume Script
+# This script uploads models from local /models directory to Modal volume for CaseOn inference service
 
 set -e  # Exit on any error
+
+# Configuration
+VOLUME_NAME="caseon-models"
+LOCAL_MODELS_DIR="/home/exo/Documents/models/caseon-models"
 
 # Colors for output
 RED='\033[0;31m'
@@ -12,15 +16,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Default values
-LOCAL_MODELS_DIR="/models"
-ACTION="upload"
-MODEL_NAME="all"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Function to print colored output
-print_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+print_status() {
+    echo -e "${BLUE}🔄 $1${NC}"
 }
 
 print_success() {
@@ -35,249 +33,168 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-# Function to show help
-show_help() {
-    echo "CaseOn Modal Models Upload Script"
-    echo ""
-    echo "Usage: $0 [ACTION] [LOCAL_DIR] [MODEL_NAME]"
-    echo ""
-    echo "Actions:"
-    echo "  upload    Upload models to Modal volume (default)"
-    echo "  list      List contents of Modal volume"
-    echo "  clear     Clear all contents from Modal volume"
-    echo ""
-    echo "Arguments:"
-    echo "  LOCAL_DIR   Local directory containing models (default: /models)"
-    echo "  MODEL_NAME  Specific model to upload or 'all' (default: all)"
-    echo ""
-    echo "Available models:"
-    echo "  - bge-large-en-v1.5     (Embedding model)"
-    echo "  - bge-reranker-large    (Reranker model)"
-    echo "  - all                   (Upload all available models)"
-    echo ""
-    echo "Examples:"
-    echo "  $0                                    # Upload all models from /models"
-    echo "  $0 upload /my/models                 # Upload all models from /my/models"
-    echo "  $0 upload /models bge-large-en-v1.5  # Upload only embedding model"
-    echo "  $0 list                              # List volume contents"
-    echo "  $0 clear                             # Clear volume contents"
-    echo ""
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-# Function to check prerequisites
-check_prerequisites() {
-    print_info "Checking prerequisites..."
+# Function to check Modal CLI installation and authentication
+check_modal_setup() {
+    print_status "Checking Modal CLI setup..."
     
-    # Check if Modal is installed
-    if ! command -v modal &> /dev/null; then
-        print_error "Modal CLI is not installed"
-        echo "Please install it with: pip install modal"
+    if ! command_exists modal; then
+        print_error "Modal CLI is not installed. Please install it first:"
+        echo "pip install modal"
         exit 1
     fi
     
-    # Check if user is logged in to Modal
-    if ! modal token verify &> /dev/null; then
-        print_error "Not logged in to Modal"
-        echo "Please log in with: modal token new"
-        exit 1
-    fi
+    print_success "Modal CLI is installed"
     
-    print_success "Prerequisites check passed"
+    # Check if user is authenticated
+
+    
+    print_success "Modal authentication verified"
 }
 
-# Function to check local models directory
+# Function to check if local models directory exists
 check_local_models() {
-    if [ "$ACTION" != "upload" ]; then
-        return 0
-    fi
-    
-    print_info "Checking local models directory: $LOCAL_MODELS_DIR"
+    print_status "Checking local models directory..."
     
     if [ ! -d "$LOCAL_MODELS_DIR" ]; then
-        print_error "Local models directory not found: $LOCAL_MODELS_DIR"
-        echo ""
-        echo "Please ensure your models are downloaded and available at the specified path."
-        echo "Expected structure:"
-        echo "  $LOCAL_MODELS_DIR/"
-        echo "  ├── bge-large-en-v1.5/"
-        echo "  │   ├── config.json"
-        echo "  │   ├── pytorch_model.bin"
-        echo "  │   └── tokenizer.json"
-        echo "  └── bge-reranker-large/"
-        echo "      ├── config.json"
-        echo "      ├── pytorch_model.bin"
-        echo "      └── tokenizer.json"
+        print_error "Local models directory '$LOCAL_MODELS_DIR' does not exist"
         exit 1
     fi
     
-    # Check for specific models
-    models_found=0
-    
-    if [ -d "$LOCAL_MODELS_DIR/bge-large-en-v1.5" ]; then
-        print_success "Found embedding model: bge-large-en-v1.5"
-        models_found=$((models_found + 1))
+    # Check if directory has any content
+    if [ -z "$(ls -A $LOCAL_MODELS_DIR)" ]; then
+        print_warning "Local models directory '$LOCAL_MODELS_DIR' is empty"
+        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     else
-        print_warning "Embedding model not found: $LOCAL_MODELS_DIR/bge-large-en-v1.5"
+        print_success "Local models directory found with content"
+        echo "Contents:"
+        ls -la "$LOCAL_MODELS_DIR"
     fi
-    
-    if [ -d "$LOCAL_MODELS_DIR/bge-reranker-large" ]; then
-        print_success "Found reranker model: bge-reranker-large"
-        models_found=$((models_found + 1))
-    else
-        print_warning "Reranker model not found: $LOCAL_MODELS_DIR/bge-reranker-large"
-    fi
-    
-    if [ $models_found -eq 0 ]; then
-        print_error "No models found in $LOCAL_MODELS_DIR"
-        echo ""
-        echo "Please download the models first or check the directory path."
-        exit 1
-    fi
-    
-    print_info "Found $models_found model(s) ready for upload"
 }
 
-# Function to estimate upload size
-estimate_upload_size() {
-    if [ "$ACTION" != "upload" ]; then
-        return 0
-    fi
+# Function to check if Modal volume exists
+check_modal_volume() {
+    print_status "Checking if Modal volume '$VOLUME_NAME' exists..."
     
-    print_info "Estimating upload size..."
-    
-    total_size=0
-    
-    if [ "$MODEL_NAME" = "all" ] || [ "$MODEL_NAME" = "bge-large-en-v1.5" ]; then
-        if [ -d "$LOCAL_MODELS_DIR/bge-large-en-v1.5" ]; then
-            size=$(du -sb "$LOCAL_MODELS_DIR/bge-large-en-v1.5" 2>/dev/null | cut -f1 || echo "0")
-            total_size=$((total_size + size))
-            print_info "Embedding model size: $(numfmt --to=iec $size)"
-        fi
-    fi
-    
-    if [ "$MODEL_NAME" = "all" ] || [ "$MODEL_NAME" = "bge-reranker-large" ]; then
-        if [ -d "$LOCAL_MODELS_DIR/bge-reranker-large" ]; then
-            size=$(du -sb "$LOCAL_MODELS_DIR/bge-reranker-large" 2>/dev/null | cut -f1 || echo "0")
-            total_size=$((total_size + size))
-            print_info "Reranker model size: $(numfmt --to=iec $size)"
-        fi
-    fi
-    
-    if [ $total_size -gt 0 ]; then
-        print_info "Total upload size: $(numfmt --to=iec $total_size)"
-        
-        # Warn if size is very large
-        if [ $total_size -gt 10737418240 ]; then  # 10GB
-            print_warning "Large upload detected (>10GB). This may take significant time and incur costs."
-            read -p "Continue? (y/N): " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                print_info "Upload cancelled by user"
-                exit 0
+    # Try to list the volume directly - if it exists, this will succeed
+    if modal volume ls "$VOLUME_NAME" >/dev/null 2>&1; then
+        print_success "Modal volume '$VOLUME_NAME' exists"
+    else
+        print_warning "Modal volume '$VOLUME_NAME' does not exist. Creating it..."
+        if modal volume create "$VOLUME_NAME" 2>/dev/null; then
+            print_success "Created Modal volume '$VOLUME_NAME'"
+        else
+            # Volume might already exist, try to list it again
+            if modal volume ls "$VOLUME_NAME" >/dev/null 2>&1; then
+                print_success "Modal volume '$VOLUME_NAME' already exists"
+            else
+                print_error "Failed to create or access Modal volume '$VOLUME_NAME'"
+                exit 1
             fi
         fi
     fi
 }
 
-# Function to run the upload
-run_modal_script() {
-    print_info "Running Modal upload script..."
+# Function to show current volume contents
+show_volume_contents() {
+    print_status "Current contents of Modal volume '$VOLUME_NAME':"
+    modal volume ls "$VOLUME_NAME" || echo "Volume is empty or error occurred"
+}
+
+# Function to upload models
+upload_models() {
+    print_status "Starting upload of models from '$LOCAL_MODELS_DIR' to Modal volume '$VOLUME_NAME'..."
     
-    # Change to script directory to ensure proper imports
-    cd "$SCRIPT_DIR"
-    
-    # Run the Python script with Modal
-    modal run upload_models.py::main --action="$ACTION" --local-models-dir="$LOCAL_MODELS_DIR" --model-name="$MODEL_NAME"
-    
-    if [ $? -eq 0 ]; then
-        case $ACTION in
-            "upload")
-                print_success "Models uploaded successfully!"
-                print_info "Your models are now available in the Modal volume and ready for inference."
-                ;;
-            "list")
-                print_success "Volume contents listed successfully!"
-                ;;
-            "clear")
-                print_success "Volume cleared successfully!"
-                ;;
-        esac
-    else
-        print_error "Modal script failed"
+    # Check if the local directory exists and has content
+    if [ ! -d "$LOCAL_MODELS_DIR" ] || [ -z "$(ls -A $LOCAL_MODELS_DIR)" ]; then
+        print_error "Local models directory is empty or doesn't exist"
         exit 1
+    fi
+    
+    # Upload each subdirectory in the models directory
+    for model_dir in "$LOCAL_MODELS_DIR"/*; do
+        if [ -d "$model_dir" ]; then
+            model_name=$(basename "$model_dir")
+            print_status "Uploading model: $model_name"
+            modal volume put "$VOLUME_NAME" "$model_dir" "/$model_name" --force
+        fi
+    done
+    
+    print_success "Upload completed!"
+}
+
+# Function to verify upload
+verify_upload() {
+    print_status "Verifying upload..."
+    
+    echo "Contents of Modal volume '$VOLUME_NAME' after upload:"
+    modal volume ls "$VOLUME_NAME"
+    
+    # Check for specific model directories
+    print_status "Checking for expected model directories..."
+    
+    if modal volume ls "$VOLUME_NAME" bge-large-en-v1.5 >/dev/null 2>&1; then
+        print_success "Found bge-large-en-v1.5 model"
+    else
+        print_warning "bge-large-en-v1.5 model not found"
+    fi
+    
+    if modal volume ls "$VOLUME_NAME" bge-reranker-large >/dev/null 2>&1; then
+        print_success "Found bge-reranker-large model"
+    else
+        print_warning "bge-reranker-large model not found"
     fi
 }
 
 # Main execution
 main() {
-    # Parse command line arguments
-    if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
-        show_help
+    echo "=================================================="
+    echo "🚀 CaseOn Modal Models Upload Script"
+    echo "=================================================="
+    echo "Volume: $VOLUME_NAME"
+    echo "Local Directory: $LOCAL_MODELS_DIR"
+    echo "=================================================="
+    echo
+    
+    # Run checks
+    check_modal_setup
+    check_local_models
+    check_modal_volume
+    
+    echo
+    show_volume_contents
+    echo
+    
+    # Confirm upload
+    print_warning "This will upload all contents from '$LOCAL_MODELS_DIR' to Modal volume '$VOLUME_NAME'"
+    print_warning "Existing files in the volume may be overwritten!"
+    read -p "Do you want to continue? (y/N): " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status "Upload cancelled by user"
         exit 0
     fi
     
-    # Set variables from arguments
-    if [ -n "$1" ]; then
-        ACTION="$1"
-    fi
+    # Perform upload
+    upload_models
     
-    if [ -n "$2" ]; then
-        LOCAL_MODELS_DIR="$2"
-    fi
+    echo
+    verify_upload
     
-    if [ -n "$3" ]; then
-        MODEL_NAME="$3"
-    fi
-    
-    # Validate action
-    if [[ ! "$ACTION" =~ ^(upload|list|clear)$ ]]; then
-        print_error "Invalid action: $ACTION"
-        echo "Valid actions: upload, list, clear"
-        echo "Use --help for more information"
-        exit 1
-    fi
-    
-    # Show banner
-    echo ""
-    echo "🚀 CaseOn Modal Models Upload Script"
-    echo "======================================"
-    echo "Action: $ACTION"
-    if [ "$ACTION" = "upload" ]; then
-        echo "Local directory: $LOCAL_MODELS_DIR"
-        echo "Model: $MODEL_NAME"
-    fi
-    echo ""
-    
-    # Run checks and operations
-    check_prerequisites
-    check_local_models
-    estimate_upload_size
-    
-    # Confirm before proceeding
-    if [ "$ACTION" = "clear" ]; then
-        print_warning "This will permanently delete all models from the Modal volume!"
-        read -p "Are you sure? Type 'yes' to confirm: " -r
-        echo
-        if [ "$REPLY" != "yes" ]; then
-            print_info "Operation cancelled"
-            exit 0
-        fi
-    elif [ "$ACTION" = "upload" ]; then
-        print_info "Ready to upload models to Modal volume"
-        read -p "Proceed? (Y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            print_info "Upload cancelled by user"
-            exit 0
-        fi
-    fi
-    
-    # Execute the operation
-    run_modal_script
-    
-    echo ""
-    print_success "Operation completed successfully!"
+    echo
+    print_success "🎉 Models upload completed successfully!"
+    echo "You can now deploy your Modal app with the pre-uploaded models."
+    echo "To deploy the app, run: modal deploy backend/service/modal/main.py"
 }
 
-# Run main function with all arguments
+# Run main function
 main "$@" 
