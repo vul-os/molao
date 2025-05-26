@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
-	"crypto/rand"
+	cryptorand "crypto/rand"
 	"math/big"
 
 	"github.com/schollz/progressbar/v3"
@@ -311,13 +314,38 @@ func (loi *LibreOfficeInstance) IsRunning() bool {
 		return false
 	}
 
-	// Check if socket is still listening
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", loi.port), 1*time.Second)
+	// Check if socket is still listening with shorter timeout
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", loi.port), 2*time.Second)
 	if err != nil {
+		logWarning("LibreOffice instance %d socket check failed: %v", loi.id, err)
 		return false
 	}
 	conn.Close()
 	return true
+}
+
+// HealthCheck performs a more thorough health check of the LibreOffice instance
+func (loi *LibreOfficeInstance) HealthCheck(ctx context.Context) error {
+	if !loi.IsRunning() {
+		return fmt.Errorf("instance %d is not running", loi.id)
+	}
+	
+	// Try to connect multiple times to ensure stability
+	for i := 0; i < 3; i++ {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", loi.port), 1*time.Second)
+		if err != nil {
+			logWarning("LibreOffice instance %d health check failed attempt %d: %v", loi.id, i+1, err)
+			if i == 2 {
+				return fmt.Errorf("instance %d failed health check after 3 attempts", loi.id)
+			}
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		conn.Close()
+		break
+	}
+	
+	return nil
 }
 
 // NewLibreOfficePool creates a new LibreOffice pool
@@ -384,22 +412,47 @@ func (lop *LibreOfficePool) Start(ctx context.Context) error {
 
 // Get acquires an available LibreOffice instance from the pool
 func (lop *LibreOfficePool) Get(ctx context.Context) (*LibreOfficeInstance, error) {
+	// Add timeout to prevent indefinite blocking
+	getCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	
 	select {
 	case instance := <-lop.available:
 		instance.inUse = true
 		logInfo("Acquired LibreOffice instance %d from pool", instance.id)
 		
-		// Verify instance is still running
-		if !instance.IsRunning() {
-			logWarning("LibreOffice instance %d was not running, restarting...", instance.id)
+		// Perform health check on the instance
+		if err := instance.HealthCheck(ctx); err != nil {
+			logWarning("LibreOffice instance %d failed health check: %v, restarting...", instance.id, err)
+			
+			// Stop the unhealthy instance
+			instance.Stop()
+			
+			// Try to restart it
 			if err := instance.Start(ctx); err != nil {
+				logError("Failed to restart LibreOffice instance %d: %v", instance.id, err)
 				// Return instance to pool even if restart failed
 				lop.Put(instance)
 				return nil, fmt.Errorf("failed to restart LibreOffice instance %d: %w", instance.id, err)
 			}
+			
+			// Verify the restarted instance is healthy
+			if err := instance.HealthCheck(ctx); err != nil {
+				logError("Restarted LibreOffice instance %d still unhealthy: %v", instance.id, err)
+				lop.Put(instance)
+				return nil, fmt.Errorf("restarted LibreOffice instance %d still unhealthy: %w", instance.id, err)
+			}
+			
+			logSuccess("Successfully restarted LibreOffice instance %d", instance.id)
 		}
 		
 		return instance, nil
+	case <-getCtx.Done():
+		if getCtx.Err() == context.DeadlineExceeded {
+			logError("Timeout waiting for LibreOffice instance from pool after 30 seconds")
+			return nil, fmt.Errorf("timeout waiting for LibreOffice instance from pool")
+		}
+		return nil, getCtx.Err()
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -519,7 +572,32 @@ func (r *RTFConverter) GetRTFFilesBatch(ctx context.Context, batchSize int, offs
 		return nil, fmt.Errorf("failed to unmarshal files: %w", err)
 	}
 
-	return files, nil
+	// Filter out files that already have PDFs (optional optimization)
+	var filteredFiles []RTFFile
+	for _, file := range files {
+		pdfExists, err := r.CheckPDFExists(ctx, file.Filename)
+		if err != nil {
+			// If we can't check, include the file to be safe
+			logWarning("Could not check PDF existence for %s, including in batch: %v", file.Filename, err)
+			filteredFiles = append(filteredFiles, file)
+		} else if !pdfExists {
+			filteredFiles = append(filteredFiles, file)
+		} else {
+			logInfo("Skipping %s - PDF already exists", file.Filename)
+		}
+	}
+
+	logInfo("Filtered batch: %d RTF files -> %d files needing conversion", len(files), len(filteredFiles))
+
+	// Shuffle the filtered files randomly to avoid processing the same files in the same order
+	if len(filteredFiles) > 1 {
+		rand.Shuffle(len(filteredFiles), func(i, j int) {
+			filteredFiles[i], filteredFiles[j] = filteredFiles[j], filteredFiles[i]
+		})
+		logInfo("Shuffled %d files in batch for random processing order", len(filteredFiles))
+	}
+
+	return filteredFiles, nil
 }
 
 // DownloadFile downloads a file from the CDN
@@ -582,7 +660,7 @@ func (r *RTFConverter) ConvertRTFToPDF(ctx context.Context, rtfData []byte, file
 	logInfo("Created conversion temp directory for %s: %s", filename, tempDir)
 
 	// Generate unique filename to avoid conflicts
-	randomSuffix, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+	randomSuffix, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(1000000))
 	uniqueFilename := fmt.Sprintf("%d_%s_%s", instance.id, randomSuffix.String(), filename)
 	rtfPath := filepath.Join(tempDir, uniqueFilename)
 	
@@ -736,11 +814,15 @@ func (r *RTFConverter) UploadToBunnyCDN(ctx context.Context, data []byte, filena
 
 // ProcessFile processes a single RTF file
 func (r *RTFConverter) ProcessFile(ctx context.Context, file RTFFile) error {
+	// Add timeout for the entire file processing operation
+	processCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	
 	logProcess("Processing file: %s (ID: %s)", file.Filename, file.ID)
 
 	// Download RTF file
 	logDownload("Downloading file from: %s", file.CDNPath)
-	rtfData, err := r.DownloadFile(ctx, file.CDNPath)
+	rtfData, err := r.DownloadFile(processCtx, file.CDNPath)
 	if err != nil {
 		logError("Failed to download file %s: %v", file.Filename, err)
 		return fmt.Errorf("failed to download file: %w", err)
@@ -748,7 +830,7 @@ func (r *RTFConverter) ProcessFile(ctx context.Context, file RTFFile) error {
 
 	// Convert RTF to PDF
 	logConvert("Converting RTF to PDF: %s", file.Filename)
-	pdfData, err := r.ConvertRTFToPDF(ctx, rtfData, file.Filename)
+	pdfData, err := r.ConvertRTFToPDF(processCtx, rtfData, file.Filename)
 	if err != nil {
 		logError("Failed to convert RTF to PDF for %s: %v", file.Filename, err)
 		return fmt.Errorf("failed to convert RTF to PDF: %w", err)
@@ -759,7 +841,7 @@ func (r *RTFConverter) ProcessFile(ctx context.Context, file RTFFile) error {
 
 	// Upload PDF to BunnyCDN
 	logUpload("Uploading PDF to BunnyCDN: %s", pdfFilename)
-	if err := r.UploadToBunnyCDN(ctx, pdfData, pdfFilename); err != nil {
+	if err := r.UploadToBunnyCDN(processCtx, pdfData, pdfFilename); err != nil {
 		logError("Failed to upload to BunnyCDN for %s: %v", pdfFilename, err)
 		return fmt.Errorf("failed to upload to BunnyCDN: %w", err)
 	}
@@ -816,6 +898,9 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 	}
 	defer r.loPool.Stop()
 
+	// Start periodic health check for LibreOffice instances
+	go r.periodicHealthCheck(ctx)
+
 	// Get total count of RTF files
 	logInfo("Getting total count of RTF files...")
 	totalCount, err := r.GetTotalRTFFilesCount(ctx)
@@ -837,6 +922,18 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 	
 	logInfo("Processing in %d batches of %d files each", totalBatches, batchSize)
 
+	// Create a randomized list of batch numbers to process batches in random order
+	batchOrder := make([]int, totalBatches)
+	for i := 0; i < totalBatches; i++ {
+		batchOrder[i] = i
+	}
+	
+	// Shuffle the batch order
+	rand.Shuffle(len(batchOrder), func(i, j int) {
+		batchOrder[i], batchOrder[j] = batchOrder[j], batchOrder[i]
+	})
+	logInfo("Randomized batch processing order to avoid repeating same batches on restart")
+
 	// Create overall progress bar for all files
 	overallBar := progressbar.NewOptions(totalCount,
 		progressbar.OptionSetDescription("Converting RTF files (overall)"),
@@ -855,7 +952,7 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 	// Process files in batches
 	processedFiles := 0
 	
-	for batchNum := 0; batchNum < totalBatches; batchNum++ {
+	for batchIndex, batchNum := range batchOrder {
 		select {
 		case <-ctx.Done():
 			logWarning("Context cancelled, stopping RTF converter")
@@ -865,8 +962,8 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 
 		offset := batchNum * batchSize
 		
-		logProcess("Processing batch %d/%d (files %d-%d)", 
-			batchNum+1, totalBatches, offset+1, min(offset+batchSize, totalCount))
+		logProcess("Processing batch %d/%d (actual batch #%d, files %d-%d)", 
+			batchIndex+1, totalBatches, batchNum+1, offset+1, min(offset+batchSize, totalCount))
 
 		// Fetch current batch of files
 		files, err := r.GetRTFFilesBatch(ctx, batchSize, offset)
@@ -876,15 +973,15 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 		}
 
 		if len(files) == 0 {
-			logWarning("No files in batch %d, stopping", batchNum+1)
-			break
+			logWarning("No files in batch %d, continuing to next batch", batchNum+1)
+			continue
 		}
 
-		logSuccess("Fetched %d files in batch %d", len(files), batchNum+1)
+		logSuccess("Fetched %d files in batch %d (actual batch #%d)", len(files), batchIndex+1, batchNum+1)
 
 		// Create batch progress bar
 		batchBar := progressbar.NewOptions(len(files),
-			progressbar.OptionSetDescription(fmt.Sprintf("Batch %d/%d", batchNum+1, totalBatches)),
+			progressbar.OptionSetDescription(fmt.Sprintf("Batch %d/%d", batchIndex+1, totalBatches)),
 			progressbar.OptionSetWidth(40),
 			progressbar.OptionShowCount(),
 			progressbar.OptionShowIts(),
@@ -901,12 +998,24 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 		var wg sync.WaitGroup
 		semaphore := make(chan struct{}, r.config.Concurrency)
 		batchErrors := make(chan error, len(files))
+		
+		// Create a context for this batch with timeout
+		batchCtx, batchCancel := context.WithTimeout(ctx, 10*time.Minute)
+		defer batchCancel()
 
 		for _, file := range files {
 			select {
 			case <-ctx.Done():
 				logWarning("Context cancelled during batch processing")
+				batchCancel()
+				// Wait for existing goroutines to finish
+				wg.Wait()
 				return ctx.Err()
+			case <-batchCtx.Done():
+				logError("Batch timeout after 10 minutes, cancelling remaining files")
+				// Wait for existing goroutines to finish
+				wg.Wait()
+				return fmt.Errorf("batch processing timeout")
 			default:
 			}
 
@@ -914,25 +1023,64 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 			go func(f RTFFile) {
 				defer wg.Done()
 				defer func() {
+					// Recover from any panics to prevent hanging
+					if r := recover(); r != nil {
+						logError("Panic in goroutine processing file %s: %v", f.Filename, r)
+						select {
+						case batchErrors <- fmt.Errorf("panic processing file %s: %v", f.Filename, r):
+						default:
+						}
+					}
 					batchBar.Add(1)    // Update batch progress
 					overallBar.Add(1)  // Update overall progress
 				}()
 				
-				semaphore <- struct{}{} // Acquire semaphore
-				defer func() { <-semaphore }() // Release semaphore
+				// Acquire semaphore with timeout to prevent deadlock
+				select {
+				case semaphore <- struct{}{}:
+					defer func() { <-semaphore }() // Release semaphore
+				case <-batchCtx.Done():
+					logWarning("Timeout acquiring semaphore for file %s", f.Filename)
+					return
+				}
 
-				if err := r.ProcessFile(ctx, f); err != nil {
+				if err := r.ProcessFile(batchCtx, f); err != nil {
 					logError("Error processing file %s (ID: %s): %v", f.Filename, f.ID, err)
 					select {
 					case batchErrors <- err:
 					default:
+						// Channel is full, log the error but don't block
+						logWarning("Error channel full, dropping error for file %s", f.Filename)
 					}
 				}
 			}(file)
 		}
 
-		// Wait for current batch to complete
-		wg.Wait()
+		// Wait for current batch to complete with timeout
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		
+		select {
+		case <-done:
+			// All goroutines completed normally
+		case <-time.After(15 * time.Minute):
+			logError("Batch processing timeout after 15 minutes, forcing continuation")
+			batchCancel()
+			// Give goroutines a bit more time to clean up
+			select {
+			case <-done:
+			case <-time.After(30 * time.Second):
+				logError("Goroutines did not finish cleanup in time")
+			}
+		case <-ctx.Done():
+			logWarning("Context cancelled while waiting for batch completion")
+			batchCancel()
+			return ctx.Err()
+		}
+		
 		close(batchErrors)
 
 		// Count errors in this batch
@@ -949,14 +1097,14 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 
 		if errorCount > 0 {
 			logWarning("Batch %d/%d completed: %d/%d files successful, %d errors", 
-				batchNum+1, totalBatches, successCount, len(files), errorCount)
+				batchIndex+1, totalBatches, successCount, len(files), errorCount)
 		} else {
 			logSuccess("Batch %d/%d completed: %d/%d files successful, %d errors", 
-				batchNum+1, totalBatches, successCount, len(files), errorCount)
+				batchIndex+1, totalBatches, successCount, len(files), errorCount)
 		}
 
 		// Small delay between batches to avoid overwhelming the system
-		if batchNum < totalBatches-1 {
+		if batchIndex < totalBatches-1 {
 			time.Sleep(1 * time.Second)
 		}
 	}
@@ -968,6 +1116,46 @@ func (r *RTFConverter) Run(ctx context.Context) error {
 	return nil
 }
 
+// periodicHealthCheck runs periodic health checks on LibreOffice instances
+func (r *RTFConverter) periodicHealthCheck(ctx context.Context) {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	
+	logInfo("Starting periodic health check for LibreOffice instances")
+	
+	for {
+		select {
+		case <-ctx.Done():
+			logInfo("Stopping periodic health check due to context cancellation")
+			return
+		case <-ticker.C:
+			logInfo("Performing periodic health check on LibreOffice instances")
+			
+			// Check each instance in the pool
+			for i, instance := range r.loPool.instances {
+				if instance.inUse {
+					// Skip instances currently in use
+					continue
+				}
+				
+				if err := instance.HealthCheck(ctx); err != nil {
+					logWarning("Instance %d failed health check during periodic check: %v", i, err)
+					
+					// Try to restart the instance
+					logProcess("Restarting unhealthy LibreOffice instance %d", i)
+					instance.Stop()
+					
+					if err := instance.Start(ctx); err != nil {
+						logError("Failed to restart LibreOffice instance %d during health check: %v", i, err)
+					} else {
+						logSuccess("Successfully restarted LibreOffice instance %d during health check", i)
+					}
+				}
+			}
+		}
+	}
+}
+
 // min returns the smaller of two integers
 func min(a, b int) int {
 	if a < b {
@@ -976,7 +1164,41 @@ func min(a, b int) int {
 	return b
 }
 
+// CheckPDFExists checks if a PDF version of the RTF file already exists in the database
+func (r *RTFConverter) CheckPDFExists(ctx context.Context, rtfFilename string) (bool, error) {
+	// Generate the expected PDF filename
+	pdfFilename := strings.TrimSuffix(rtfFilename, filepath.Ext(rtfFilename)) + ".pdf"
+	
+	// Query Supabase to check if PDF file exists
+	result, _, err := r.supabase.From("files").
+		Select("id", "", false).
+		Eq("file_name", pdfFilename).
+		Execute()
+
+	if err != nil {
+		logError("Failed to check PDF existence for %s: %v", pdfFilename, err)
+		return false, fmt.Errorf("failed to check PDF existence: %w", err)
+	}
+
+	var existingFiles []map[string]interface{}
+	if err := json.Unmarshal(result, &existingFiles); err != nil {
+		logError("Failed to unmarshal PDF check result for %s: %v", pdfFilename, err)
+		return false, fmt.Errorf("failed to unmarshal PDF check result: %w", err)
+	}
+
+	exists := len(existingFiles) > 0
+	if exists {
+		logInfo("PDF already exists for %s, skipping conversion", rtfFilename)
+	}
+	
+	return exists, nil
+}
+
 func main() {
+	// Initialize random seed for shuffling files
+	rand.Seed(time.Now().UnixNano())
+	logInfo("Initialized random seed for file shuffling: %d", time.Now().UnixNano())
+
 	// Load configuration
 	configPath := "./config.json" // Relative to rtf_converter directory
 	if len(os.Args) > 1 {
@@ -993,19 +1215,25 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle graceful shutdown
+	// Handle graceful shutdown with signal handling
 	go func() {
-		// You can add signal handling here if needed
-		// For now, the converter will run indefinitely
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		sig := <-sigChan
+		logWarning("Received signal %v, initiating graceful shutdown...", sig)
+		cancel()
 	}()
 
 	// Start the converter
 	logInfo("🚀 Starting RTF to PDF converter...")
 	if err := converter.Run(ctx); err != nil {
-		logError("RTF converter failed: %v", err)
-		log.Fatalf("RTF converter failed: %v", err)
+		if err == context.Canceled {
+			logWarning("RTF converter was cancelled")
+		} else {
+			logError("RTF converter failed: %v", err)
+			log.Fatalf("RTF converter failed: %v", err)
+		}
 	}
 	
 	logSuccess("🎉 RTF converter completed successfully!")
 }
-
