@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "caseon-za"
-  }
+    "prod": "case-on-za",
+    "default": "case-on-za"
+  },
+  "targets": {},
+  "etags": {}
 }
