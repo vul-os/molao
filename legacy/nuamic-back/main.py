@@ -90,7 +90,7 @@ app = FastAPI()
 # --- CORS Middleware ---
 
 origins = [
-    "http://localhost:5176"
+    "http://localhost:5173"
     # ,
     # "https://nuamic.com",
 ]
