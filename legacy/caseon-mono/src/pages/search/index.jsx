@@ -19,7 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import SearchInput from "./search-input";
 import LegalLoader from "./legal-loader";
-import { API_BASE_URL, suggestedSearches } from "./constants";
+import { suggestedSearches } from "./constants";
+import { supabase } from "@/services/supabase-client";
 
 export default function SearchPage() {
   const { user, refreshToken, activeFirm } = useAuth();
@@ -131,115 +132,61 @@ export default function SearchPage() {
     setShowSuggestions(false);
     
     try {
-      const makeSearchRequest = async (token) => {
-        // Check for null or undefined token
-        if (!token) {
-          console.error("No access token available");
-          throw new Error('missing_token');
+      // Get firm_id from activeFirm in auth context
+      const firmId = activeFirm?.id;
+      
+      // Use Supabase functions.invoke() which handles authentication automatically
+      const { data, error } = await supabase.functions.invoke('search', {
+        body: {
+          query: searchQuery,
+          limit: 10,
+          firm_id: firmId
         }
-        
-        console.log("Attempting API request with token length:", token.length);
-        
-        // Get firm_id from activeFirm in auth context
-        const firmId = activeFirm?.id;
-        
-        const response = await fetch(`${API_BASE_URL}/search`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token.trim()}` // Ensure no whitespace
-          },
-          body: JSON.stringify({
-            query: searchQuery,
-            limit: 10,
-            firm_id: firmId
-          })
-        });
-        
-        // Log response status for debugging
-        console.log("API response status:", response.status);
-        
-        if (response.status === 401) {
-          throw new Error('unauthorized');
-        }
+      });
+      
+      if (error) {
+        console.error('Search error:', error);
         
         // Handle rate limit exceeded (429)
-        if (response.status === 429) {
-          const errorData = await response.json();
-          setLimitErrorMessage(errorData.detail || "You've reached your usage limit for this plan.");
+        if (error.status === 429) {
+          const errorMessage = error.message || "You've reached your usage limit for this plan.";
+          setLimitErrorMessage(errorMessage);
           setShowLimitDialog(true);
-          throw new Error('rate_limited');
+          return;
         }
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error("API error details:", errorData);
-          throw new Error(errorData.detail || 'Search request failed');
-        }
-        
-        const data = await response.json();
-        return data;
-      };
-      
-      // Try with current token
-      try {
-        // Check if user exists and has access_token
-        if (!user || !user.access_token) {
+        // Handle unauthorized (401)
+        if (error.status === 401) {
           toast({
-            title: "Authentication error",
-            description: "You need to sign in first.",
+            title: "Session expired",
+            description: "Your session has expired. Please sign in again.",
             variant: "destructive"
           });
           navigate('/signin');
           return;
         }
         
-        const data = await makeSearchRequest(user.access_token);
-        setSearchResults(data.results || []);
-      } catch (error) {
-        console.log("Search error:", error.message);
-        
-        // If rate limited, dialog is already shown, no need for toast
-        if (error.message === 'rate_limited') {
-          return;
-        }
-        
-        // If unauthorized, try to refresh token and retry once
-        if (error.message === 'unauthorized' || error.message === 'missing_token') {
-          console.log("Attempting token refresh...");
-          // Call the refreshToken function from auth context
-          const newToken = await refreshToken();
-          if (newToken) {
-            console.log("Token refreshed successfully");
-            // Retry with new token
-            const data = await makeSearchRequest(newToken);
-            setSearchResults(data.results || []);
-          } else {
-            console.log("Token refresh failed");
-            // Token refresh failed, redirect to sign in
-            toast({
-              title: "Session expired",
-              description: "Your session has expired. Please sign in again.",
-              variant: "destructive"
-            });
-            navigate('/signin');
-          }
-        } else {
-          // Not an auth error or refresh failed
-          throw error;
-        }
-      }
-    } catch (error) {
-      // Skip showing toast for rate limit errors since we show a dialog
-      if (error.message !== 'rate_limited') {
-        console.error('Search error details:', error);
+        // Handle other errors
         toast({
           title: "Search failed",
           description: error.message || "Unable to perform search. Please try again.",
           variant: "destructive"
         });
         setSearchResults([]);
+        return;
       }
+      
+      // Set search results
+      setSearchResults(data?.results || []);
+      
+    } catch (error) {
+      console.error('Search error details:', error);
+      toast({
+        title: "Search failed",
+        description: error.message || "Unable to perform search. Please try again.",
+        variant: "destructive"
+      });
+      setSearchResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -295,6 +242,14 @@ export default function SearchPage() {
         .textarea-container.multi-line textarea {
           border-radius: 14px;
           padding-bottom: 12px;
+        }
+
+        /* Line clamp utility for truncating case titles */
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
       `}</style>
 
@@ -380,11 +335,11 @@ export default function SearchPage() {
                                 <FileText className="h-5 w-5 text-green-700" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-heading text-sm font-medium text-slate-900 truncate">
-                                  {file.file_name}
+                                <p className="font-heading text-sm font-medium text-slate-900 line-clamp-2 leading-tight">
+                                  {file.file_title || file.file_name}
                                 </p>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                  {file.file_type} • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
+                                <p className="text-xs text-slate-500 mt-1">
+                                  PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
                                 </p>
                               </div>
                               <div className="bg-slate-100 rounded-full p-1.5 group-hover:bg-green-100 transition-colors">
@@ -394,9 +349,9 @@ export default function SearchPage() {
                           </CardContent>
                         </Card>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="p-2 bg-slate-900 text-white">
-                        <p className="text-sm font-medium">{file.file_name}</p>
-                        <p className="text-xs opacity-80">{file.file_type}</p>
+                      <TooltipContent side="top" className="p-2 bg-slate-900 text-white max-w-md">
+                        <p className="text-sm font-medium">{file.file_title || file.file_name}</p>
+                        <p className="text-xs opacity-80">Click to view full document</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/services/supabase-client';
 import { toast } from 'sonner';
-import { paystack_public_key } from '@/services/paystack';
 
 // Format currency helper
 export const formatCurrency = (cents) => {

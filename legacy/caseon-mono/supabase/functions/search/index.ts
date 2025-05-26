@@ -31,6 +31,7 @@ interface FileResult {
   file_title: string
   pdf_url: string
   score: number
+  file_size?: number
 }
 
 interface UsageData {
@@ -193,7 +194,7 @@ serve(async (req) => {
     // Query local files table to get file titles (no firm filtering)
     const { data: files, error } = await supabaseClient
       .from('files')
-      .select('id, file_name, file_title, cdn_path')
+      .select('id, file_name, file_title, cdn_path, file_size')
       .in('file_name', fileNames)
       .not('cdn_path', 'is', null)
 
@@ -232,7 +233,8 @@ serve(async (req) => {
             file_name: modalResult.file_name,
             file_title: modalResult.file_name, // Use filename as title if no local data
             pdf_url: pdfUrl,
-            score: modalResult.score
+            score: modalResult.score,
+            file_size: modalResult.file_size
           }
         }
 
@@ -248,7 +250,8 @@ serve(async (req) => {
           file_name: localFile.file_name,
           file_title: localFile.file_title || localFile.file_name,
           pdf_url: pdfUrl,
-          score: modalResult.score
+          score: modalResult.score,
+          file_size: localFile.file_size
         }
       })
       .filter(result => result !== null) // Remove any null results
