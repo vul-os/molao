@@ -8,11 +8,12 @@ import os
 import logging
 from pathlib import Path
 from google.cloud import storage
+from fastapi.middleware.cors import CORSMiddleware
 
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Starting FastAPI service...")
+logger.info("Starting FastAPI service, with cors...")
 
 # ---------- Environment Variables ----------
 BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
@@ -85,6 +86,22 @@ else:
 
 # ---------- FastAPI App ----------
 app = FastAPI()
+
+# --- CORS Middleware ---
+
+origins = [
+    "http://localhost:5176"
+    # ,
+    # "https://nuamic.com",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------- Request & Response Models ----------
 class EmbeddingRequest(BaseModel):
