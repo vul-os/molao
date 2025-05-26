@@ -8,6 +8,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/gocolly/colly v1.2.0
 	github.com/google/uuid v1.6.0
+	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/supabase-community/supabase-go v0.0.4
 	github.com/vbauerster/mpb/v8 v8.9.1
 )
@@ -26,6 +27,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
@@ -35,13 +37,10 @@ require (
 	github.com/supabase-community/storage-go v0.7.0 // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
-	go.opentelemetry.io/otel v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250505200425-f936aa4a68b2 // indirect
-	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )

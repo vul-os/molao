@@ -243,6 +243,7 @@ func (u *BunnyCDNUploader) GetFileURL(fileName string) string {
 
 // ExtractDetailsFromURL extracts the folder, year, and case number from the case URL
 // Example: "https://www.saflii.org/za/cases/ZACC/2004/12.html" -> ("ZACC", "2004", "12", nil)
+// Also handles: "http://saflii.org/za/other/ZAGPJHCRolls/recent.html" -> ("ZAGPJHCRolls", "unknown", "recent", nil)
 func ExtractDetailsFromURL(caseURL string) (string, string, string, error) {
 	parsedURL, err := url.Parse(caseURL)
 	if err != nil {
@@ -250,16 +251,45 @@ func ExtractDetailsFromURL(caseURL string) (string, string, string, error) {
 	}
 
 	segments := strings.Split(parsedURL.Path, "/")
-	// Expected structure: /za/cases/{FOLDER}/{YEAR}/{CASE}.html
-	if len(segments) < 5 {
-		return "", "", "", fmt.Errorf("unexpected URL structure for '%s'", caseURL)
+	// Remove empty segments
+	var cleanSegments []string
+	for _, segment := range segments {
+		if segment != "" {
+			cleanSegments = append(cleanSegments, segment)
+		}
+	}
+	
+	// Need at least 3 segments: za, cases/other, folder
+	if len(cleanSegments) < 3 {
+		return "", "", "", fmt.Errorf("unexpected URL structure for '%s' - not enough path segments", caseURL)
 	}
 
-	folder := segments[3]
-	year := segments[4]
-	caseFile := segments[5]
-	if folder == "" || year == "" || caseFile == "" {
-		return "", "", "", fmt.Errorf("empty folder, year, or case number extracted from URL '%s'", caseURL)
+	var folder, year, caseFile string
+	
+	// Handle different URL structures
+	if len(cleanSegments) >= 5 && cleanSegments[1] == "cases" {
+		// Standard structure: /za/cases/{FOLDER}/{YEAR}/{CASE}.html
+		folder = cleanSegments[2]
+		year = cleanSegments[3]
+		caseFile = cleanSegments[4]
+	} else if len(cleanSegments) >= 4 && cleanSegments[1] == "other" {
+		// Other structure: /za/other/{FOLDER}/{CASE}.html
+		folder = cleanSegments[2]
+		year = "unknown" // No year in this structure
+		caseFile = cleanSegments[3]
+	} else {
+		// Try to extract what we can from the available segments
+		if len(cleanSegments) >= 3 {
+			folder = cleanSegments[len(cleanSegments)-2] // Second to last segment
+			year = "unknown"
+			caseFile = cleanSegments[len(cleanSegments)-1] // Last segment
+		} else {
+			return "", "", "", fmt.Errorf("unexpected URL structure for '%s' - cannot extract required components", caseURL)
+		}
+	}
+	
+	if folder == "" || caseFile == "" {
+		return "", "", "", fmt.Errorf("empty folder or case file extracted from URL '%s'", caseURL)
 	}
 
 	// Remove file extension from caseFile
@@ -361,6 +391,76 @@ func extractTitleFromHTML(htmlContent []byte) string {
 func isValidUUID(u string) bool {
 	_, err := uuid.Parse(u)
 	return err == nil
+}
+
+// checkFileExists checks if a file with the given filename already exists in the database
+func checkFileExists(ctx context.Context, supabaseClient *supabase.Client, fileName string, workerID int) (bool, error) {
+	// Create a context with timeout for this specific operation
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var exists bool
+	
+	// Define the check operation with retry
+	operation := func() error {
+		select {
+		case <-checkCtx.Done():
+			return fmt.Errorf("check operation timed out or cancelled")
+		default:
+		}
+
+		log.Printf("🔍 Worker %d: Checking if file exists in database: %s", workerID, fileName)
+		
+		// Perform the select query with a channel to handle the response
+		type checkResult struct {
+			resp []byte
+			err  error
+		}
+		
+		resultChan := make(chan checkResult, 1)
+		
+		go func() {
+			r, _, e := supabaseClient.From("files").Select("id", "", false).Eq("file_name", fileName).Execute()
+			resultChan <- checkResult{resp: r, err: e}
+		}()
+		
+		select {
+		case <-checkCtx.Done():
+			return fmt.Errorf("database check timed out after 30 seconds")
+		case result := <-resultChan:
+			if result.err != nil {
+				return fmt.Errorf("database check failed: %v", result.err)
+			}
+			
+			// Parse the response to check if any records exist
+			var existingFiles []map[string]interface{}
+			if err := json.Unmarshal(result.resp, &existingFiles); err != nil {
+				return fmt.Errorf("failed to parse check response: %v", err)
+			}
+			
+			exists = len(existingFiles) > 0
+			return nil
+		}
+	}
+
+	// Configure exponential backoff for retries
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxElapsedTime = 1 * time.Minute
+	expBackoff.InitialInterval = 1 * time.Second
+	expBackoff.MaxInterval = 5 * time.Second
+
+	// Retry the check operation
+	if err := backoff.Retry(operation, backoff.WithContext(expBackoff, checkCtx)); err != nil {
+		return false, fmt.Errorf("failed to check file existence after retries: %v", err)
+	}
+
+	if exists {
+		log.Printf("✅ Worker %d: File already exists in database: %s", workerID, fileName)
+	} else {
+		log.Printf("🆕 Worker %d: File does not exist in database: %s", workerID, fileName)
+	}
+	
+	return exists, nil
 }
 
 // insertFileRecord inserts a file record into Supabase with timeout and retry logic
@@ -499,6 +599,12 @@ func main() {
 	}
 	log.Printf("📊 Found %d case URLs to process", totalCases)
 
+	// Reverse the order of URLs to process them in reverse
+	for i, j := 0, len(caseURLs)-1; i < j; i, j = i+1, j-1 {
+		caseURLs[i], caseURLs[j] = caseURLs[j], caseURLs[i]
+	}
+	log.Printf("🔄 URLs reversed - will process from last to first")
+
 	// Initialize progress bar
 	p := mpb.New(mpb.WithWidth(80))
 	bar := p.AddBar(int64(totalCases),
@@ -602,6 +708,27 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	}
 	log.Printf("👷‍♂️ Worker %d: Extracted folder '%s', year '%s', case '%s' from %s", workerID, folder, year, caseNumber, cURL)
 
+	// Skip URLs with unknown year
+	if year == "unknown" {
+		log.Printf("⏭️ Worker %d: Skipping URL with unknown year: %s", workerID, cURL)
+		return
+	}
+
+	// Construct filename using court code, year, and case number
+	fileName := fmt.Sprintf("%s-%s-%s.rtf", folder, year, caseNumber)
+	log.Printf("📝 Worker %d: Expected file name: %s", workerID, fileName)
+
+	// Check if file already exists in the database before downloading
+	exists, err := checkFileExists(ctx, supabaseClient, fileName, workerID)
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to check file existence in database: %v", workerID, err)
+		return
+	}
+	if exists {
+		log.Printf("⏭️ Worker %d: Skipping already processed file: %s", workerID, fileName)
+		return
+	}
+
 	// First, download the HTML page to extract the title
 	log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
 	htmlData, _, err := DownloadFile(downloadClient, cURL, "")
@@ -630,11 +757,9 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	}
 	log.Printf("✅ Worker %d: Successfully downloaded RTF file: %s (size: %.2f KB)", workerID, rtfFileName, float64(len(rtfData))/1024)
 
-	// Construct filename using court code, year, and case number
-	fileName := fmt.Sprintf("%s-%s-%s.rtf", folder, year, caseNumber)
 	// Construct CDN path with the full path prefix
 	cdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", fileName)
-	log.Printf("📝 Worker %d: File name: %s, CDN path: %s", workerID, fileName, cdnPath)
+	log.Printf("📝 Worker %d: CDN path: %s", workerID, cdnPath)
 
 	// Upload the RTF to Bunny CDN
 	log.Printf("⬆️ Worker %d: Uploading to Bunny CDN: %s", workerID, cdnPath)
