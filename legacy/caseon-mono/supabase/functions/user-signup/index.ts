@@ -12,119 +12,371 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 
 // Email template for user welcome email
 const getUserWelcomeEmailTemplate = (email: string) => ({
-  from: 'Andile <andile@notify.caseon.io>',
+  from: 'C-h-ase <noreply@notify.caseon.co.za>',
   to: [email],
-  subject: 'Welcome to CaseOn',
+  subject: 'Welcome to C-h-ase Legal Intelligence',
   reply_to: 'caseonza@gmail.com',
   html: `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to CaseOn</title>
+        <meta name="x-apple-disable-message-reformatting">
+        <title>Welcome to C-h-ase</title>
+        <!--[if mso]>
+        <noscript>
+          <xml>
+            <o:OfficeDocumentSettings>
+              <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+          </xml>
+        </noscript>
+        <![endif]-->
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+Pro:wght@400;600&display=swap');
+          /* Reset styles */
+          * { box-sizing: border-box; }
+          body, table, td, p, h1, h2, h3 { margin: 0; padding: 0; }
+          img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+          table { border-collapse: collapse !important; }
           
-          body { 
-            font-family: 'Source Sans Pro', Arial, sans-serif; 
-            line-height: 1.6; 
-            color: #333; 
-            background-color: #f9f9f9;
-            margin: 0;
-            padding: 0;
+          /* Base styles */
+          body {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #f8fafc;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
           }
-          .container { 
-            max-width: 600px; 
-            margin: 0 auto; 
+          
+          .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+          }
+          
+          .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 40px 32px;
+            text-align: center;
+            border-radius: 12px 12px 0 0;
+          }
+          
+          .logo-container {
+            margin-bottom: 24px;
+          }
+          
+          .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background-color: #ffffff;
+            padding: 8px;
+            display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .logo-fallback {
+            display: inline-block;
+            width: 48px;
+            height: 48px;
             background-color: #ffffff;
             border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-          }
-          .header { 
-            background-color: #1a365d; 
-            padding: 30px 20px;
+            line-height: 48px;
             text-align: center;
-          }
-          .logo { 
-            width: 100px;
-            margin-bottom: 15px;
-          }
-          .header h1 {
-            font-family: 'Libre Baskerville', Georgia, serif;
-            color: #ffffff;
-            margin: 0;
-            font-size: 28px;
-            font-weight: 700;
-          }
-          .content {
-            padding: 30px 40px;
-          }
-          .greeting {
-            font-family: 'Libre Baskerville', Georgia, serif;
+            font-weight: bold;
+            color: #1e293b;
             font-size: 20px;
-            color: #1a365d;
-            margin-bottom: 20px;
+            font-family: Georgia, serif;
           }
-          p { 
-            margin: 0 0 20px;
-            color: #333;
-            font-size: 16px;
-          }
-          .signature {
-            font-family: 'Libre Baskerville', Georgia, serif;
-            font-style: italic;
-            margin-top: 30px;
-            color: #1a365d;
-          }
-          .footer { 
-            background-color: #f5f5f5;
-            padding: 20px; 
-            font-size: 14px; 
-            color: #666; 
-            text-align: center;
-            border-top: 1px solid #e0e0e0;
-          }
-          .footer p {
-            margin: 5px 0;
-            font-size: 14px;
-            color: #666;
-          }
-          .divider {
-            height: 3px;
-            background: linear-gradient(to right, #e9c46a, #1a365d);
+          
+          .header-title {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 400;
             margin: 0;
+            font-family: Georgia, 'Times New Roman', Times, serif;
           }
-          @media only screen and (max-width: 480px) {
-            .content {
-              padding: 20px;
-            }
+          
+          .header-subtitle {
+            color: #cbd5e1;
+            font-size: 16px;
+            margin: 8px 0 0 0;
+            font-weight: normal;
+          }
+          
+          .content {
+            padding: 48px 32px;
+          }
+          
+          .greeting {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 24px;
+            font-family: Georgia, serif;
+            font-weight: 500;
+          }
+          
+          .welcome-card {
+            background-color: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 32px;
+            margin: 32px 0;
+            text-align: center;
+          }
+          
+          .welcome-title {
+            font-size: 24px;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 16px;
+            font-family: Georgia, serif;
+          }
+          
+          .welcome-text {
+            font-size: 16px;
+            color: #64748b;
+            margin-bottom: 24px;
+            line-height: 1.6;
+          }
+          
+          .platform-badge {
+            display: inline-block;
+            background-color: #1e293b;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 24px;
+          }
+          
+          p {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 20px;
+            line-height: 1.6;
+          }
+          
+          .features {
+            margin: 40px 0;
+          }
+          
+          .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 24px 0;
+          }
+          
+          .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            font-size: 15px;
+            color: #475569;
+          }
+          
+          .feature-icon {
+            width: 20px;
+            height: 20px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+            position: relative;
+          }
+          
+          .feature-icon::after {
+            content: "✓";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+          }
+          
+          .signature {
+            background-color: #f1f5f9;
+            border-left: 4px solid #1e293b;
+            padding: 24px;
+            margin: 32px 0;
+            border-radius: 0 8px 8px 0;
+          }
+          
+          .signature p {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #334155;
+          }
+          
+          .signature .name {
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-weight: 500;
+            color: #1e293b;
+          }
+          
+          .signature .title {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+          }
+          
+          .next-steps {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+            font-size: 14px;
+            color: #92400e;
+          }
+          
+          .next-steps h4 {
+            margin: 0 0 12px 0;
+            color: #92400e;
+            font-size: 16px;
+            font-family: Georgia, serif;
+          }
+          
+          .footer {
+            background-color: #f8fafc;
+            padding: 32px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+          }
+          
+          .footer-text {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 16px;
+            line-height: 1.5;
+          }
+          
+          .footer-branding {
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 500;
+          }
+          
+          /* Mobile responsive */
+          @media only screen and (max-width: 600px) {
+            .email-container { width: 100% !important; }
+            .header, .content, .footer { padding: 24px 20px !important; }
+            .header-title { font-size: 24px !important; }
+            .welcome-title { font-size: 20px !important; }
+            .welcome-card, .signature { padding: 24px 20px !important; margin: 24px 0 !important; }
+          }
+          
+          /* Dark mode support */
+          @media (prefers-color-scheme: dark) {
+            .email-container { background-color: #0f172a !important; }
+            .content { background-color: #0f172a !important; }
+            .greeting, .welcome-title { color: #f1f5f9 !important; }
+            .welcome-text, .feature-item, p { color: #cbd5e1 !important; }
+            .welcome-card { background-color: #1e293b !important; border-color: #334155 !important; }
           }
         </style>
       </head>
       <body>
-        <div class="container">
+        <div class="email-container">
+          <!-- Header -->
           <div class="header">
-            <img src="https://caseon.io/icon.svg" alt="CaseOn Logo" class="logo">
-            <h1>WELCOME TO CASEON</h1>
+            <div class="logo-container">
+              <!--[if !mso]><!-->
+              <img src="https://caseon.co.za/icon.svg" alt="C-h-ase" class="logo" style="display: block;" />
+              <!--<![endif]-->
+              <!--[if mso]>
+              <div class="logo-fallback">Ch</div>
+              <![endif]-->
+            </div>
+            <h1 class="header-title">Welcome to C-h-ase</h1>
+            <p class="header-subtitle">Legal Intelligence Platform</p>
           </div>
-          <div class="divider"></div>
+          
+          <!-- Main Content -->
           <div class="content">
             <p class="greeting">Dear Legal Professional,</p>
-            <p>Thank you for joining CaseOn, the premier Legal Intelligence Platform designed specifically for legal practitioners.</p>
-            <p>CaseOn provides you with powerful tools to manage your cases efficiently, streamline your workflow, and make data-driven decisions that benefit both your practice and your clients.</p>
-            <p>As you begin your journey with us, we encourage you to explore the platform's features. Our commitment is to empower legal professionals like yourself with technology that enhances your practice.</p>
-            <p>Should you have any questions or require assistance, please don't hesitate to reply to this email.</p>
+            
+            <div class="welcome-card">
+              <h2 class="welcome-title">Your Journey Begins</h2>
+              <p class="welcome-text">
+                Thank you for joining C-h-ase, the premier Legal Intelligence Platform 
+                designed specifically for forward-thinking legal practitioners.
+              </p>
+              <div class="platform-badge">
+                Legal Intelligence Platform
+              </div>
+            </div>
+            
+            <p>
+              C-h-ase provides you with powerful tools to manage your cases efficiently, 
+              streamline your workflow, and make data-driven decisions that benefit both 
+              your practice and your clients.
+            </p>
+            
+            <div class="features">
+              <p style="font-size: 16px; color: #334155; margin-bottom: 20px; font-weight: 500;">
+                What you can accomplish with C-h-ase:
+              </p>
+              <ul class="feature-list">
+                <li class="feature-item">
+                  <span class="feature-icon"></span>
+                  Streamlined case management and workflow automation
+                </li>
+                <li class="feature-item">
+                  <span class="feature-icon"></span>
+                  Advanced legal research and intelligence tools
+                </li>
+                <li class="feature-item">
+                  <span class="feature-icon"></span>
+                  Secure collaboration with your legal team
+                </li>
+                <li class="feature-item">
+                  <span class="feature-icon"></span>
+                  Data-driven insights for strategic decision making
+                </li>
+                <li class="feature-item">
+                  <span class="feature-icon"></span>
+                  Professional client communication and reporting
+                </li>
+              </ul>
+            </div>
+            
+            <div class="next-steps">
+              <h4>Next Steps</h4>
+              <p style="margin: 0; line-height: 1.5;">
+                Begin exploring the platform's features at your own pace. Our commitment 
+                is to empower legal professionals like yourself with technology that enhances 
+                your practice and delivers exceptional client outcomes.
+              </p>
+            </div>
+            
+            <p>
+              Should you have any questions or require assistance getting started, 
+              please don't hesitate to reply to this email. We're here to support your success.
+            </p>
+            
             <div class="signature">
               <p>Kind Regards,</p>
-              <p>Andile</p>
-              <p><strong>CaseOn Legal Solutions</strong></p>
+              <p class="name">Andile</p>
+              <p class="title">C-h-ase Legal Solutions</p>
             </div>
           </div>
+          
+          <!-- Footer -->
           <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} CaseOn. All rights reserved.</p>
-            <p>This communication is confidential and intended solely for the addressee.</p>
+            <p class="footer-text">
+              This communication is confidential and intended solely for the addressee.<br>
+              Welcome to the future of legal intelligence.
+            </p>
+            <p class="footer-branding">
+              © ${new Date().getFullYear()} C-h-ase. All rights reserved.
+            </p>
           </div>
         </div>
       </body>
@@ -134,125 +386,281 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
 
 // Email template for admin notification
 const getAdminNotificationEmailTemplate = (userEmail: string) => ({
-  from: 'Andile <andile@notify.caseon.io>',
+  from: 'C-h-ase System <system@notify.caseon.co.za>',
   to: ['caseonza@gmail.com'],
-  subject: 'New User Signup',
+  subject: 'New Legal Professional Registration - C-h-ase',
   html: `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>New User Signup</title>
+        <meta name="x-apple-disable-message-reformatting">
+        <title>New User Registration</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+Pro:wght@400;600&display=swap');
+          /* Reset styles */
+          * { box-sizing: border-box; }
+          body, table, td, p, h1, h2, h3 { margin: 0; padding: 0; }
+          img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+          table { border-collapse: collapse !important; }
           
-          body { 
-            font-family: 'Source Sans Pro', Arial, sans-serif; 
-            line-height: 1.6; 
-            color: #333; 
-            background-color: #f9f9f9;
-            margin: 0;
-            padding: 0;
+          /* Base styles */
+          body {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background-color: #f8fafc;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
           }
-          .container { 
-            max-width: 600px; 
-            margin: 0 auto; 
+          
+          .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+          }
+          
+          .header {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            padding: 40px 32px;
+            text-align: center;
+            border-radius: 12px 12px 0 0;
+          }
+          
+          .logo-container {
+            margin-bottom: 24px;
+          }
+          
+          .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background-color: #ffffff;
+            padding: 8px;
+            display: inline-block;
+            vertical-align: middle;
+          }
+          
+          .logo-fallback {
+            display: inline-block;
+            width: 48px;
+            height: 48px;
             background-color: #ffffff;
             border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-          }
-          .header { 
-            background-color: #1a365d; 
-            padding: 30px 20px;
+            line-height: 48px;
             text-align: center;
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 20px;
+            font-family: Georgia, serif;
           }
-          .logo { 
-            width: 100px;
-            margin-bottom: 15px;
-          }
-          .header h1 {
-            font-family: 'Libre Baskerville', Georgia, serif;
+          
+          .header-title {
             color: #ffffff;
+            font-size: 24px;
+            font-weight: 400;
             margin: 0;
-            font-size: 28px;
-            font-weight: 700;
+            font-family: Georgia, 'Times New Roman', Times, serif;
           }
-          .content {
-            padding: 30px 40px;
-          }
-          p { 
-            margin: 0 0 20px;
-            color: #333;
-            font-size: 16px;
-          }
-          .highlight-box {
-            background-color: #f5f7fa;
-            border-left: 4px solid #1a365d;
-            padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 0 4px 4px 0;
-          }
-          .highlight-box p {
-            margin: 0;
-            font-weight: 600;
-          }
-          .highlight-box .label {
-            color: #1a365d;
+          
+          .header-subtitle {
+            color: #d1fae5;
             font-size: 14px;
+            margin: 8px 0 0 0;
+            font-weight: normal;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 5px;
           }
-          .highlight-box .value {
-            color: #333;
-            font-size: 18px;
+          
+          .content {
+            padding: 48px 32px;
           }
-          .footer { 
-            background-color: #f5f5f5;
-            padding: 20px; 
-            font-size: 14px; 
-            color: #666; 
+          
+          .notification-card {
+            background-color: #f0fdf4;
+            border: 2px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 32px;
+            margin: 32px 0;
             text-align: center;
-            border-top: 1px solid #e0e0e0;
           }
-          .footer p {
-            margin: 5px 0;
+          
+          .user-email {
+            font-size: 20px;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 16px;
+            font-family: 'Courier New', monospace;
+            background-color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+          }
+          
+          .status-badge {
+            display: inline-block;
+            background-color: #059669;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 6px;
             font-size: 14px;
-            color: #666;
+            font-weight: 500;
+            margin-bottom: 24px;
           }
-          .divider {
-            height: 3px;
-            background: linear-gradient(to right, #e9c46a, #1a365d);
-            margin: 0;
+          
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 32px 0;
           }
-          @media only screen and (max-width: 480px) {
-            .content {
-              padding: 20px;
-            }
+          
+          .info-item {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+          }
+          
+          .info-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 600;
+          }
+          
+          .info-value {
+            font-size: 16px;
+            color: #1e293b;
+            font-weight: 500;
+            font-family: Georgia, serif;
+          }
+          
+          .action-needed {
+            background-color: #fffbeb;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+            font-size: 14px;
+            color: #92400e;
+          }
+          
+          .action-needed h4 {
+            margin: 0 0 12px 0;
+            color: #92400e;
+            font-size: 16px;
+            font-family: Georgia, serif;
+          }
+          
+          p {
+            font-size: 16px;
+            color: #475569;
+            margin-bottom: 20px;
+            line-height: 1.6;
+          }
+          
+          .footer {
+            background-color: #f8fafc;
+            padding: 32px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+          }
+          
+          .footer-text {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 16px;
+            line-height: 1.5;
+          }
+          
+          .footer-branding {
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 500;
+          }
+          
+          /* Mobile responsive */
+          @media only screen and (max-width: 600px) {
+            .email-container { width: 100% !important; }
+            .header, .content, .footer { padding: 24px 20px !important; }
+            .header-title { font-size: 20px !important; }
+            .notification-card { padding: 24px 20px !important; margin: 24px 0 !important; }
+            .info-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
           }
         </style>
       </head>
       <body>
-        <div class="container">
+        <div class="email-container">
+          <!-- Header -->
           <div class="header">
-            <img src="https://caseon.io/icon.svg" alt="CaseOn Logo" class="logo">
-            <h1>NEW USER NOTIFICATION</h1>
-          </div>
-          <div class="divider"></div>
-          <div class="content">
-            <p>A new legal professional has registered on the CaseOn platform.</p>
-            <div class="highlight-box">
-              <p class="label">User Email Address</p>
-              <p class="value">${userEmail}</p>
+            <div class="logo-container">
+              <!--[if !mso]><!-->
+              <img src="https://caseon.co.za/icon.svg" alt="C-h-ase" class="logo" style="display: block;" />
+              <!--<![endif]-->
+              <!--[if mso]>
+              <div class="logo-fallback">Ch</div>
+              <![endif]-->
             </div>
-            <p>This user has been sent a welcome email with information about CaseOn.</p>
-            <p>You may want to follow up with this user to ensure they have all the resources needed to get started.</p>
+            <h1 class="header-title">New Registration</h1>
+            <p class="header-subtitle">Admin Notification</p>
           </div>
+          
+          <!-- Main Content -->
+          <div class="content">
+            <p>A new legal professional has successfully registered on the C-h-ase platform.</p>
+            
+            <div class="notification-card">
+              <div class="status-badge">New User Registered</div>
+              <div class="user-email">${userEmail}</div>
+              <p style="color: #059669; margin: 0; font-size: 14px;">
+                Welcome email has been automatically sent
+              </p>
+            </div>
+            
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Registration Time</div>
+                <div class="info-value">${new Date().toLocaleDateString('en-US', { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: 'numeric'
+                })}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Platform Status</div>
+                <div class="info-value">Active</div>
+              </div>
+            </div>
+            
+            <div class="action-needed">
+              <h4>Recommended Follow-up</h4>
+              <p style="margin: 0; line-height: 1.5;">
+                Consider reaching out to this new user within 24 hours to ensure they have 
+                all the resources needed to get started with C-h-ase effectively.
+              </p>
+            </div>
+            
+            <p>
+              The user has been provided with comprehensive onboarding information and 
+              platform access. Monitor their initial activity to identify any support needs.
+            </p>
+          </div>
+          
+          <!-- Footer -->
           <div class="footer">
-            <p>&copy; ${new Date().getFullYear()} CaseOn. All rights reserved.</p>
-            <p>This is an automated notification from the CaseOn platform.</p>
+            <p class="footer-text">
+              This is an automated notification from the C-h-ase platform.<br>
+              System notifications are sent for all new user registrations.
+            </p>
+            <p class="footer-branding">
+              © ${new Date().getFullYear()} C-h-ase. All rights reserved.
+            </p>
           </div>
         </div>
       </body>
