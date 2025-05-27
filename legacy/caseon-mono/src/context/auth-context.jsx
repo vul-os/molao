@@ -73,6 +73,14 @@ export function AuthProvider({ children, onNavigate, pathname }) {
         });
         setHasLoadedFirms(false);
         setHasLoadedInvites(false);
+        
+        // Handle OAuth redirect after successful sign-in
+        if (event === 'SIGNED_IN' && onNavigate) {
+          // Small delay to ensure user state is properly set
+          setTimeout(() => {
+            onNavigate('/search');
+          }, 100);
+        }
       }
     } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
       setUser(null);
@@ -88,7 +96,7 @@ export function AuthProvider({ children, onNavigate, pathname }) {
         refresh_token: prev.refresh_token
       } : null);
     }
-  }, []);
+  }, [onNavigate]);
 
   // Auth methods
   const signUp = useCallback(async (email, password) => {
@@ -96,7 +104,7 @@ export function AuthProvider({ children, onNavigate, pathname }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/search`,
       },
     });
     if (error) throw error;
@@ -116,7 +124,7 @@ export function AuthProvider({ children, onNavigate, pathname }) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/search`,
       }
     });
     if (error) throw error;

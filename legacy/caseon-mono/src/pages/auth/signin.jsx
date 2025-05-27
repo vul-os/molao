@@ -55,7 +55,7 @@ const SignInPage = () => {
       setIsLoading(true);
       try {
         await signIn(formData.email, formData.password);
-        navigate('/');
+        navigate('/search');
       } catch (error) {
         setErrors(prev => ({
           ...prev,

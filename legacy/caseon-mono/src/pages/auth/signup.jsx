@@ -68,6 +68,8 @@ const SignUpPage = () => {
       setIsLoading(true);
       try {
         await signUp(formData.email, formData.password);
+        // Store email in localStorage for verify-email page
+        localStorage.setItem('pendingVerificationEmail', formData.email);
         // You might want to store additional user data (firstName, lastName, phone) in your database here
         navigate('/verify-email');
       } catch (error) {

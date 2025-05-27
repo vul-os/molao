@@ -82,7 +82,7 @@ const DocsPage = () => {
     },
     {
       question: "What plans do you offer?",
-      answer: "We offer three plans: Paralegal (Free), Associate (R100/month), and Partner (R345/month). The Partner plan includes all features including billing access and advanced management tools, while the Associate plan provides core research capabilities without billing access. Visit our pricing page for more details."
+      answer: "We offer multiple plans to suit different needs, from free access to comprehensive professional solutions. For detailed pricing information and plan features, please visit our pricing page at caseon.co.za/#pricing."
     },
     {
       question: "How do I get started?",
