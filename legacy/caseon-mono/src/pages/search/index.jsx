@@ -21,6 +21,7 @@ import SearchInput from "./search-input";
 import LegalLoader from "./legal-loader";
 import { suggestedSearches } from "./constants";
 import { supabase } from "@/services/supabase-client";
+import InviteDialog from "@/components/invite-dialog";
 
 export default function SearchPage() {
   const { user, refreshToken, activeFirm } = useAuth();
@@ -47,6 +48,9 @@ export default function SearchPage() {
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitErrorMessage, setLimitErrorMessage] = useState("");
+
+  // Add state for invite dialog
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -292,6 +296,12 @@ export default function SearchPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Invite Dialog */}
+      <InviteDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
+      />
+
       {/* Search input component */}
       <SearchInput
         searchQuery={searchQuery}
@@ -303,6 +313,7 @@ export default function SearchPage() {
         isLoading={isLoading}
         adjustTextareaHeight={adjustTextareaHeight}
         toast={toast}
+        onInviteClick={() => setShowInviteDialog(true)}
       />
 
       {/* Main content area */}

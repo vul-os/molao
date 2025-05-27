@@ -418,74 +418,122 @@ export default function MembersPage() {
           
           <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-slate-800 hover:bg-slate-700">
+              <Button className="bg-slate-800 hover:bg-slate-700 shadow-sm">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Invite Associate
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="font-serif">Invite an Associate</DialogTitle>
-                <DialogDescription>
-                  Enter the email address of the person you want to invite to {activeFirm?.name || "your firm"}.
+              <DialogHeader className="space-y-3">
+                <DialogTitle className="text-xl font-serif font-medium text-slate-800">
+                  Invite Associate
+                </DialogTitle>
+                <DialogDescription className="text-slate-500">
+                  Send an invitation to join {activeFirm?.name || "your firm"} as a member of the legal team.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+              
+              <div className="space-y-6 py-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">
+                    Email address
+                  </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 h-4 w-4" />
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
                     <Input
                       id="email"
                       type="email"
-                      placeholder="associate@example.com"
-                      className="pl-10"
+                      placeholder="colleague@example.com"
+                      className="pl-10 bg-white border-slate-200 focus:border-slate-400 focus:ring-slate-400/20"
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                     />
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label>Role</Label>
-                  <div className="flex gap-2">
-                    <Button
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-slate-700">
+                    Role
+                  </Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
                       type="button"
-                      variant={inviteRole === 'associate' ? 'default' : 'outline'}
-                      className={`flex-1 ${inviteRole === 'associate' ? 'bg-slate-800 hover:bg-slate-700' : ''}`}
+                      className={`relative p-4 rounded-lg border text-left transition-all duration-200 ${
+                        inviteRole === 'associate'
+                          ? 'border-slate-200 bg-slate-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
                       onClick={() => setInviteRole('associate')}
                       disabled={inviteLoading}
                     >
-                      <User className="h-4 w-4 mr-2" />
-                      Associate
-                    </Button>
-                    <Button
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${
+                          inviteRole === 'associate'
+                            ? 'bg-slate-700 text-white'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          <User className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-serif font-medium text-slate-800">
+                            Associate
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Junior attorney
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
                       type="button"
-                      variant={inviteRole === 'partner' ? 'default' : 'outline'}
-                      className={`flex-1 ${inviteRole === 'partner' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                      className={`relative p-4 rounded-lg border text-left transition-all duration-200 ${
+                        inviteRole === 'partner'
+                          ? 'border-amber-200 bg-amber-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50'
+                      }`}
                       onClick={() => setInviteRole('partner')}
                       disabled={inviteLoading}
                     >
-                      <Shield className="h-4 w-4 mr-2" />
-                      Partner
-                    </Button>
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${
+                          inviteRole === 'partner'
+                            ? 'bg-amber-800 text-white'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          <Shield className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-serif font-medium text-slate-800">
+                            Partner
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Senior attorney
+                          </div>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
-              <DialogFooter>
+
+              <DialogFooter className="flex gap-3">
                 <Button 
                   variant="outline" 
                   onClick={() => {
                     setIsInviteDialogOpen(false);
                     setInviteRole('associate');
+                    setInviteEmail('');
                   }}
                   disabled={inviteLoading}
+                  className="flex-1 border-slate-200 text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </Button>
                 <Button 
-                  className={inviteRole === 'partner' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-800 hover:bg-slate-700'} 
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white"
                   onClick={handleInvite}
-                  disabled={inviteLoading}
+                  disabled={inviteLoading || !inviteEmail}
                 >
                   {inviteLoading ? (
                     <>
@@ -493,7 +541,10 @@ export default function MembersPage() {
                       Sending...
                     </>
                   ) : (
-                    'Send Invitation'
+                    <>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Send Invitation
+                    </>
                   )}
                 </Button>
               </DialogFooter>

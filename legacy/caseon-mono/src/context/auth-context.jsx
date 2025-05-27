@@ -11,12 +11,14 @@ export function useAuth() {
   return context;
 }
 
-export function AuthProvider({ children }) {
+export function AuthProvider({ children, onNavigate, pathname }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [firms, setFirms] = useState([]);
   const [activeFirm, setActiveFirm] = useState(null);
   const [hasLoadedFirms, setHasLoadedFirms] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState([]);
+  const [hasLoadedInvites, setHasLoadedInvites] = useState(false);
 
   const getFirmBySlug = useCallback((slug) => {
     return firms.find(firm => firm.slug === slug);
@@ -70,12 +72,15 @@ export function AuthProvider({ children }) {
           refresh_token: session.refresh_token
         });
         setHasLoadedFirms(false);
+        setHasLoadedInvites(false);
       }
     } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
       setUser(null);
       setFirms([]);
       setActiveFirm(null);
       setHasLoadedFirms(true);
+      setPendingInvites([]);
+      setHasLoadedInvites(true);
     } else if (event === 'USER_UPDATED') {
       setUser(prev => prev ? {
         ...session?.user,
@@ -155,14 +160,99 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const fetchInvites = useCallback(async () => {
+    if (!user) {
+      setPendingInvites([]);
+      setHasLoadedInvites(true);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase.rpc('check_invites');
+      
+      if (error) {
+        console.error('Error fetching invites:', error);
+        throw error;
+      }
+      
+      setPendingInvites(data || []);
+    } catch (error) {
+      console.error('Error fetching invites:', error);
+      setPendingInvites([]);
+    } finally {
+      setHasLoadedInvites(true);
+    }
+  }, [user]);
+
+  const acceptInvite = useCallback(async (inviteId) => {
+    try {
+      // Get the firm_id from the pending invite
+      const currentInvite = pendingInvites.find(invite => invite.invite_id === inviteId);
+      if (!currentInvite) {
+        throw new Error('Invite not found');
+      }
+
+      const { data, error } = await supabase.rpc('respond_invitation', {
+        p_firm_id: currentInvite.firm_id,
+        p_accept: true
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to accept invitation');
+      }
+      
+      // Refresh invites and firms after accepting
+      await Promise.all([fetchInvites(), fetchFirms()]);
+      
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      return { success: false, error: error.message };
+    }
+  }, [pendingInvites, fetchInvites, fetchFirms]);
+
+  const rejectInvite = useCallback(async (inviteId) => {
+    try {
+      // Get the firm_id from the pending invite
+      const currentInvite = pendingInvites.find(invite => invite.invite_id === inviteId);
+      if (!currentInvite) {
+        throw new Error('Invite not found');
+      }
+
+      const { data, error } = await supabase.rpc('respond_invitation', {
+        p_firm_id: currentInvite.firm_id,
+        p_accept: false
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to reject invitation');
+      }
+      
+      // Refresh invites after rejecting
+      await fetchInvites();
+      
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('Error rejecting invite:', error);
+      return { success: false, error: error.message };
+    }
+  }, [pendingInvites, fetchInvites]);
+
   // Initialize auth state
   useEffect(() => {
     const initializeAuth = async () => {
       setLoading(true);
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (session?.user) {
+        if (error) {
+          console.error('Session error:', error);
+          // Don't throw here, just log and continue
+          setUser(null);
+        } else if (session?.user) {
           setUser({
             ...session.user,
             access_token: session.access_token,
@@ -191,6 +281,13 @@ export function AuthProvider({ children }) {
       fetchFirms();
     }
   }, [user, hasLoadedFirms, fetchFirms]);
+
+  // Fetch invites when user changes  
+  useEffect(() => {
+    if (!hasLoadedInvites) {
+      fetchInvites();
+    }
+  }, [user, hasLoadedInvites, fetchInvites]);
 
   // Add token refresh function
   const refreshToken = async () => {
@@ -240,6 +337,9 @@ export function AuthProvider({ children }) {
     activeFirm,
     hasLoadedFirms,
     setHasLoadedFirms,
+    pendingInvites,
+    hasLoadedInvites,
+    setHasLoadedInvites,
     switchFirm,
     switchFirmBySlug,
     getFirmBySlug,
@@ -251,6 +351,9 @@ export function AuthProvider({ children }) {
     updateUserPassword,
     fetchFirms,
     refreshToken,
+    fetchInvites,
+    acceptInvite,
+    rejectInvite,
   }), [
     loading,
     user,
@@ -258,6 +361,9 @@ export function AuthProvider({ children }) {
     activeFirm,
     hasLoadedFirms,
     setHasLoadedFirms,
+    pendingInvites,
+    hasLoadedInvites,
+    setHasLoadedInvites,
     switchFirm,
     switchFirmBySlug,
     getFirmBySlug,
@@ -269,6 +375,9 @@ export function AuthProvider({ children }) {
     updateUserPassword,
     fetchFirms,
     refreshToken,
+    fetchInvites,
+    acceptInvite,
+    rejectInvite,
   ]);
 
   return (

@@ -1,6 +1,9 @@
 import React from "react";
-import { Search, X, ArrowRight, Loader2, Gavel } from "lucide-react";
+import { Search, X, ArrowRight, Loader2, Gavel, Mail, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 
 export default function SearchInput({
   searchQuery,
@@ -11,12 +14,36 @@ export default function SearchInput({
   textareaRef,
   isLoading,
   adjustTextareaHeight,
-  toast
+  toast,
+  onInviteClick
 }) {
+  const { pendingInvites } = useAuth();
+  const inviteCount = pendingInvites?.length || 0;
+
   return (
     <div className="sticky top-0 z-20 bg-gradient-to-b from-slate-50 to-transparent pt-6 pb-4 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex flex-col gap-3">
+          {/* Invite notification - appears above search when there are pending invites */}
+          {inviteCount > 0 && (
+            <div className="flex justify-center">
+              <Button
+                onClick={onInviteClick}
+                variant="outline"
+                size="sm"
+                className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 hover:border-blue-300 hover:bg-gradient-to-r hover:from-blue-100 hover:to-purple-100 text-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                <span className="font-medium">
+                  {inviteCount} Firm Invitation{inviteCount > 1 ? 's' : ''}
+                </span>
+                <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800 border-blue-300">
+                  {inviteCount}
+                </Badge>
+              </Button>
+            </div>
+          )}
+
           {/* Modern search input with subtle shadow */}
           <div className={cn(
             "relative transition-all duration-300 textarea-container",
