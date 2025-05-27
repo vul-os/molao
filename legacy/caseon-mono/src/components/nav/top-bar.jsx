@@ -156,7 +156,7 @@ const TopBar = () => {
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
                       <DropdownMenuItem asChild>
-                        <Link to="/search" className="flex items-center gap-2 cursor-pointer bg-indigo-50/80 hover:bg-indigo-100/80 border-l-2 border-indigo-500 -ml-2 pl-2">
+                        <Link to="/search" className="flex items-center gap-2 cursor-pointer bg-indigo-50/80 hover:bg-indigo-100/80">
                           <Search className="h-4 w-4 text-indigo-600" />
                           <div className="flex flex-col">
                             <span className="font-medium text-indigo-700">Search</span>
@@ -171,7 +171,7 @@ const TopBar = () => {
                         <Link to="/members" className="flex items-center gap-2 cursor-pointer">
                           <Users className="h-4 w-4 text-gray-500" />
                           <div className="flex flex-col">
-                            <span>Team Members</span>
+                            <span>Members</span>
                             <span className="text-xs text-gray-500">Manage firm members</span>
                           </div>
                         </Link>
