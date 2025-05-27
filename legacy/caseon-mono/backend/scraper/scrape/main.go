@@ -718,75 +718,97 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	fileName := fmt.Sprintf("%s-%s-%s.rtf", folder, year, caseNumber)
 	log.Printf("📝 Worker %d: Expected file name: %s", workerID, fileName)
 
-	// Check if file already exists in the database before downloading
-	exists, err := checkFileExists(ctx, supabaseClient, fileName, workerID)
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to check file existence in database: %v", workerID, err)
-		return
-	}
-	if exists {
-		log.Printf("⏭️ Worker %d: Skipping already processed file: %s", workerID, fileName)
-		return
-	}
+	// // Check if file already exists in the database before downloading
+	// exists, err := checkFileExists(ctx, supabaseClient, fileName, workerID)
+	// if err != nil {
+	// 	log.Printf("❌ Worker %d: Failed to check file existence in database: %v", workerID, err)
+	// 	return
+	// }
+	// if exists {
+	// 	log.Printf("⏭️ Worker %d: Skipping already processed file: %s", workerID, fileName)
+	// 	return
+	// }
 
-	// First, download the HTML page to extract the title
-	log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
-	htmlData, _, err := DownloadFile(downloadClient, cURL, "")
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to download HTML from '%s': %v", workerID, cURL, err)
-		return
-	}
-
-	// Extract title from HTML
-	title := extractTitleFromHTML(htmlData)
-	if title == "" {
-		log.Printf("⚠️ Worker %d: Could not extract title from HTML for '%s'", workerID, cURL)
-	} else {
-		log.Printf("📝 Worker %d: Extracted title: %s", workerID, title)
-	}
-
-	// Construct RTF link by replacing .html with .rtf
+	// // First, download the HTML page to extract the title
+	// log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
+	// htmlData, _, err := DownloadFile(downloadClient, cURL, "")
+	// if err != nil {
+	// 	log.Printf("❌ Worker %d: Failed to download HTML from '%s': %v", workerID, cURL, err)
+	// 	return
+	// }
+	
+	// Construct both URLs and filenames at the start
 	rtfLink := strings.TrimSuffix(cURL, ".html") + ".rtf"
-	log.Printf("👷‍♂️ Worker %d: Attempting to download RTF from: %s", workerID, rtfLink)
+	pdfLink := strings.TrimSuffix(cURL, ".html") + ".pdf"
+	rtfFileName := fileName  // Use the consistent filename you already generated
+	pdfFileName := strings.TrimSuffix(fileName, ".rtf") + ".pdf"
 
-	// Download the RTF file with Referer header set to case URL
-	rtfData, rtfFileName, err := DownloadFile(downloadClient, rtfLink, cURL)
+	// Download RTF
+	log.Printf("👷‍♂️ Worker %d: Attempting to download RTF from: %s", workerID, rtfLink)
+	rtfData, _, err := DownloadFile(downloadClient, rtfLink, cURL)
 	if err != nil {
 		log.Printf("❌ Worker %d: Failed to download RTF from '%s': %v", workerID, rtfLink, err)
 		return
 	}
 	log.Printf("✅ Worker %d: Successfully downloaded RTF file: %s (size: %.2f KB)", workerID, rtfFileName, float64(len(rtfData))/1024)
 
-	// Construct CDN path with the full path prefix
-	cdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", fileName)
+	// Upload RTF
+	cdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", rtfFileName)
 	log.Printf("📝 Worker %d: CDN path: %s", workerID, cdnPath)
-
-	// Upload the RTF to Bunny CDN
 	log.Printf("⬆️ Worker %d: Uploading to Bunny CDN: %s", workerID, cdnPath)
-	err = uploader.UploadFile(fileName, rtfData)
+	err = uploader.UploadFile(rtfFileName, rtfData)
 	if err != nil {
 		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, cdnPath, err)
 		return
 	}
 	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, cdnPath)
 
-	// Prepare data for 'files' table with source_url and file_title
-	fileRecord := map[string]interface{}{
-		"file_name":  fileName,
-		"file_type":  "rtf",
-		"cdn_path":   cdnPath,
-		"file_size":  len(rtfData),
-		"mime_type":  "application/rtf",
-		"source_url": cURL,
-		"file_title": title,
-	}
-
-	// Insert into 'files' table
-	log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, fileName)
-	fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, fileName)
+	// Download PDF
+	log.Printf("👷‍♂️ Worker %d: Attempting to download PDF from: %s", workerID, pdfLink)
+	pdfData, _, err := DownloadFile(downloadClient, pdfLink, cURL)
 	if err != nil {
-		log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, fileName, err)
+		log.Printf("❌ Worker %d: Failed to download PDF from '%s': %v", workerID, pdfLink, err)
 		return
 	}
-	log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, fileName, fileID)
+	log.Printf("✅ Worker %d: Successfully downloaded PDF file: %s (size: %.2f KB)", workerID, pdfFileName, float64(len(pdfData))/1024)
+
+	// Upload PDF
+	pdfCdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", pdfFileName)
+	log.Printf("📝 Worker %d: CDN path: %s", workerID, pdfCdnPath)
+	err = uploader.UploadFile(pdfFileName, pdfData)
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, pdfCdnPath, err)
+		return
+	}
+	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, pdfCdnPath)
+	
+	// // Extract title from HTML
+	// title := extractTitleFromHTML(htmlData)
+	// if title == "" {
+	// 	log.Printf("⚠️ Worker %d: Could not extract title from HTML for '%s'", workerID, cURL)
+	// } else {
+	// 	log.Printf("📝 Worker %d: Extracted title: %s", workerID, title)
+	// }
+
+
+	// // Prepare data for 'files' table with source_url and file_title
+	// fileRecord := map[string]interface{}{
+	// 	"file_name":  fileName,
+	// 	"file_type":  "rtf",
+	// 	"cdn_path":   cdnPath,
+	// 	"file_size":  len(rtfData),
+	// 	"mime_type":  "application/rtf",
+	// 	"source_url": cURL,
+	// 	"file_title": title,
+	// }
+
+	// // Insert into 'files' table
+	// log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, fileName)
+	// fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, fileName)
+	// if err != nil {
+	// 	log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, fileName, err)
+	// 	return
+	// }
+	// log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, fileName, fileID)
+	log.Printf("✅ Worker %d: Successfully processed case: %s", workerID, fileName)
 }
