@@ -16,22 +16,28 @@ const ProtectedRoute = ({
   const location = useLocation();
 
   React.useEffect(() => {
+    // Only redirect if we're sure loading is complete and user is not authenticated
     if (!loading && !user) {
-      // Redirect to sign-in
+      // Redirect to sign-in with the current location as state
       navigate(redirectPath, { 
         replace: true,
         state: { from: location }
       });
     }
-  }, [user, loading, location, navigate, redirectPath]);
+  }, [user, loading, navigate, redirectPath]); // Removed location from dependencies
 
-  // Show loading state
+  // Show loading state while auth is being determined
   if (loading) {
     return loadingComponent;
   }
 
+  // If no user and not loading, return null (redirect will happen in useEffect)
+  if (!user) {
+    return null;
+  }
+
   // Only render children if user is authenticated
-  return user ? children : null;
+  return children;
 };
 
 export default ProtectedRoute;

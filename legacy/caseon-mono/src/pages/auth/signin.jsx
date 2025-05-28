@@ -55,7 +55,7 @@ const SignInPage = () => {
       setIsLoading(true);
       try {
         await signIn(formData.email, formData.password);
-        navigate('/search');
+        // Navigation will be handled by auth context
       } catch (error) {
         setErrors(prev => ({
           ...prev,

@@ -74,8 +74,9 @@ export function AuthProvider({ children, onNavigate, pathname }) {
         setHasLoadedFirms(false);
         setHasLoadedInvites(false);
         
-        // Handle OAuth redirect after successful sign-in
-        if (event === 'SIGNED_IN' && onNavigate) {
+        // Only navigate to search on manual sign-in, not on session restoration
+        // We can distinguish this by checking if we're not currently on a protected route
+        if (event === 'SIGNED_IN' && onNavigate && pathname && (pathname === '/signin' || pathname === '/signup' || pathname === '/')) {
           // Small delay to ensure user state is properly set
           setTimeout(() => {
             onNavigate('/search');
@@ -96,7 +97,7 @@ export function AuthProvider({ children, onNavigate, pathname }) {
         refresh_token: prev.refresh_token
       } : null);
     }
-  }, [onNavigate]);
+  }, [onNavigate, pathname]);
 
   // Auth methods
   const signUp = useCallback(async (email, password) => {
