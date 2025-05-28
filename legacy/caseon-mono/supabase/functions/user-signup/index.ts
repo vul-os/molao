@@ -14,7 +14,7 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const getUserWelcomeEmailTemplate = (email: string) => ({
   from: 'C-h-ase <noreply@notify.caseon.co.za>',
   to: [email],
-  subject: 'Welcome to C-h-ase Legal Intelligence',
+  subject: 'Welcome to CaseOn Legal Intelligence',
   reply_to: 'caseonza@gmail.com',
   html: `
     <!DOCTYPE html>
@@ -23,7 +23,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta name="x-apple-disable-message-reformatting">
-        <title>Welcome to C-h-ase</title>
+        <title>Welcome to CaseOn</title>
         <!--[if mso]>
         <noscript>
           <xml>
@@ -67,7 +67,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
             margin-bottom: 24px;
           }
           
-          .logo {
+          .logo-svg {
             width: 48px;
             height: 48px;
             border-radius: 8px;
@@ -288,13 +288,33 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
           <div class="header">
             <div class="logo-container">
               <!--[if !mso]><!-->
-              <img src="https://caseon.co.za/icon.svg" alt="C-h-ase" class="logo" style="display: block;" />
+              <div class="logo-svg">
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                  <!-- Simplified magnifying glass - positioned to fill more space but keeping original look -->
+                  <g transform="translate(30, 0) scale(0.8)">
+                    <!-- Magnifying glass handle -->
+                    <path d="M 160,160 L 110,110" stroke="#333333" stroke-width="12" stroke-linecap="round"/>
+                    <!-- Magnifying glass circle -->
+                    <circle cx="70" cy="70" r="50" fill="none" stroke="#333333" stroke-width="12"/>
+                  </g>
+                  
+                  <!-- Improved document icon with better alignment and no bottom line - positioned to fill more space -->
+                  <g transform="translate(95, 70) scale(1.5)">
+                    <!-- Document outline using just left, top, and right lines - no bottom line -->
+                    <path d="M 0,-20 L 50,-20 L 50,40" fill="none" stroke="#333333" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+                    <line x1="0" y1="-20" x2="0" y2="40" stroke="#333333" stroke-width="5" stroke-linecap="round"/>
+                    
+                    <!-- Document fold aligned with document edge -->
+                    <path d="M 50,-20 L 35,-20 L 50,-5 Z" fill="#333333" stroke="#333333" stroke-width="5" stroke-linejoin="round"/>
+                  </g>
+                </svg>
+              </div>
               <!--<![endif]-->
               <!--[if mso]>
               <div class="logo-fallback">Ch</div>
               <![endif]-->
             </div>
-            <h1 class="header-title">Welcome to C-h-ase</h1>
+            <h1 class="header-title">Welcome to CaseOn</h1>
             <p class="header-subtitle">Legal Intelligence Platform</p>
           </div>
           
@@ -305,7 +325,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
             <div class="welcome-card">
               <h2 class="welcome-title">Your Journey Begins</h2>
               <p class="welcome-text">
-                Thank you for joining C-h-ase, the premier Legal Intelligence Platform 
+                Thank you for joining CaseOn, the premier Legal Intelligence Platform 
                 designed specifically for forward-thinking legal practitioners.
               </p>
               <div class="platform-badge">
@@ -314,14 +334,14 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
             </div>
             
             <p>
-              C-h-ase provides you with powerful tools to manage your cases efficiently, 
+              CaseOn provides you with powerful tools to manage your cases efficiently, 
               streamline your workflow, and make data-driven decisions that benefit both 
               your practice and your clients.
             </p>
             
             <div class="features">
               <p style="font-size: 16px; color: #334155; margin-bottom: 20px; font-weight: 500;">
-                What you can accomplish with C-h-ase:
+                What you can accomplish with CaseOn:
               </p>
               <ul class="feature-list">
                 <li class="feature-item">
@@ -363,8 +383,8 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
             
             <div class="signature">
               <p>Kind Regards,</p>
-              <p class="name">Andile</p>
-              <p class="title">C-h-ase Legal Solutions</p>
+              <p class="name">C-h-ase</p>
+              <p class="title">CaseOn Legal Solutions</p>
             </div>
           </div>
           
@@ -375,7 +395,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
               Welcome to the future of legal intelligence.
             </p>
             <p class="footer-branding">
-              © ${new Date().getFullYear()} C-h-ase. All rights reserved.
+              © ${new Date().getFullYear()} CaseOn. All rights reserved.
             </p>
           </div>
         </div>
@@ -386,9 +406,9 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
 
 // Email template for admin notification
 const getAdminNotificationEmailTemplate = (userEmail: string) => ({
-  from: 'C-h-ase System <system@notify.caseon.co.za>',
+  from: 'CaseOn System <system@notify.caseon.co.za>',
   to: ['caseonza@gmail.com'],
-  subject: 'New Legal Professional Registration - C-h-ase',
+  subject: 'New Legal Professional Registration - CaseOn',
   html: `
     <!DOCTYPE html>
     <html lang="en">
@@ -431,7 +451,7 @@ const getAdminNotificationEmailTemplate = (userEmail: string) => ({
             margin-bottom: 24px;
           }
           
-          .logo {
+          .logo-svg {
             width: 48px;
             height: 48px;
             border-radius: 8px;
@@ -599,7 +619,27 @@ const getAdminNotificationEmailTemplate = (userEmail: string) => ({
           <div class="header">
             <div class="logo-container">
               <!--[if !mso]><!-->
-              <img src="https://caseon.co.za/icon.svg" alt="C-h-ase" class="logo" style="display: block;" />
+              <div class="logo-svg">
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                  <!-- Simplified magnifying glass - positioned to fill more space but keeping original look -->
+                  <g transform="translate(30, 0) scale(0.8)">
+                    <!-- Magnifying glass handle -->
+                    <path d="M 160,160 L 110,110" stroke="#333333" stroke-width="12" stroke-linecap="round"/>
+                    <!-- Magnifying glass circle -->
+                    <circle cx="70" cy="70" r="50" fill="none" stroke="#333333" stroke-width="12"/>
+                  </g>
+                  
+                  <!-- Improved document icon with better alignment and no bottom line - positioned to fill more space -->
+                  <g transform="translate(95, 70) scale(1.5)">
+                    <!-- Document outline using just left, top, and right lines - no bottom line -->
+                    <path d="M 0,-20 L 50,-20 L 50,40" fill="none" stroke="#333333" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+                    <line x1="0" y1="-20" x2="0" y2="40" stroke="#333333" stroke-width="5" stroke-linecap="round"/>
+                    
+                    <!-- Document fold aligned with document edge -->
+                    <path d="M 50,-20 L 35,-20 L 50,-5 Z" fill="#333333" stroke="#333333" stroke-width="5" stroke-linejoin="round"/>
+                  </g>
+                </svg>
+              </div>
               <!--<![endif]-->
               <!--[if mso]>
               <div class="logo-fallback">Ch</div>
@@ -611,7 +651,7 @@ const getAdminNotificationEmailTemplate = (userEmail: string) => ({
           
           <!-- Main Content -->
           <div class="content">
-            <p>A new legal professional has successfully registered on the C-h-ase platform.</p>
+            <p>A new legal professional has successfully registered on the CaseOn platform.</p>
             
             <div class="notification-card">
               <div class="status-badge">New User Registered</div>
@@ -642,7 +682,7 @@ const getAdminNotificationEmailTemplate = (userEmail: string) => ({
               <h4>Recommended Follow-up</h4>
               <p style="margin: 0; line-height: 1.5;">
                 Consider reaching out to this new user within 24 hours to ensure they have 
-                all the resources needed to get started with C-h-ase effectively.
+                all the resources needed to get started with CaseOn effectively.
               </p>
             </div>
             
@@ -655,11 +695,11 @@ const getAdminNotificationEmailTemplate = (userEmail: string) => ({
           <!-- Footer -->
           <div class="footer">
             <p class="footer-text">
-              This is an automated notification from the C-h-ase platform.<br>
+              This is an automated notification from the CaseOn platform.<br>
               System notifications are sent for all new user registrations.
             </p>
             <p class="footer-branding">
-              © ${new Date().getFullYear()} C-h-ase. All rights reserved.
+              © ${new Date().getFullYear()} CaseOn. All rights reserved.
             </p>
           </div>
         </div>
