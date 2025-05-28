@@ -48,6 +48,7 @@ export default function SearchPage() {
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitErrorMessage, setLimitErrorMessage] = useState("");
+  const [usageDetails, setUsageDetails] = useState(null);
 
   // Add state for invite dialog
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -150,14 +151,12 @@ export default function SearchPage() {
       
       if (error) {
         console.error('Search error:', error);
-        
-        // Handle rate limit exceeded (429)
-        if (error.status === 429) {
-          const errorMessage = error.message || "You've reached your usage limit for this plan.";
-          setLimitErrorMessage(errorMessage);
-          setShowLimitDialog(true);
-          return;
-        }
+        console.log('Error details:', {
+          status: error.status,
+          message: error.message,
+          details: error.details,
+          responseData: data
+        });
         
         // Handle unauthorized (401)
         if (error.status === 401) {
@@ -177,6 +176,17 @@ export default function SearchPage() {
           variant: "destructive"
         });
         setSearchResults([]);
+        return;
+      }
+      
+      // Check if this is a billing limit response (now returns 200 with billing_limit_reached flag)
+      if (data && data.billing_limit_reached) {
+        console.log('Billing limit reached:', data);
+        setLimitErrorMessage(data.error || "You've reached your usage limit for this plan.");
+        if (data.usage) {
+          setUsageDetails(data.usage);
+        }
+        setShowLimitDialog(true);
         return;
       }
       
@@ -259,27 +269,102 @@ export default function SearchPage() {
 
       {/* Usage Limit Dialog */}
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
-              <span>Usage Limit Reached</span>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <span className="font-heading">Usage Limit Reached</span>
             </DialogTitle>
-            <DialogDescription>
-              {limitErrorMessage}
+            <DialogDescription className="text-slate-600 text-sm leading-relaxed">
+              You've reached your plan's search limit. Upgrade to continue accessing legal documents and cases.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            <p className="text-sm text-slate-600 mb-4">
-              Upgrade your plan to continue searching and accessing more legal documents.
-            </p>
+          <div className="py-4 space-y-4">
+            {/* Plan Information */}
+            {usageDetails && (
+              <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">Current Plan</span>
+                  <Badge variant="outline" className="bg-white border-slate-300 text-slate-700">
+                    {usageDetails.plan_name || 'Current Plan'}
+                  </Badge>
+                </div>
+                
+                {/* Usage Stats */}
+                <div className="space-y-3">
+                  {/* Daily Usage */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Daily Usage</span>
+                      <span className="font-medium text-slate-700">
+                        {usageDetails.daily_usage || 0} / {usageDetails.daily_limit || 0}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(usageDetails.daily_usage / usageDetails.daily_limit) * 100} 
+                      className="h-2"
+                      style={{
+                        background: 'rgb(226 232 240)',
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Monthly Usage */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Monthly Usage</span>
+                      <span className="font-medium text-slate-700">
+                        {usageDetails.monthly_usage || 0} / {usageDetails.monthly_limit || 0}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(usageDetails.monthly_usage / usageDetails.monthly_limit) * 100} 
+                      className="h-2"
+                      style={{
+                        background: 'rgb(226 232 240)',
+                      }}
+                    />
+                    {usageDetails.monthly_remaining === 0 && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        Monthly limit reached
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Error Message */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">
+                {limitErrorMessage}
+              </p>
+            </div>
+            
+            {/* Benefits of upgrading */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-700">Upgrade to unlock:</p>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  More monthly searches
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  Higher daily limits
+                </li>
+              </ul>
+            </div>
           </div>
           
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => setShowLimitDialog(false)}
+              className="flex-1 sm:flex-none"
             >
               Close
             </Button>
@@ -288,7 +373,7 @@ export default function SearchPage() {
                 setShowLimitDialog(false);
                 navigate('/billing');
               }}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-none"
             >
               Upgrade Plan
             </Button>
@@ -314,6 +399,7 @@ export default function SearchPage() {
         adjustTextareaHeight={adjustTextareaHeight}
         toast={toast}
         onInviteClick={() => setShowInviteDialog(true)}
+        clearSearch={clearSearch}
       />
 
       {/* Main content area */}

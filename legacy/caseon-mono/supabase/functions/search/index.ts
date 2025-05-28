@@ -120,10 +120,11 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: limitMessage,
-          usage: usage
+          usage: usage,
+          billing_limit_reached: true
         }),
         { 
-          status: 429, 
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       )
