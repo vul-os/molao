@@ -15,21 +15,32 @@ import uvicorn
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Starting FastAPI service, with CORS...")
+logger.info("Starting FastAPI service with CORS...")
 
 # ---------- Environment Variables ----------
 BUCKET_NAME                    = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
 EMBEDDING_MODEL_GCS_PATH       = "models/bge-large-en-v1.5"
 RERANKER_MODEL_GCS_PATH        = "models/bge-reranker-large"
-LOCAL_MODEL_DIR                = Path("/tmp/models")  # Cloud Run writable directory
+LOCAL_MODEL_DIR                = Path("/tmp/models")  # Cloud Run writable
 
-# Supabase settings
 SUPABASE_URL                   = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_ROLE_KEY      = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 supabase: Client               = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-# ---------- GCS Download Logic ----------
+# ---------- Device ----------
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# ---------- Lazy Model Globals ----------
+# We remove any download at import time. Models only get fetched on first use.
+embedding_tokenizer = None
+embedding_model     = None
+reranker_tokenizer  = None
+reranker_model      = None
+
 def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
+    """
+    Download everything under `prefix/` in GCS bucket → local_path.
+    """
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix)
@@ -39,67 +50,53 @@ def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
         dest_path = local_path / rel_path
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         blob.download_to_filename(dest_path)
-        logger.info(f"Downloaded {blob.name} to {dest_path}")
-
-# Download models on container start
-logger.info("Downloading embedding model...")
-download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-large-en-v1.5")
-
-logger.info("Downloading reranker model...")
-download_gcs_folder(BUCKET_NAME, RERANKER_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-reranker-large")
-
-EMBEDDING_MODEL_PATH = LOCAL_MODEL_DIR / "bge-large-en-v1.5"
-RERANKER_MODEL_PATH  = LOCAL_MODEL_DIR / "bge-reranker-large"
-
-# ---------- Device ----------
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# ---------- Lazy Model Globals ----------
-embedding_tokenizer = None
-embedding_model     = None
-reranker_tokenizer  = None
-reranker_model      = None
+        logger.info(f"Downloaded {blob.name} → {dest_path}")
 
 def get_embedding_model():
+    """
+    Lazily download (if needed) and load the embedding model.
+    """
     global embedding_tokenizer, embedding_model
+
     if embedding_tokenizer is None or embedding_model is None:
-        logger.info("Loading embedding model...")
-        embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
-        embedding_model     = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
+        # If model directory does not exist yet on disk, fetch from GCS
+        local_path = LOCAL_MODEL_DIR / "bge-large-en-v1.5"
+        if not local_path.exists():
+            logger.info("Embedding model not found locally. Downloading from GCS...")
+            download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, local_path)
+
+        logger.info("Loading embedding model from %s", local_path)
+        embedding_tokenizer = AutoTokenizer.from_pretrained(local_path)
+        embedding_model     = AutoModel.from_pretrained(local_path).to(device)
         embedding_model.eval()
+
     return embedding_tokenizer, embedding_model
 
 def get_reranker_model():
+    """
+    Lazily download (if needed) and load the reranker model.
+    """
     global reranker_tokenizer, reranker_model
+
     if reranker_tokenizer is None or reranker_model is None:
-        logger.info("Loading reranker model...")
-        reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
-        reranker_model     = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
+        # If model directory does not exist yet on disk, fetch from GCS
+        local_path = LOCAL_MODEL_DIR / "bge-reranker-large"
+        if not local_path.exists():
+            logger.info("Reranker model not found locally. Downloading from GCS...")
+            download_gcs_folder(BUCKET_NAME, RERANKER_MODEL_GCS_PATH, local_path)
+
+        logger.info("Loading reranker model from %s", local_path)
+        reranker_tokenizer = AutoTokenizer.from_pretrained(local_path)
+        reranker_model     = AutoModelForSequenceClassification.from_pretrained(local_path).to(device)
         reranker_model.eval()
+
     return reranker_tokenizer, reranker_model
-
-# ---------- Debug: Confirm Contents ----------
-if EMBEDDING_MODEL_PATH.exists():
-    logger.info("Embedding model directory contents:")
-    logger.info(os.listdir(EMBEDDING_MODEL_PATH))
-else:
-    logger.error("Embedding model path does not exist!")
-
-if RERANKER_MODEL_PATH.exists():
-    logger.info("Reranker model directory contents:")
-    logger.info(os.listdir(RERANKER_MODEL_PATH))
-else:
-    logger.error("Reranker model path does not exist!")
 
 # ---------- FastAPI App ----------
 app = FastAPI()
 
-# --- CORS Middleware ---
-origins = [
-    "http://localhost:5173"
-    # ,
-    # "https://nuamic.com",
-]
+# ---------- CORS Middleware ----------
+origins = ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -203,7 +200,7 @@ async def search(request: SearchRequest):
     # 1) Embed the incoming query
     query_vector = embed_texts([request.query], prefix="search_query: ")[0].tolist()
 
-    # 2) Call Supabase RPC "match_file_vectors" to avoid Supabase timeout
+    # 2) Call Supabase RPC "match_file_vectors"
     try:
         supa_res = supabase.rpc(
             "match_file_vectors",
@@ -220,9 +217,9 @@ async def search(request: SearchRequest):
     # 3) Prepare documents for reranking
     docs_to_rerank = [
         {
-            "id":           row["id"],
-            "text":         row["text"],
-            "file_name":    row.get("file_name", "Unknown Case")
+            "id":        row["id"],
+            "text":      row["text"],
+            "file_name": row.get("file_name", "Unknown Case")
         }
         for row in rows
     ]
