@@ -9,17 +9,22 @@ import logging
 from pathlib import Path
 from google.cloud import storage
 from fastapi.middleware.cors import CORSMiddleware
+from supabase import create_client, Client
 
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Starting FastAPI service, with cors...")
+logger.info("Starting FastAPI service with CORS...")
 
 # ---------- Environment Variables ----------
 BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
 EMBEDDING_MODEL_GCS_PATH = "models/bge-large-en-v1.5"
 RERANKER_MODEL_GCS_PATH = "models/bge-reranker-large"
-LOCAL_MODEL_DIR = Path("/tmp/models")  # Cloud Run writable directory
+LOCAL_MODEL_DIR = Path("/tmp/models")
+
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # ---------- GCS Download Logic ----------
 def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
@@ -34,7 +39,7 @@ def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
         blob.download_to_filename(dest_path)
         logger.info(f"Downloaded {blob.name} to {dest_path}")
 
-# Download models on container start
+# Download models at startup
 logger.info("Downloading embedding model...")
 download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-large-en-v1.5")
 
@@ -71,30 +76,11 @@ def get_reranker_model():
         reranker_model.eval()
     return reranker_tokenizer, reranker_model
 
-# ---------- Debug: Confirm Contents ----------
-if EMBEDDING_MODEL_PATH.exists():
-    logger.info("Embedding model directory contents:")
-    logger.info(os.listdir(EMBEDDING_MODEL_PATH))
-else:
-    logger.error("Embedding model path does not exist!")
-
-if RERANKER_MODEL_PATH.exists():
-    logger.info("Reranker model directory contents:")
-    logger.info(os.listdir(RERANKER_MODEL_PATH))
-else:
-    logger.error("Reranker model path does not exist!")
-
 # ---------- FastAPI App ----------
 app = FastAPI()
 
-# --- CORS Middleware ---
-
-origins = [
-    "http://localhost:5173"
-    # ,
-    # "https://nuamic.com",
-]
-
+# ---------- CORS Middleware ----------
+origins = ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -120,6 +106,13 @@ class RerankedDocument(BaseModel):
     score: float
 
 class RerankResponse(BaseModel):
+    results: List[RerankedDocument]
+
+class SearchRequest(BaseModel):
+    query: str
+    match_count: int = 10
+
+class SearchResponse(BaseModel):
     results: List[RerankedDocument]
 
 # ---------- Embedding Logic ----------
@@ -186,11 +179,45 @@ async def rerank_documents(request: RerankRequest):
     results = rerank(request.query, request.documents)
     return RerankResponse(results=results)
 
+@app.post("/search", response_model=SearchResponse)
+async def search(request: SearchRequest):
+    # Step 1: Embed the query
+    query_vector = embed_texts([request.query], prefix="search_query: ")[0].tolist()
+
+    # Step 2: Query Supabase using raw SQL + pgvector distance
+    sql = f"""
+        SELECT id, file_name, text, embedding <-> ARRAY{query_vector}::vector AS distance
+        FROM file_vectors_small
+        ORDER BY embedding <-> ARRAY{query_vector}::vector
+        LIMIT {request.match_count};
+    """
+
+    try:
+        response = supabase.postgrest.rpc("sql", {"query": sql}).execute()
+        rows = response.data if isinstance(response.data, list) else []
+    except Exception as e:
+        logger.error(f"Supabase query failed: {e}")
+        return SearchResponse(results=[])
+
+    docs_to_rerank = [
+        {
+            "id": row["id"],
+            "text": row["text"],
+            "file_name": row.get("file_name", "Unknown Case")
+        }
+        for row in rows
+    ]
+
+    # Step 3: Rerank results
+    reranked_results = rerank(request.query, docs_to_rerank)
+    return SearchResponse(results=reranked_results)
+
 @app.get("/")
 def read_root():
     return {"message": "Hello from Cloud Run!"}
 
 # ---------- Entrypoint ----------
 if __name__ == "__main__":
+    import uvicorn
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
