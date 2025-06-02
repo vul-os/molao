@@ -10,21 +10,23 @@ from pathlib import Path
 from google.cloud import storage
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
+import uvicorn
 
 # ---------- Logging Setup ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.info("Starting FastAPI service with CORS...")
+logger.info("Starting FastAPI service, with CORS...")
 
 # ---------- Environment Variables ----------
-BUCKET_NAME = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
-EMBEDDING_MODEL_GCS_PATH = "models/bge-large-en-v1.5"
-RERANKER_MODEL_GCS_PATH = "models/bge-reranker-large"
-LOCAL_MODEL_DIR = Path("/tmp/models")
+BUCKET_NAME                    = os.environ.get("MODEL_BUCKET_NAME", "nuamic-models")
+EMBEDDING_MODEL_GCS_PATH       = "models/bge-large-en-v1.5"
+RERANKER_MODEL_GCS_PATH        = "models/bge-reranker-large"
+LOCAL_MODEL_DIR                = Path("/tmp/models")  # Cloud Run writable directory
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+# Supabase settings
+SUPABASE_URL                   = os.environ["SUPABASE_URL"]
+SUPABASE_SERVICE_ROLE_KEY      = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+supabase: Client               = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # ---------- GCS Download Logic ----------
 def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
@@ -39,7 +41,7 @@ def download_gcs_folder(bucket_name: str, prefix: str, local_path: Path):
         blob.download_to_filename(dest_path)
         logger.info(f"Downloaded {blob.name} to {dest_path}")
 
-# Download models at startup
+# Download models on container start
 logger.info("Downloading embedding model...")
 download_gcs_folder(BUCKET_NAME, EMBEDDING_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-large-en-v1.5")
 
@@ -47,23 +49,23 @@ logger.info("Downloading reranker model...")
 download_gcs_folder(BUCKET_NAME, RERANKER_MODEL_GCS_PATH, LOCAL_MODEL_DIR / "bge-reranker-large")
 
 EMBEDDING_MODEL_PATH = LOCAL_MODEL_DIR / "bge-large-en-v1.5"
-RERANKER_MODEL_PATH = LOCAL_MODEL_DIR / "bge-reranker-large"
+RERANKER_MODEL_PATH  = LOCAL_MODEL_DIR / "bge-reranker-large"
 
 # ---------- Device ----------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ---------- Lazy Model Globals ----------
 embedding_tokenizer = None
-embedding_model = None
-reranker_tokenizer = None
-reranker_model = None
+embedding_model     = None
+reranker_tokenizer  = None
+reranker_model      = None
 
 def get_embedding_model():
     global embedding_tokenizer, embedding_model
     if embedding_tokenizer is None or embedding_model is None:
         logger.info("Loading embedding model...")
         embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_PATH)
-        embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
+        embedding_model     = AutoModel.from_pretrained(EMBEDDING_MODEL_PATH).to(device)
         embedding_model.eval()
     return embedding_tokenizer, embedding_model
 
@@ -72,15 +74,32 @@ def get_reranker_model():
     if reranker_tokenizer is None or reranker_model is None:
         logger.info("Loading reranker model...")
         reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL_PATH)
-        reranker_model = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
+        reranker_model     = AutoModelForSequenceClassification.from_pretrained(RERANKER_MODEL_PATH).to(device)
         reranker_model.eval()
     return reranker_tokenizer, reranker_model
+
+# ---------- Debug: Confirm Contents ----------
+if EMBEDDING_MODEL_PATH.exists():
+    logger.info("Embedding model directory contents:")
+    logger.info(os.listdir(EMBEDDING_MODEL_PATH))
+else:
+    logger.error("Embedding model path does not exist!")
+
+if RERANKER_MODEL_PATH.exists():
+    logger.info("Reranker model directory contents:")
+    logger.info(os.listdir(RERANKER_MODEL_PATH))
+else:
+    logger.error("Reranker model path does not exist!")
 
 # ---------- FastAPI App ----------
 app = FastAPI()
 
-# ---------- CORS Middleware ----------
-origins = ["http://localhost:5173"]
+# --- CORS Middleware ---
+origins = [
+    "http://localhost:5173"
+    # ,
+    # "https://nuamic.com",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -140,9 +159,9 @@ def rerank(query: str, documents: List[Dict[str, str]]) -> List[RerankedDocument
     ids = []
 
     for doc in documents:
-        doc_id = doc["id"]
+        doc_id    = doc["id"]
         file_name = doc.get("file_name", "Unknown Case")
-        doc_text = f"{file_name} - Legal Document Section\n\n{doc['text']}"
+        doc_text  = f"{file_name} - Legal Document Section\n\n{doc['text']}"
         pairs.append((query, doc_text))
         ids.append(doc_id)
 
@@ -181,34 +200,34 @@ async def rerank_documents(request: RerankRequest):
 
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
-    # Step 1: Embed the query
+    # 1) Embed the incoming query
     query_vector = embed_texts([request.query], prefix="search_query: ")[0].tolist()
 
-    # Step 2: Query Supabase using raw SQL + pgvector distance
-    sql = f"""
-        SELECT id, file_name, text, embedding <-> ARRAY{query_vector}::vector AS distance
-        FROM file_vectors_small
-        ORDER BY embedding <-> ARRAY{query_vector}::vector
-        LIMIT {request.match_count};
-    """
-
+    # 2) Call Supabase RPC "match_file_vectors" to avoid Supabase timeout
     try:
-        response = supabase.postgrest.rpc("sql", {"query": sql}).execute()
-        rows = response.data if isinstance(response.data, list) else []
+        supa_res = supabase.rpc(
+            "match_file_vectors",
+            {
+                "query_embedding": query_vector,
+                "match_count": request.match_count
+            }
+        ).execute()
+        rows = supa_res.data if isinstance(supa_res.data, list) else []
     except Exception as e:
-        logger.error(f"Supabase query failed: {e}")
+        logger.error("Supabase match_file_vectors failed: %s", e)
         return SearchResponse(results=[])
 
+    # 3) Prepare documents for reranking
     docs_to_rerank = [
         {
-            "id": row["id"],
-            "text": row["text"],
-            "file_name": row.get("file_name", "Unknown Case")
+            "id":           row["id"],
+            "text":         row["text"],
+            "file_name":    row.get("file_name", "Unknown Case")
         }
         for row in rows
     ]
 
-    # Step 3: Rerank results
+    # 4) Rerank and return
     reranked_results = rerank(request.query, docs_to_rerank)
     return SearchResponse(results=reranked_results)
 
@@ -218,5 +237,5 @@ def read_root():
 
 # ---------- Entrypoint ----------
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
