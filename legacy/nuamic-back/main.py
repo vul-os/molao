@@ -200,10 +200,10 @@ async def search(request: SearchRequest):
     # 1) Embed the incoming query
     query_vector = embed_texts([request.query], prefix="search_query: ")[0].tolist()
 
-    # 2) Call Supabase RPC "match_file_vectors"
+    # 2) Call Supabase RPC "match_file_vectors_zero"
     try:
         supa_res = supabase.rpc(
-            "match_file_vectors",
+            "match_file_vectors_zero",
             {
                 "query_embedding": query_vector,
                 "match_count": request.match_count
@@ -211,7 +211,7 @@ async def search(request: SearchRequest):
         ).execute()
         rows = supa_res.data if isinstance(supa_res.data, list) else []
     except Exception as e:
-        logger.error("Supabase match_file_vectors failed: %s", e)
+        logger.error("Supabase match_file_vectors_zero failed: %s", e)
         return SearchResponse(results=[])
 
     # 3) Prepare documents for reranking
