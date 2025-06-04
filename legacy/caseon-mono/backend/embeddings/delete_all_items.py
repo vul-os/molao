@@ -18,7 +18,8 @@ def get_qdrant_client():
     
     client = QdrantClient(
         url=qdrant_config['url'],
-        api_key=qdrant_config['api_key'] if qdrant_config['api_key'] != "your-qdrant-api-key-here" else None
+        api_key=qdrant_config['api_key'] if qdrant_config['api_key'] != "your-qdrant-api-key-here" else None,
+        timeout=60
     )
     
     return client, qdrant_config['collection_name']

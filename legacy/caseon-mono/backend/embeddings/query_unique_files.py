@@ -17,7 +17,8 @@ def get_qdrant_client():
     
     client = QdrantClient(
         url=qdrant_config['url'],
-        api_key=qdrant_config['api_key'] if qdrant_config['api_key'] != "your-qdrant-api-key-here" else None
+        api_key=qdrant_config['api_key'] if qdrant_config['api_key'] != "your-qdrant-api-key-here" else None,
+        timeout=60
     )
     
     return client, qdrant_config['collection_name']
@@ -34,7 +35,7 @@ def query_unique_file_names():
         # Get all points with file_name payload
         unique_file_names: Set[str] = set()
         offset = None
-        batch_size = 1000
+        batch_size = 120000
         total_points = 0
         
         logger.info("Fetching all points to count unique file names...")
