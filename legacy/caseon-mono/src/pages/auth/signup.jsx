@@ -10,12 +10,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Mail, 
   Lock,
-  Phone,
-  User,
   AlertCircle,
   Scale,
   BookText
 } from 'lucide-react';
+import Logo from '@/components/logo';
 
 const SignUpPage = () => {
   const navigate = useNavigate();
@@ -23,19 +22,13 @@ const SignUpPage = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
-    phone: '',
     agreeToTerms: false
   });
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
@@ -45,11 +38,6 @@ const SignUpPage = () => {
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
     if (!passwordRegex.test(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters with 1 number and 1 uppercase letter';
-    }
-    
-    const phoneRegex = /^\+?[\d\s-]{10,}$/;
-    if (!phoneRegex.test(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number';
     }
     
     if (!formData.agreeToTerms) {
@@ -80,6 +68,8 @@ const SignUpPage = () => {
       setIsLoading(true);
       try {
         await signUp(formData.email, formData.password);
+        // Store email in localStorage for verify-email page
+        localStorage.setItem('pendingVerificationEmail', formData.email);
         // You might want to store additional user data (firstName, lastName, phone) in your database here
         navigate('/verify-email');
       } catch (error) {
@@ -108,24 +98,10 @@ const SignUpPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-6 sm:py-12">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Logo/Brand */}
-        <div className="text-center">
-          <div className="flex justify-center items-center gap-2 mb-2">
-            <img 
-              src="/icon.svg" 
-              alt="CaseOn Logo" 
-              className="h-8 w-8" 
-            />
-            <h1 className="text-3xl font-serif font-bold tracking-tight text-gray-900">
-              CaseOn
-            </h1>
-          </div>
-          <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">
-            LEGAL INTELLIGENCE
-          </p>
-        </div>
+        <Logo />
 
         <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-8">
@@ -169,47 +145,6 @@ const SignUpPage = () => {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-sm font-medium text-gray-700 tracking-wide">First Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      required
-                        className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.firstName ? "border-red-500" : ""}`}
-                      disabled={isLoading}
-                        placeholder="Enter first name"
-                    />
-                    </div>
-                    {errors.firstName && (
-                      <p className="text-sm text-red-500 font-medium">{errors.firstName}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-sm font-medium text-gray-700 tracking-wide">Last Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      required
-                        className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.lastName ? "border-red-500" : ""}`}
-                      disabled={isLoading}
-                        placeholder="Enter last name"
-                    />
-                    </div>
-                    {errors.lastName && (
-                      <p className="text-sm text-red-500 font-medium">{errors.lastName}</p>
-                    )}
-                  </div>
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-medium text-gray-700 tracking-wide">Email address</Label>
                   <div className="relative">
@@ -251,27 +186,6 @@ const SignUpPage = () => {
                   </div>
                   {errors.password && (
                     <p className="text-sm text-red-500 font-medium">{errors.password}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 tracking-wide">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      className={`pl-10 h-11 bg-white border-gray-200 focus:border-gray-900 focus:ring-gray-900 ${errors.phone ? "border-red-500" : ""}`}
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      required
-                      disabled={isLoading}
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                  {errors.phone && (
-                    <p className="text-sm text-red-500 font-medium">{errors.phone}</p>
                   )}
                 </div>
 

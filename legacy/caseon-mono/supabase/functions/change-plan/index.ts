@@ -158,7 +158,7 @@ serve(async (req: Request) => {
         email,
         amount: paystackAmount,
         currency: 'ZAR',
-        callback_url: `${Deno.env.get('APP_URL') || 'https://app.example.com'}/billing/callback`,
+        callback_url: `${Deno.env.get('APP_URL') || 'https://caseon.co.za'}/billing`,
         metadata: {
           firm_id: firmId,
           plan_id: planId,

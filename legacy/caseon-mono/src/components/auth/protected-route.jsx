@@ -2,8 +2,6 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/auth-context';
 
-const REDIRECT_STORAGE_KEY = 'auth_redirect_data';
-
 const ProtectedRoute = ({ 
   children,
   redirectPath = '/signin',
@@ -18,50 +16,28 @@ const ProtectedRoute = ({
   const location = useLocation();
 
   React.useEffect(() => {
+    // Only redirect if we're sure loading is complete and user is not authenticated
     if (!loading && !user) {
-      try {
-        // Save the current path for post-login redirection
-        const currentPath = `${location.pathname}${location.search}`;
-        localStorage.setItem(REDIRECT_STORAGE_KEY, currentPath);
-        
-        // Redirect to sign-in
-        navigate(redirectPath, { 
-          replace: true,
-          state: { from: location }
-        });
-      } catch (error) {
-        console.error('Error handling auth redirect:', error);
-        // Fallback to basic redirect if localStorage fails
-        navigate(redirectPath, { replace: true });
-      }
+      // Redirect to sign-in with the current location as state
+      navigate(redirectPath, { 
+        replace: true,
+        state: { from: location }
+      });
     }
-  }, [user, loading, location, navigate, redirectPath]);
+  }, [user, loading, navigate, redirectPath]); // Removed location from dependencies
 
-  // Show loading state
+  // Show loading state while auth is being determined
   if (loading) {
     return loadingComponent;
   }
 
-  // Only render children if user is authenticated
-  return user ? children : null;
-};
-
-// Export the redirect key for use in sign-in components
-export const getStoredRedirect = () => {
-  try {
-    return localStorage.getItem(REDIRECT_STORAGE_KEY);
-  } catch (error) {
-    console.error('Error reading stored redirect:', error);
+  // If no user and not loading, return null (redirect will happen in useEffect)
+  if (!user) {
     return null;
   }
-};
 
-export const clearStoredRedirect = () => {
-  try {
-    localStorage.removeItem(REDIRECT_STORAGE_KEY);
-  } catch (error) {
-    console.error('Error clearing stored redirect:', error);
-  }
+  // Only render children if user is authenticated
+  return children;
 };
 
 export default ProtectedRoute;

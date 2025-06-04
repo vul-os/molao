@@ -7,25 +7,6 @@ import { Progress as LoadingComponent } from './components/ui/progress';
 import BlankLayout from './components/layout/blank-layout';
 import MainLayout from './components/layout/main-layout';
 
-import SearchPage from './pages/search';
-import LandingPage from './pages/landing';
-import MembersPage from './pages/members';
-import FileDetailPage from './pages/search/file-detail';
-import BillingPage from './pages/billing';
-
-// Documentation pages
-import DocsPage from './pages/docs';
-import GettingStarted from './pages/docs/getting-started';
-import SearchDocs from './pages/docs/search';
-import Members from './pages/docs/members';
-import Contact from './pages/docs/contact';
-import SitemapPage from './pages/docs/sitemap';
-
-// Legal pages
-import TermsOfService from './pages/docs/legal/terms-of-service';
-import PrivacyPolicy from './pages/docs/legal/privacy-policy';
-import CookiePolicy from './pages/docs/legal/cookie-policy';
-
 // Loading message mapping
 const getLoadingMessage = (pathname) => {
   if (pathname.includes('/signin')) return 'Loading sign in...';
@@ -61,7 +42,28 @@ const SignIn = lazyImport(() => import('./pages/auth/signin'));
 const SignUp = lazyImport(() => import('./pages/auth/signup'));
 const ForgotPassword = lazyImport(() => import('./pages/auth/forgot-password'));
 const UpdatePassword = lazyImport(() => import('./pages/auth/update-password'));
+const VerifyEmail = lazyImport(() => import('./pages/auth/verify-email'));
 const NotFound = lazyImport(() => import('./pages/not-found'));
+
+// Main pages
+const SearchPage = lazyImport(() => import('./pages/search'));
+const LandingPage = lazyImport(() => import('./pages/landing'));
+const MembersPage = lazyImport(() => import('./pages/members'));
+const FileDetailPage = lazyImport(() => import('./pages/search/file-detail'));
+const BillingPage = lazyImport(() => import('./pages/billing'));
+
+// Documentation pages
+const DocsPage = lazyImport(() => import('./pages/docs'));
+const GettingStarted = lazyImport(() => import('./pages/docs/getting-started'));
+const SearchDocs = lazyImport(() => import('./pages/docs/search'));
+const Members = lazyImport(() => import('./pages/docs/members'));
+const Contact = lazyImport(() => import('./pages/docs/contact'));
+const SitemapPage = lazyImport(() => import('./pages/docs/sitemap'));
+
+// Legal pages
+const TermsOfService = lazyImport(() => import('./pages/docs/legal/terms-of-service'));
+const PrivacyPolicy = lazyImport(() => import('./pages/docs/legal/privacy-policy'));
+const CookiePolicy = lazyImport(() => import('./pages/docs/legal/cookie-policy'));
 
 const Protected = ({ children }) => (
   <ProtectedRoute>{children}</ProtectedRoute>
@@ -76,6 +78,7 @@ const AppRoutes = () => {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
         </Route>
 
         {/* Documentation Routes */}

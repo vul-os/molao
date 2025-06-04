@@ -1,8 +1,5 @@
 {
   "projects": {
-    "prod": "case-on-za",
-    "default": "case-on-za"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "case-on-pty"
+  }
 }

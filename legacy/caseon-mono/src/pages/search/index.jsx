@@ -21,6 +21,7 @@ import SearchInput from "./search-input";
 import LegalLoader from "./legal-loader";
 import { suggestedSearches } from "./constants";
 import { supabase } from "@/services/supabase-client";
+import InviteDialog from "@/components/invite-dialog";
 
 export default function SearchPage() {
   const { user, refreshToken, activeFirm } = useAuth();
@@ -47,6 +48,10 @@ export default function SearchPage() {
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitErrorMessage, setLimitErrorMessage] = useState("");
+  const [usageDetails, setUsageDetails] = useState(null);
+
+  // Add state for invite dialog
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -146,14 +151,12 @@ export default function SearchPage() {
       
       if (error) {
         console.error('Search error:', error);
-        
-        // Handle rate limit exceeded (429)
-        if (error.status === 429) {
-          const errorMessage = error.message || "You've reached your usage limit for this plan.";
-          setLimitErrorMessage(errorMessage);
-          setShowLimitDialog(true);
-          return;
-        }
+        console.log('Error details:', {
+          status: error.status,
+          message: error.message,
+          details: error.details,
+          responseData: data
+        });
         
         // Handle unauthorized (401)
         if (error.status === 401) {
@@ -173,6 +176,17 @@ export default function SearchPage() {
           variant: "destructive"
         });
         setSearchResults([]);
+        return;
+      }
+      
+      // Check if this is a billing limit response (now returns 200 with billing_limit_reached flag)
+      if (data && data.billing_limit_reached) {
+        console.log('Billing limit reached:', data);
+        setLimitErrorMessage(data.error || "You've reached your usage limit for this plan.");
+        if (data.usage) {
+          setUsageDetails(data.usage);
+        }
+        setShowLimitDialog(true);
         return;
       }
       
@@ -251,31 +265,122 @@ export default function SearchPage() {
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
+
+        /* Custom scrollbar for results */
+        .results-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .results-scroll::-webkit-scrollbar-track {
+          background: rgb(241 245 249);
+          border-radius: 3px;
+        }
+        .results-scroll::-webkit-scrollbar-thumb {
+          background: rgb(203 213 225);
+          border-radius: 3px;
+        }
+        .results-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgb(148 163 184);
+        }
       `}</style>
 
       {/* Usage Limit Dialog */}
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-500" />
-              <span>Usage Limit Reached</span>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <span className="font-heading">Usage Limit Reached</span>
             </DialogTitle>
-            <DialogDescription>
-              {limitErrorMessage}
+            <DialogDescription className="text-slate-600 text-sm leading-relaxed">
+              You've reached your plan's search limit. Upgrade to continue accessing legal documents and cases.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            <p className="text-sm text-slate-600 mb-4">
-              Upgrade your plan to continue searching and accessing more legal documents.
-            </p>
+          <div className="py-4 space-y-4">
+            {/* Plan Information */}
+            {usageDetails && (
+              <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">Current Plan</span>
+                  <Badge variant="outline" className="bg-white border-slate-300 text-slate-700">
+                    {usageDetails.plan_name || 'Current Plan'}
+                  </Badge>
+                </div>
+                
+                {/* Usage Stats */}
+                <div className="space-y-3">
+                  {/* Daily Usage */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Daily Usage</span>
+                      <span className="font-medium text-slate-700">
+                        {usageDetails.daily_usage || 0} / {usageDetails.daily_limit || 0}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(usageDetails.daily_usage / usageDetails.daily_limit) * 100} 
+                      className="h-2"
+                      style={{
+                        background: 'rgb(226 232 240)',
+                      }}
+                    />
+                  </div>
+                  
+                  {/* Monthly Usage */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">Monthly Usage</span>
+                      <span className="font-medium text-slate-700">
+                        {usageDetails.monthly_usage || 0} / {usageDetails.monthly_limit || 0}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={(usageDetails.monthly_usage / usageDetails.monthly_limit) * 100} 
+                      className="h-2"
+                      style={{
+                        background: 'rgb(226 232 240)',
+                      }}
+                    />
+                    {usageDetails.monthly_remaining === 0 && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        Monthly limit reached
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Error Message */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">
+                {limitErrorMessage}
+              </p>
+            </div>
+            
+            {/* Benefits of upgrading */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-700">Upgrade to unlock:</p>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  More monthly searches
+                </li>
+                <li className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  Higher daily limits
+                </li>
+              </ul>
+            </div>
           </div>
           
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => setShowLimitDialog(false)}
+              className="flex-1 sm:flex-none"
             >
               Close
             </Button>
@@ -284,7 +389,7 @@ export default function SearchPage() {
                 setShowLimitDialog(false);
                 navigate('/billing');
               }}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white flex-1 sm:flex-none"
             >
               Upgrade Plan
             </Button>
@@ -292,58 +397,83 @@ export default function SearchPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Search input component */}
-      <SearchInput
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        handleSearch={handleSearch}
-        isFocused={isFocused}
-        setIsFocused={setIsFocused}
-        textareaRef={textareaRef}
-        isLoading={isLoading}
-        adjustTextareaHeight={adjustTextareaHeight}
-        toast={toast}
+      {/* Invite Dialog */}
+      <InviteDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
       />
 
+      {/* Fixed search header area */}
+      <div className="fixed top-16 left-0 right-0 z-10 bg-slate-50/95 backdrop-blur-sm">
+        {/* Search Input */}
+        <SearchInput
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          handleSearch={handleSearch}
+          isFocused={isFocused}
+          setIsFocused={setIsFocused}
+          textareaRef={textareaRef}
+          isLoading={isLoading}
+          adjustTextareaHeight={adjustTextareaHeight}
+          toast={toast}
+          onInviteClick={() => setShowInviteDialog(true)}
+          clearSearch={clearSearch}
+        />
+        
+        {/* Fixed Results Header */}
+        {searchResults.length > 0 && (
+          <div className="px-4 pb-3 pt-1">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading text-lg font-semibold text-slate-800">
+                  Search Results
+                </h2>
+                <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
+                  {searchResults.length} {searchResults.length === 1 ? 'result' : 'results'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Main content area */}
-      <div className="flex-1 overflow-y-auto -mt-2 pb-6">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="flex-1" style={{ paddingTop: searchResults.length > 0 ? '200px' : '140px' }}>
+        <div className="h-full">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64 mt-8">
+            <div className="flex flex-col items-center justify-center h-64 pt-8">
               <LegalLoader isLoading={isLoading} />
             </div>
           ) : searchResults.length > 0 ? (
-            <div className="space-y-4 mt-6">
-              <h2 className="font-heading text-lg font-medium text-slate-800 mb-4">
-                Search Results
-              </h2>
-              <div className="grid gap-3" id="search-results">
+            /* Scrollable Results Container */
+            <div className="h-full overflow-y-auto results-scroll pb-6">
+              <div className="max-w-4xl mx-auto px-4 space-y-3">
                 {searchResults.map((file) => (
                   <TooltipProvider key={file.id} delayDuration={300}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Card
                           className={cn(
-                            "cursor-pointer transition-all hover:border-green-100 hover:bg-green-50/30 border-slate-200 bg-white/90 backdrop-blur-sm group overflow-hidden",
-                            "hover:shadow-md"
+                            "cursor-pointer transition-all hover:border-green-200 hover:bg-green-50/50 border-slate-200/80 bg-white/95 backdrop-blur-sm group overflow-hidden",
+                            "hover:shadow-lg hover:shadow-green-100/50 hover:-translate-y-0.5"
                           )}
                           onClick={() => handleFileClick(file)}
                         >
                           <CardContent className="p-4">
                             <div className="flex items-center gap-3">
-                              <div className="flex-shrink-0 bg-green-50 p-2 rounded-md group-hover:bg-green-100 transition-colors">
+                              <div className="flex-shrink-0 bg-green-50 p-2.5 rounded-lg group-hover:bg-green-100 transition-colors">
                                 <FileText className="h-5 w-5 text-green-700" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-heading text-sm font-medium text-slate-900 line-clamp-2 leading-tight">
+                                <p className="font-heading text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">
                                   {file.file_title || file.file_name}
                                 </p>
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-slate-500">
                                   PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
                                 </p>
                               </div>
-                              <div className="bg-slate-100 rounded-full p-1.5 group-hover:bg-green-100 transition-colors">
-                                <ArrowUpRight className="h-3.5 w-3.5 text-slate-500 group-hover:text-green-700 transition-colors" />
+                              <div className="bg-slate-100/80 rounded-full p-2 group-hover:bg-green-100 transition-all group-hover:scale-110">
+                                <ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-green-700 transition-colors" />
                               </div>
                             </div>
                           </CardContent>
@@ -359,72 +489,83 @@ export default function SearchPage() {
               </div>
             </div>
           ) : searchQuery ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center mt-8">
+            <div className="flex flex-col items-center justify-center h-64 text-center pt-8">
               <div className="text-slate-300 mb-4">
-                <Search className="h-10 w-10" />
+                <Search className="h-12 w-12" />
               </div>
-              <p className="font-heading text-lg text-slate-600 mb-2">No cases found</p>
-              <p className="text-sm text-slate-500 mb-4 max-w-md">
-                We couldn't find any cases matching "{searchQuery}"
+              <p className="font-heading text-xl text-slate-600 mb-2">No cases found</p>
+              <p className="text-sm text-slate-500 mb-6 max-w-md">
+                We couldn't find any cases matching "<span className="font-medium text-slate-700">{searchQuery}</span>"
               </p>
               <Button
                 variant="outline"
-                className="text-green-700 font-medium border-green-100 hover:bg-green-50"
+                className="text-green-700 font-medium border-green-200 hover:bg-green-50 bg-white/80"
                 onClick={() => setShowSuggestions(true)}
               >
                 Try a different search
               </Button>
             </div>
           ) : showSuggestions && !searchQuery ? (
-            <div>
-              <div className="flex flex-col items-center text-center gap-3 mb-6 mt-2">
-                <p className="text-sm text-slate-600 max-w-lg">
-                  Search through judgments from South African courts, including Constitutional Court,
-                  Supreme Court of Appeal, and High Courts.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-center mb-6">
-                <Badge variant="outline" className="bg-white hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200">Constitutional cases</Badge>
-                <Badge variant="outline" className="bg-white hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200">Human rights</Badge>
-                <Badge variant="outline" className="bg-white hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200">Property law</Badge>
-                <Badge variant="outline" className="bg-white hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200">Contract law</Badge>
-                <Badge variant="outline" className="bg-white hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200">Criminal procedure</Badge>
-              </div>
-              
-              <div className="grid grid-cols-1 gap-6">
-                {suggestedSearches.map((category, idx) => (
-                  <div key={idx}>
-                    <h3 className="font-heading text-base font-medium text-slate-800 tracking-wide mb-3 pb-2 border-b border-slate-200">
-                      {category.category}
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {category.queries.map((suggestion, index) => (
-                        <TooltipProvider key={index} delayDuration={300}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                className="justify-start h-auto min-h-[60px] py-3 px-4 text-left text-sm text-slate-700 
-                                      hover:bg-green-50 hover:text-green-900 hover:border-green-200
-                                      transition-all duration-200 border-slate-200 bg-white/80 whitespace-normal"
-                                onClick={() => handleSuggestionClick(suggestion)}
-                              >
-                                <div className="flex items-start gap-3 w-full">
-                                  <Scale className="h-4 w-4 text-green-700 mt-1 flex-shrink-0" />
-                                  <span className="leading-relaxed">{suggestion}</span>
-                                </div>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-xs p-3 bg-slate-900 text-white">
-                              <p className="text-sm">Click to search</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ))}
-                    </div>
+            <div className="pt-8 pb-6">
+              <div className="max-w-4xl mx-auto px-4">
+                <div className="flex flex-col items-center text-center gap-4 mb-8">
+                  <div className="bg-white/60 p-4 rounded-full border border-slate-200/80">
+                    <Scale className="h-8 w-8 text-green-700" />
                   </div>
-                ))}
+                  <div>
+                    <h1 className="font-heading text-2xl font-bold text-slate-800 mb-2">
+                      Legal Case Search
+                    </h1>
+                    <p className="text-sm text-slate-600 max-w-lg">
+                      Search through judgments from South African courts, including Constitutional Court,
+                      Supreme Court of Appeal, and High Courts.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 justify-center mb-8">
+                  <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Constitutional cases</Badge>
+                  <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Human rights</Badge>
+                  <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Property law</Badge>
+                  <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Contract law</Badge>
+                  <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Criminal procedure</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-8">
+                  {suggestedSearches.map((category, idx) => (
+                    <div key={idx} className="bg-white/40 backdrop-blur-sm rounded-xl p-6 border border-slate-200/60">
+                      <h3 className="font-heading text-lg font-semibold text-slate-800 tracking-wide mb-4 pb-2 border-b border-slate-200/80">
+                        {category.category}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {category.queries.map((suggestion, index) => (
+                          <TooltipProvider key={index} delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="justify-start h-auto min-h-[60px] py-3 px-4 text-left text-sm text-slate-700 
+                                        hover:bg-green-50/80 hover:text-green-900 hover:border-green-200
+                                        transition-all duration-200 border-slate-200/80 bg-white/60 backdrop-blur-sm whitespace-normal
+                                        hover:shadow-md hover:-translate-y-0.5"
+                                  onClick={() => handleSuggestionClick(suggestion)}
+                                >
+                                  <div className="flex items-start gap-3 w-full">
+                                    <Scale className="h-4 w-4 text-green-700 mt-1 flex-shrink-0" />
+                                    <span className="leading-relaxed font-medium">{suggestion}</span>
+                                  </div>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs p-3 bg-slate-900 text-white">
+                                <p className="text-sm">Click to search</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : null}
