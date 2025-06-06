@@ -510,7 +510,7 @@ export default function FileDetailPage() {
             </div>
           ) : (
             <div className="p-4">
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-4xl mx-auto overflow-auto">
                 {isLoading ? (
                   <div className="flex items-center justify-center min-h-96">
                     <div className="text-center">

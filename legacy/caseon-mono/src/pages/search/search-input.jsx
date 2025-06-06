@@ -15,7 +15,10 @@ export default function SearchInput({
   isLoading,
   adjustTextareaHeight,
   toast,
-  onInviteClick
+  onInviteClick,
+  cancelSearch,
+  canCancel,
+  clearSearch
 }) {
   const { pendingInvites } = useAuth();
   const inviteCount = pendingInvites?.length || 0;
@@ -123,14 +126,7 @@ export default function SearchInput({
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setSearchQuery("");
-                      if (textareaRef.current) {
-                        textareaRef.current.style.height = '52px';
-                      }
-                      // Return focus to textarea after clearing
-                      setTimeout(() => textareaRef.current?.focus(), 0);
-                    }}
+                    onClick={clearSearch}
                     className="group flex items-center justify-center h-8 w-8 rounded-full 
                              bg-transparent p-0 hover:bg-slate-100 focus:bg-slate-100
                              transition-colors duration-200 z-10" // Added z-10 to ensure button stays above text
@@ -143,21 +139,41 @@ export default function SearchInput({
                 {/* Search button - With animation on hover */}
                 <button
                   type="button"
-                  onClick={handleSearch}
-                  disabled={isLoading || !searchQuery.trim()}
+                  onClick={(e) => {
+                    console.log('Search button clicked:', { 
+                      isLoading, 
+                      canCancel, 
+                      searchQuery: searchQuery.trim(),
+                      disabled: !isLoading && !searchQuery.trim()
+                    });
+                    if (isLoading && canCancel) {
+                      console.log('Calling cancelSearch');
+                      cancelSearch();
+                    } else {
+                      console.log('Calling handleSearch');
+                      handleSearch();
+                    }
+                  }}
+                  disabled={!isLoading && !searchQuery.trim()}
                   className={cn(
                     "flex items-center justify-center h-10 w-10 rounded-full",
                     "text-white transition-all duration-300 ease-out",
                     "transform hover:scale-105 active:scale-95",
                     "z-10", // Added z-10 to ensure button stays above text
-                    searchQuery.trim() ? 
-                      "bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500" : 
-                      "bg-slate-200 text-slate-500"
+                    isLoading && canCancel ? 
+                      "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-400 hover:to-orange-400" :
+                      searchQuery.trim() ? 
+                        "bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500" : 
+                        "bg-slate-200 text-slate-500"
                   )}
-                  aria-label="Search"
+                  aria-label={isLoading && canCancel ? "Cancel search" : "Search"}
                 >
                   {isLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    canCancel ? (
+                      <X className="h-5 w-5" />
+                    ) : (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    )
                   ) : (
                     <ArrowRight className="h-5 w-5" />
                   )}

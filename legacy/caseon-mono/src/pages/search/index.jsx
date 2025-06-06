@@ -45,6 +45,9 @@ export default function SearchPage() {
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
   
+  // Add state for search cancellation
+  const [searchController, setSearchController] = useState(null);
+  
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [limitErrorMessage, setLimitErrorMessage] = useState("");
@@ -82,6 +85,13 @@ export default function SearchPage() {
     setShowSuggestions(true);
     sessionStorage.removeItem('searchQuery');
     sessionStorage.removeItem('searchResults');
+    
+    // Reset textarea height and focus
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '52px';
+      // Return focus to textarea after clearing
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
   }, []);
 
   // Handle refresh
@@ -133,11 +143,48 @@ export default function SearchPage() {
     adjustTextareaHeight();
   }, [searchQuery]);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  // Add function to cancel search
+  const cancelSearch = () => {
+    console.log('Cancelling search - before:', { searchController: !!searchController, isLoading });
+    if (searchController) {
+      searchController.abort();
+      setSearchController(null);
+      setIsLoading(false);
+      // Ensure we can search again after cancelling
+      setShowSuggestions(false);
+    }
+    console.log('Cancelling search - after cleanup');
+  };
+
+  // Clean up search controller on unmount
+  useEffect(() => {
+    return () => {
+      if (searchController) {
+        searchController.abort();
+      }
+    };
+  }, [searchController]);
+
+  const handleSearch = async (queryOverride = null) => {
+    const query = queryOverride || searchQuery;
+    if (!query.trim()) return;
+    
+    // Cancel any existing search
+    if (searchController) {
+      searchController.abort();
+    }
+    
+    // Create new AbortController for this search
+    const controller = new AbortController();
+    setSearchController(controller);
     
     setIsLoading(true);
     setShowSuggestions(false);
+    
+    // Update the search query state if we're using an override
+    if (queryOverride) {
+      setSearchQuery(queryOverride);
+    }
     
     try {
       // Get firm_id from activeFirm in auth context
@@ -146,11 +193,16 @@ export default function SearchPage() {
       // Use Supabase functions.invoke() which handles authentication automatically
       const { data, error } = await supabase.functions.invoke('search', {
         body: {
-          query: searchQuery,
+          query: query,
           limit: 10,
           firm_id: firmId
         }
       });
+      
+      // Check if the search was cancelled
+      if (controller.signal.aborted) {
+        return;
+      }
       
       if (error) {
         console.error('Search error:', error);
@@ -160,6 +212,10 @@ export default function SearchPage() {
           details: error.details,
           responseData: data
         });
+        
+        // Clean up state before handling errors
+        setIsLoading(false);
+        setSearchController(null);
         
         // Handle unauthorized (401)
         if (error.status === 401) {
@@ -190,28 +246,44 @@ export default function SearchPage() {
           setUsageDetails(data.usage);
         }
         setShowLimitDialog(true);
+        // Clean up state
+        setIsLoading(false);
+        setSearchController(null);
         return;
       }
       
-      // Set search results
+      // Set search results and clean up state
       setSearchResults(data?.results || []);
+      setIsLoading(false);
+      setSearchController(null);
       
     } catch (error) {
       console.error('Search error details:', error);
+      
+      // Don't show error toast if the request was aborted (cancelled)
+      if (error.name === 'AbortError' || controller.signal.aborted) {
+        console.log('Search was cancelled');
+        // Ensure state is clean after cancellation
+        setIsLoading(false);
+        setSearchController(null);
+        return;
+      }
+      
+      // Clean up state before showing error
+      setIsLoading(false);
+      setSearchController(null);
+      
       toast({
         title: "Search failed",
         description: error.message || "Unable to perform search. Please try again.",
         variant: "destructive"
       });
       setSearchResults([]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleSuggestionClick = (suggestion) => {
-    setSearchQuery(suggestion);
-    handleSearch();
+    handleSearch(suggestion);
   };
 
   const handleFileClick = (file) => {
@@ -449,6 +521,8 @@ export default function SearchPage() {
           toast={toast}
           onInviteClick={() => setShowInviteDialog(true)}
           clearSearch={clearSearch}
+          cancelSearch={cancelSearch}
+          canCancel={!!searchController}
         />
         
         {/* Fixed Results Header */}
