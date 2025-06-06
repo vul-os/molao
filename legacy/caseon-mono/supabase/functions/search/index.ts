@@ -31,6 +31,10 @@ interface FileResult {
   file_title: string
   pdf_url: string
   file_size?: number
+  summaries?: Array<{
+    model: string
+    content: string
+  }>
 }
 
 interface UsageData {
@@ -191,10 +195,20 @@ serve(async (req) => {
     // Extract file names from Modal results
     const fileNames = modalData.results.map(result => result.file_name)
 
-    // Query local files table to get file titles (no firm filtering)
-    const { data: files, error } = await supabaseClient
+    // Query local files table to get file titles and summaries (no firm filtering)
+    const { data: filesWithSummaries, error } = await supabaseClient
       .from('files')
-      .select('id, file_name, file_title, cdn_path, file_size')
+      .select(`
+        id, 
+        file_name, 
+        file_title, 
+        cdn_path, 
+        file_size,
+        file_summaries (
+          model,
+          content
+        )
+      `)
       .in('file_name', fileNames)
       .not('cdn_path', 'is', null)
 
@@ -211,8 +225,8 @@ serve(async (req) => {
 
     // Create a map of file names to file data for quick lookup
     const fileMap = new Map()
-    if (files) {
-      files.forEach(file => {
+    if (filesWithSummaries) {
+      filesWithSummaries.forEach(file => {
         fileMap.set(file.file_name, file)
       })
     }
@@ -233,7 +247,8 @@ serve(async (req) => {
             file_name: modalResult.file_name,
             file_title: modalResult.file_name, // Use filename as title if no local data
             pdf_url: pdfUrl,
-            file_size: modalResult.file_size
+            file_size: modalResult.file_size,
+            summaries: []
           }
         }
 
@@ -249,7 +264,8 @@ serve(async (req) => {
           file_name: localFile.file_name,
           file_title: localFile.file_title || localFile.file_name,
           pdf_url: pdfUrl,
-          file_size: localFile.file_size
+          file_size: localFile.file_size,
+          summaries: localFile.file_summaries || []
         }
       })
       .filter(result => result !== null) // Remove any null results
