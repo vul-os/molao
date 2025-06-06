@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,9 @@ export default function SearchPage() {
 
   // Add state for invite dialog
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+
+  // Add state for expanded summaries
+  const [expandedSummaries, setExpandedSummaries] = useState(new Set());
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -220,6 +223,34 @@ export default function SearchPage() {
         searchQuery: searchQuery
       }
     });
+  };
+
+  // Function to toggle summary expansion
+  const toggleSummaryExpansion = (fileId) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  // Function to truncate text
+  const truncateText = (text, maxLength = 100) => {
+    if (!text || text.length <= maxLength) return text;
+    
+    // Find the last space before the max length to avoid cutting words
+    const truncated = text.substring(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(' ');
+    
+    if (lastSpace > maxLength * 0.8) { // Only use space if it's not too far back
+      return text.substring(0, lastSpace) + '…';
+    }
+    
+    return truncated + '…';
   };
 
   return (
@@ -457,23 +488,126 @@ export default function SearchPage() {
                             "cursor-pointer transition-all hover:border-green-200 hover:bg-green-50/50 border-slate-200/80 bg-white/95 backdrop-blur-sm group overflow-hidden",
                             "hover:shadow-lg hover:shadow-green-100/50 hover:-translate-y-0.5"
                           )}
-                          onClick={() => handleFileClick(file)}
+                          onClick={(e) => {
+                            // Don't navigate if clicking on summary expand button
+                            if (e.target.closest('.summary-expand-btn')) {
+                              e.stopPropagation();
+                              return;
+                            }
+                            handleFileClick(file);
+                          }}
                         >
                           <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start gap-3">
                               <div className="flex-shrink-0 bg-green-50 p-2.5 rounded-lg group-hover:bg-green-100 transition-colors">
                                 <FileText className="h-5 w-5 text-green-700" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-heading text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">
-                                  {file.file_title || file.file_name}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
-                                </p>
-                              </div>
-                              <div className="bg-slate-100/80 rounded-full p-2 group-hover:bg-green-100 transition-all group-hover:scale-110">
-                                <ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-green-700 transition-colors" />
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <div className="flex-1">
+                                    <p className="font-heading text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">
+                                      {file.file_title || file.file_name}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
+                                    </p>
+                                  </div>
+                                  <div className="bg-slate-100/80 rounded-full p-2 group-hover:bg-green-100 transition-all group-hover:scale-110">
+                                    <ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-green-700 transition-colors" />
+                                  </div>
+                                </div>
+
+                                {/* AI Summary Section */}
+                                {file.summaries && file.summaries.length > 0 && file.summaries.some(s => s?.content?.trim()) && (
+                                  <div className="mt-3 pt-3 border-t border-slate-100">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <div className="flex items-center gap-1.5 bg-gradient-to-r from-purple-50 to-blue-50 px-2.5 py-1.5 rounded-full border border-purple-100/80 shadow-sm">
+                                        <Bot className="h-3.5 w-3.5 text-purple-600" />
+                                        <span className="text-xs font-semibold text-purple-700 tracking-wide">AI Summary</span>
+                                      </div>
+                                      {file.summaries.length > 1 && (
+                                        <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200 font-medium">
+                                          {file.summaries.length} models
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                      {file.summaries
+                                        .filter(summary => summary?.content?.trim()) // Filter out empty summaries
+                                        .slice(0, expandedSummaries.has(file.id) ? file.summaries.length : 1)
+                                        .map((summary, idx) => (
+                                          <div key={idx} className="bg-gradient-to-r from-slate-50/90 to-purple-50/50 rounded-xl p-4 border border-slate-100/80 shadow-sm hover:shadow-md transition-all duration-200">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                                              <span className="text-xs font-semibold text-slate-700 capitalize tracking-wide">
+                                                {summary.model || 'AI Model'}
+                                              </span>
+                                            </div>
+                                            <div className="prose prose-slate prose-sm max-w-none">
+                                              <p className="text-sm text-slate-700 leading-relaxed font-medium mb-0 line-height-loose">
+                                                {expandedSummaries.has(file.id) 
+                                                  ? summary.content 
+                                                  : truncateText(summary.content, 120)
+                                                }
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      
+                                      {/* Action Buttons */}
+                                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100/60">
+                                        {/* Expand/Collapse Button */}
+                                        {(() => {
+                                          const validSummaries = file.summaries.filter(s => s?.content?.trim());
+                                          return (validSummaries.length > 1 || validSummaries[0]?.content.length > 120) ? (
+                                            <button
+                                              className="summary-expand-btn flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors hover:bg-purple-50 px-2 py-1 rounded-md"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSummaryExpansion(file.id);
+                                              }}
+                                            >
+                                              {expandedSummaries.has(file.id) ? (
+                                                <>
+                                                  <ChevronUp className="h-3.5 w-3.5" />
+                                                  <span>Show less</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <ChevronDown className="h-3.5 w-3.5" />
+                                                  <span>
+                                                    {validSummaries.length > 1 
+                                                      ? `Show all ${validSummaries.length} summaries` 
+                                                      : 'Show more'
+                                                    }
+                                                  </span>
+                                                </>
+                                              )}
+                                            </button>
+                                          ) : <div></div>;
+                                        })()}
+                                        
+                                        {/* View Full Summaries Button */}
+                                        <button
+                                          className="summary-expand-btn flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-all bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 px-3 py-2 rounded-lg border border-purple-200/60 shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/search/file/${file.id}?view=summary`, {
+                                              state: {
+                                                searchResults: searchResults,
+                                                searchQuery: searchQuery
+                                              }
+                                            });
+                                          }}
+                                        >
+                                          <Bot className="h-3.5 w-3.5" />
+                                          <span>View full summaries</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -481,7 +615,10 @@ export default function SearchPage() {
                       </TooltipTrigger>
                       <TooltipContent side="top" className="p-2 bg-slate-900 text-white max-w-md">
                         <p className="text-sm font-medium">{file.file_title || file.file_name}</p>
-                        <p className="text-xs opacity-80">Click to view full document</p>
+                        <p className="text-xs opacity-80">
+                          Click to view full document
+                          {file.summaries && file.summaries.length > 0 && " • AI summaries available"}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

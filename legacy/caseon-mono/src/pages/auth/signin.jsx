@@ -155,6 +155,7 @@ const SignInPage = () => {
                     <Label htmlFor="password" className="text-sm font-medium text-gray-700 tracking-wide">Password</Label>
                     <Button 
                       variant="link" 
+                      type="button"
                       className="text-sm text-gray-600 hover:text-gray-900 p-0 h-auto font-medium"
                       onClick={() => navigate('/forgot-password')}
                       disabled={isLoading}
@@ -195,6 +196,7 @@ const SignInPage = () => {
                 <span className="text-sm text-gray-600 font-medium">Don't have an account?{' '}</span>
                 <Button
                   variant="link"
+                  type="button"
                   className="text-gray-900 hover:text-gray-700 p-0 h-auto font-medium"
                   onClick={() => navigate('/signup')}
                   disabled={isLoading}

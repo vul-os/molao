@@ -24,7 +24,8 @@ export default function PDFRenderer({
   isLoading,
   scale,
   rotation,
-  className = ""
+  className = "",
+  disableInternalScroll = false
 }) {
   const [numPages, setNumPages] = useState(null);
   const [containerRef, setContainerRef] = useState(null);
@@ -64,7 +65,7 @@ export default function PDFRenderer({
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* PDF Document */}
-      <div className="flex-1 overflow-auto p-4" ref={setContainerRef}>
+      <div className="flex-1 p-4" ref={setContainerRef}>
         {/* Center container with max width */}
         <div className="max-w-4xl mx-auto min-h-full flex items-center justify-center">
           <Document
