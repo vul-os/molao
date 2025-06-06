@@ -422,104 +422,32 @@ export default function FileDetailPage() {
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Add responsive styles */}
-      <style>{`
-        @media (max-width: 475px) {
-          .xs\\:hidden { display: none !important; }
-          .xs\\:inline { display: inline !important; }
-        }
-        @media (min-width: 476px) {
-          .xs\\:hidden { display: inline !important; }
-          .xs\\:inline { display: none !important; }
-        }
-        
-        /* Improve touch targets for mobile */
-        @media (max-width: 640px) {
-          .touch-target {
-            min-height: 44px;
-            min-width: 44px;
-          }
-        }
-        
-        /* Better text scaling */
-        .mobile-title {
-          font-size: clamp(0.875rem, 4vw, 1.125rem);
-        }
-
-        /* Ensure sticky works properly */
-        .file-detail-container {
-          position: relative;
-          height: 100%;
-          overflow: hidden;
-        }
-        
-        .file-detail-header {
-          position: sticky;
-          top: 0;
-          z-index: 30;
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(8px);
-        }
-        
-        .file-detail-content {
-          height: calc(100vh - 64px); /* Account for MainLayout header */
-          overflow-y: auto;
-        }
-      `}</style>
-
-      {/* Sticky Header within the page */}
-      <div className="file-detail-header border-b border-slate-200/80 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-          {/* Main Header Row */}
-          <div className="flex items-center justify-between py-2 sm:py-3">
-            {/* Left Section: Back button and file info */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+    <div>
+      {/* Fixed Header */}
+      <div className="fixed top-16 left-0 right-0 bg-white border-b border-slate-200 shadow-sm z-20">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               <Button 
                 variant="ghost" 
                 onClick={handleGoBack}
-                className="flex-shrink-0 h-8 w-8 p-0 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
-                aria-label="Back to search"
+                className="h-8 w-8 p-0"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="flex-shrink-0 bg-green-50 p-1.5 rounded-md border border-green-100">
-                  <FileText className="h-4 w-4 text-green-700" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h1 
-                    className="font-heading mobile-title font-semibold text-slate-900 truncate leading-tight"
-                    title={fileData.fileName}
-                  >
-                    {fileData.fileName}
-                  </h1>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className="text-xs text-slate-600 border-slate-300 bg-slate-50 px-1.5 py-0.5">
-                      PDF
-                    </Badge>
-                    {summaries.length > 0 && (
-                      <Badge variant="outline" className="text-xs text-purple-600 border-purple-200 bg-purple-50 px-1.5 py-0.5">
-                        <Bot className="h-3 w-3 mr-1" />
-                        {summaries.length} AI
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+                <FileText className="h-4 w-4 text-green-700 flex-shrink-0" />
+                <h1 className="font-semibold text-slate-900 truncate">
+                  {fileData.fileName}
+                </h1>
               </div>
             </div>
 
-            {/* Right Section: Actions - Hidden on mobile, shown in dropdown */}
-            <div className="hidden sm:flex items-center gap-1.5">
-              {/* File Actions */}
+            <div className="flex items-center gap-2">
               {fileData.sourceUrl && (
-                <Button
-                  variant="outline"
-                  onClick={openSourceUrl}
-                  size="sm"
-                  className="h-8 text-xs font-medium border-slate-300 hover:bg-slate-50 px-2.5"
-                >
+                <Button variant="outline" onClick={openSourceUrl} size="sm">
                   <ExternalLink className="h-3 w-3 mr-1" />
                   Source
                 </Button>
@@ -530,158 +458,85 @@ export default function FileDetailPage() {
                   onClick={downloadPdf}
                   size="sm"
                   disabled={!pdfBlob}
-                  className="h-8 text-xs font-medium border-slate-300 hover:bg-slate-50 px-2.5"
                 >
                   <DownloadCloud className="h-3 w-3 mr-1" />
                   Download
                 </Button>
               )}
             </div>
-
-            {/* Mobile Actions Menu */}
-            <div className="flex sm:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                onClick={() => {
-                  if (!fileNotFound && pdfBlob) {
-                    downloadPdf();
-                  }
-                }}
-              >
-                <DownloadCloud className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
 
-          {/* Tabs Row - Compact Design */}
-          <div className="pb-2 sm:pb-3">
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 max-w-xs bg-slate-100 rounded-2xl p-0.5 h-10 shadow-sm border border-slate-200/50">
-                <TabsTrigger 
-                  value="document" 
-                  className="flex items-center justify-center gap-1.5 h-9 px-3 text-sm font-medium rounded-xl transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=inactive]:text-slate-600 data-[state=inactive]:hover:text-slate-800 data-[state=inactive]:hover:bg-white/50"
-                >
-                  <FileCheck className="h-3.5 w-3.5" />
-                  <span className="font-heading hidden xs:inline">Document</span>
-                  <span className="font-heading xs:hidden">Doc</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="summary" 
-                  className="flex items-center justify-center gap-1.5 h-9 px-3 text-sm font-medium rounded-xl transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=inactive]:text-slate-600 data-[state=inactive]:hover:text-slate-800 data-[state=inactive]:hover:bg-white/50"
-                >
-                  <Bot className="h-3.5 w-3.5" />
-                  <span className="font-heading hidden xs:inline">AI Summary</span>
-                  <span className="font-heading xs:hidden">AI</span>
+          {/* Tabs */}
+          <div className="flex items-center justify-between">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList>
+                <TabsTrigger value="document">Document</TabsTrigger>
+                <TabsTrigger value="summary">
+                  AI Summary
                   {summaries.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 text-xs bg-purple-100 text-purple-700 border-purple-200 px-1 py-0 font-medium h-4 min-w-4 rounded-full flex items-center justify-center">
+                    <Badge variant="secondary" className="ml-1">
                       {summaries.length}
                     </Badge>
                   )}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </div>
 
-          {/* PDF Controls Row - Only show on document tab and when PDF is available */}
-          {!fileNotFound && activeTab === 'document' && (
-            <div className="pb-2 sm:pb-3 border-t border-slate-100">
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-0.5 bg-slate-50 rounded-2xl p-0.5 border border-slate-200/60">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={zoomOut}
-                    disabled={scale <= 0.5}
-                    className="h-8 w-8 p-0 rounded-xl hover:bg-white disabled:opacity-50 transition-all"
-                  >
-                    <ZoomOut className="h-3.5 w-3.5" />
-                  </Button>
-                  <div className="px-2 py-1 text-xs font-medium text-slate-600 min-w-[3rem] text-center bg-white rounded-lg border border-slate-200/60 mx-0.5">
-                    {Math.round(scale * 100)}%
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={zoomIn}
-                    disabled={scale >= 3}
-                    className="h-8 w-8 p-0 rounded-xl hover:bg-white disabled:opacity-50 transition-all"
-                  >
-                    <ZoomIn className="h-3.5 w-3.5" />
-                  </Button>
-                  <div className="w-px h-5 bg-slate-300 mx-1"></div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={rotate}
-                    className="h-8 w-8 p-0 rounded-xl hover:bg-white transition-all"
-                  >
-                    <RotateCw className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleFullscreen}
-                    className="h-8 w-8 p-0 rounded-xl hover:bg-white transition-all"
-                  >
-                    <Maximize className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-
-                {/* Mobile Actions for Document Tab */}
-                <div className="flex sm:hidden items-center gap-1">
-                  {fileData.sourceUrl && (
-                    <Button
-                      variant="outline"
-                      onClick={openSourceUrl}
-                      size="sm"
-                      className="h-8 px-2.5 text-xs border-slate-300 rounded-lg"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={downloadPdf}
-                    size="sm"
-                    disabled={!pdfBlob}
-                    className="h-8 px-2.5 text-xs border-slate-300 rounded-lg"
-                  >
-                    <DownloadCloud className="h-3 w-3" />
-                  </Button>
-                </div>
+            {/* PDF Controls - only show on document tab */}
+            {!fileNotFound && activeTab === 'document' && (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-sm px-2">{Math.round(scale * 100)}%</span>
+                <Button variant="ghost" size="sm" onClick={zoomIn} disabled={scale >= 3}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={rotate}>
+                  <RotateCw className="h-4 w-4" />
+                </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Scrollable Content Area */}
-      <div className="file-detail-content">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="h-full">
-          <TabsContent value="document" className="h-full m-0 p-0">
-            {fileNotFound ? (
+      {/* Content Area - with padding to account for fixed header */}
+      <div className="bg-slate-50 min-h-screen pt-48">
+        {activeTab === 'document' ? (
+          fileNotFound ? (
+            <div className="flex items-center justify-center min-h-96">
               <FileNotFoundView />
-            ) : (
-              <div className="h-full bg-slate-50">
-                <PDFRenderer
-                  file={pdfBlob}
-                  isLoading={isLoading}
-                  scale={scale}
-                  onScaleChange={setScale}
-                  rotation={rotation}
-                  onRotationChange={setRotation}
-                  onFullscreenToggle={toggleFullscreen}
-                />
+            </div>
+          ) : (
+            <div className="p-4">
+              <div className="max-w-4xl mx-auto">
+                {isLoading ? (
+                  <div className="flex items-center justify-center min-h-96">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+                      <p className="text-slate-500">Loading document...</p>
+                    </div>
+                  </div>
+                ) : pdfBlob ? (
+                  <PDFRenderer
+                    file={pdfBlob}
+                    isLoading={false}
+                    scale={scale}
+                    rotation={rotation}
+                    className="w-full"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center min-h-96">
+                    <p className="text-slate-500">No document available</p>
+                  </div>
+                )}
               </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="summary" className="h-full m-0 p-0 overflow-y-auto bg-slate-50">
-            <SummaryView />
-          </TabsContent>
-        </Tabs>
+            </div>
+          )
+        ) : (
+          <SummaryView />
+        )}
       </div>
     </div>
   );
