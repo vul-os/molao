@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import SearchInput from "./search-input";
 import LegalLoader from "./legal-loader";
+import MarkdownRenderer from "@/components/markdown-renderer";
 import { suggestedSearches } from "./constants";
 import { supabase } from "@/services/supabase-client";
 import InviteDialog from "@/components/invite-dialog";
@@ -265,7 +266,7 @@ export default function SearchPage() {
         console.log('Search was cancelled');
         // Ensure state is clean after cancellation
         setIsLoading(false);
-        setSearchController(null);
+        setSearchController(null); 
         return;
       }
       
@@ -311,7 +312,7 @@ export default function SearchPage() {
   };
 
   // Function to truncate text
-  const truncateText = (text, maxLength = 100) => {
+  const truncateText = (text, maxLength = 200) => {
     if (!text || text.length <= maxLength) return text;
     
     // Find the last space before the max length to avoid cutting words
@@ -323,6 +324,28 @@ export default function SearchPage() {
     }
     
     return truncated + '…';
+  };
+
+  // Function to format model name
+  const formatModelName = (modelName) => {
+    if (!modelName) return 'AI Model';
+    
+    // Handle Gemini models
+    if (modelName.toLowerCase().includes('gemini')) {
+      return 'Gemini';
+    }
+    
+    // Handle other common model patterns
+    if (modelName.toLowerCase().includes('gpt')) {
+      return 'GPT';
+    }
+    
+    if (modelName.toLowerCase().includes('claude')) {
+      return 'Claude';
+    }
+    
+    // For other models, take first word and capitalize
+    return modelName.split('-')[0].split('_')[0].charAt(0).toUpperCase() + modelName.split('-')[0].split('_')[0].slice(1);
   };
 
   return (
@@ -563,11 +586,12 @@ export default function SearchPage() {
                             "hover:shadow-lg hover:shadow-green-100/50 hover:-translate-y-0.5"
                           )}
                           onClick={(e) => {
-                            // Don't navigate if clicking on summary expand button
-                            if (e.target.closest('.summary-expand-btn')) {
+                            // Don't toggle if clicking on summary expand button or arrow
+                            if (e.target.closest('.summary-expand-btn') || e.target.closest('.document-nav-btn')) {
                               e.stopPropagation();
                               return;
                             }
+                            // Always navigate to document when clicking card
                             handleFileClick(file);
                           }}
                         >
@@ -586,104 +610,81 @@ export default function SearchPage() {
                                       PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
                                     </p>
                                   </div>
-                                  <div className="bg-slate-100/80 rounded-full p-2 group-hover:bg-green-100 transition-all group-hover:scale-110">
-                                    <ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-green-700 transition-colors" />
+                                  <div className="flex items-center gap-2">
+                                    {/* AI Summary Toggle Button */}
+                                    {file.summaries && file.summaries.length > 0 && file.summaries.some(s => s?.content?.trim()) && (
+                                      <button
+                                        className={cn(
+                                          "summary-expand-btn flex items-center justify-center w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full hover:from-purple-600 hover:to-blue-600 transition-all duration-300 hover:scale-110 hover:shadow-md",
+                                          "active:scale-95 active:shadow-lg",
+                                          expandedSummaries.has(file.id) && "ring-2 ring-purple-300 ring-offset-2 shadow-lg scale-105"
+                                        )}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Add a small delay for the click animation
+                                          const button = e.currentTarget;
+                                          button.style.transform = 'scale(0.9)';
+                                          setTimeout(() => {
+                                            button.style.transform = '';
+                                            toggleSummaryExpansion(file.id);
+                                          }, 150);
+                                        }}
+                                        title="AI summary"
+                                      >
+                                        <Sparkles className={cn(
+                                          "h-3 w-3 text-white transition-transform duration-300",
+                                          expandedSummaries.has(file.id) && "rotate-180"
+                                        )} />
+                                      </button>
+                                    )}
+                                    {/* View Document Button */}
+                                    <button
+                                      className="document-nav-btn bg-slate-100/80 rounded-full p-2 group-hover:bg-green-100 transition-all group-hover:scale-110 hover:shadow-md"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFileClick(file);
+                                      }}
+                                      title="View full document"
+                                    >
+                                      <ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-green-700 transition-colors" />
+                                    </button>
                                   </div>
                                 </div>
-
-                                {/* AI Summary Section */}
-                                {file.summaries && file.summaries.length > 0 && file.summaries.some(s => s?.content?.trim()) && (
-                                  <div className="mt-3 pt-3 border-t border-slate-100">
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <div className="flex items-center gap-1.5 bg-gradient-to-r from-purple-50 to-blue-50 px-2.5 py-1.5 rounded-full border border-purple-100/80 shadow-sm">
-                                        <Bot className="h-3.5 w-3.5 text-purple-600" />
-                                        <span className="text-xs font-semibold text-purple-700 tracking-wide">AI Summary</span>
-                                      </div>
-                                      {file.summaries.length > 1 && (
-                                        <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200 font-medium">
-                                          {file.summaries.length} models
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    
-                                    <div className="space-y-3">
-                                      {file.summaries
-                                        .filter(summary => summary?.content?.trim()) // Filter out empty summaries
-                                        .slice(0, expandedSummaries.has(file.id) ? file.summaries.length : 1)
-                                        .map((summary, idx) => (
-                                          <div key={idx} className="bg-gradient-to-r from-slate-50/90 to-purple-50/50 rounded-xl p-4 border border-slate-100/80 shadow-sm hover:shadow-md transition-all duration-200">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <Sparkles className="h-3.5 w-3.5 text-purple-500" />
-                                              <span className="text-xs font-semibold text-slate-700 capitalize tracking-wide">
-                                                {summary.model || 'AI Model'}
-                                              </span>
-                                            </div>
-                                            <div className="prose prose-slate prose-sm max-w-none">
-                                              <p className="text-sm text-slate-700 leading-relaxed font-medium mb-0 line-height-loose">
-                                                {expandedSummaries.has(file.id) 
-                                                  ? summary.content 
-                                                  : truncateText(summary.content, 120)
-                                                }
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      
-                                      {/* Action Buttons */}
-                                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100/60">
-                                        {/* Expand/Collapse Button */}
-                                        {(() => {
-                                          const validSummaries = file.summaries.filter(s => s?.content?.trim());
-                                          return (validSummaries.length > 1 || validSummaries[0]?.content.length > 120) ? (
-                                            <button
-                                              className="summary-expand-btn flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors hover:bg-purple-50 px-2 py-1 rounded-md"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSummaryExpansion(file.id);
-                                              }}
-                                            >
-                                              {expandedSummaries.has(file.id) ? (
-                                                <>
-                                                  <ChevronUp className="h-3.5 w-3.5" />
-                                                  <span>Show less</span>
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <ChevronDown className="h-3.5 w-3.5" />
-                                                  <span>
-                                                    {validSummaries.length > 1 
-                                                      ? `Show all ${validSummaries.length} summaries` 
-                                                      : 'Show more'
-                                                    }
-                                                  </span>
-                                                </>
-                                              )}
-                                            </button>
-                                          ) : <div></div>;
-                                        })()}
-                                        
-                                        {/* View Full Summaries Button */}
-                                        <button
-                                          className="summary-expand-btn flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-all bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 px-3 py-2 rounded-lg border border-purple-200/60 shadow-sm hover:shadow-md hover:-translate-y-0.5"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            navigate(`/search/file/${file.id}?view=summary`, {
-                                              state: {
-                                                searchResults: searchResults,
-                                                searchQuery: searchQuery
-                                              }
-                                            });
-                                          }}
-                                        >
-                                          <Bot className="h-3.5 w-3.5" />
-                                          <span>View full summaries</span>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             </div>
+
+                            {/* AI Summary Section - Full width on mobile */}
+                            {file.summaries && file.summaries.length > 0 && file.summaries.some(s => s?.content?.trim()) && expandedSummaries.has(file.id) && (
+                              <div className="mt-5 pt-5 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300 fade-in">
+                                <div className="flex items-center justify-between mb-5">
+                                  {file.summaries.length > 1 && (
+                                    <Badge variant="outline" className="text-xs bg-gradient-to-r from-purple-50 to-blue-50 text-purple-700 border-purple-200 font-medium animate-in fade-in duration-300 delay-75">
+                                      {file.summaries.length} models
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="space-y-4 sm:space-y-5">
+                                  {file.summaries
+                                    .filter(summary => summary?.content?.trim()) // Filter out empty summaries
+                                    .map((summary, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className="bg-gradient-to-br from-slate-50/90 via-purple-50/30 to-blue-50/40 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-slate-100/80 shadow-sm hover:shadow-lg transition-all duration-300 backdrop-blur-sm w-full animate-in slide-in-from-bottom-3 fade-in duration-300"
+                                        style={{ animationDelay: `${idx * 75 + 200}ms` }}
+                                      >
+                                        <div className="summary-content bg-white/50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/60 backdrop-blur-sm w-full">
+                                          <MarkdownRenderer
+                                            content={summary.content}
+                                            compact={false}
+                                            className="leading-relaxed text-xs sm:text-sm w-full"
+                                          />
+                                        </div>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       </TooltipTrigger>

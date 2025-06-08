@@ -10,6 +10,7 @@ import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/services/supabase-client";
 import PDFRenderer from "@/components/pdf-renderer";
+import MarkdownRenderer from "@/components/markdown-renderer";
 
 export default function FileDetailPage() {
   const { fileId } = useParams();
@@ -265,62 +266,6 @@ export default function FileDetailPage() {
     }
   };
 
-  // Markdown-like text formatter (simple implementation)
-  const formatText = (text) => {
-    if (!text) return '';
-    
-    // Simple markdown-like formatting
-    return text
-      .split('\n')
-      .map((line, index) => {
-        // Handle headers
-        if (line.startsWith('# ')) {
-          return <h1 key={index} className="text-2xl font-bold mb-4 text-slate-900">{line.slice(2)}</h1>;
-        }
-        if (line.startsWith('## ')) {
-          return <h2 key={index} className="text-xl font-semibold mb-3 text-slate-800">{line.slice(3)}</h2>;
-        }
-        if (line.startsWith('### ')) {
-          return <h3 key={index} className="text-lg font-medium mb-2 text-slate-700">{line.slice(4)}</h3>;
-        }
-        
-        // Handle bullet points
-        if (line.startsWith('- ') || line.startsWith('* ')) {
-          return (
-            <li key={index} className="ml-4 mb-1 text-slate-700 list-disc">
-              {line.slice(2)}
-            </li>
-          );
-        }
-        
-        // Handle numbered lists
-        if (/^\d+\.\s/.test(line)) {
-          return (
-            <li key={index} className="ml-4 mb-1 text-slate-700 list-decimal">
-              {line.replace(/^\d+\.\s/, '')}
-            </li>
-          );
-        }
-        
-        // Handle bold text
-        const boldFormatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        
-        // Regular paragraphs
-        if (line.trim()) {
-          return (
-            <p 
-              key={index} 
-              className="mb-3 text-slate-700 leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: boldFormatted }}
-            />
-          );
-        }
-        
-        // Empty lines
-        return <br key={index} />;
-      });
-  };
-
   // Summary Component
   const SummaryView = () => {
     if (isSummariesLoading) {
@@ -334,14 +279,20 @@ export default function FileDetailPage() {
       );
     }
 
-    if (!summaries || summaries.length === 0) {
+    // Filter summaries to only show Gemini models
+    const geminiSummaries = (summaries || []).filter(s => 
+      s?.content?.trim() && 
+      s?.model?.toLowerCase().includes('gemini')
+    );
+
+    if (!geminiSummaries || geminiSummaries.length === 0) {
       return (
         <div className="flex items-center justify-center p-12">
           <div className="text-center space-y-4 max-w-md">
             <Bot className="h-16 w-16 text-slate-300 mx-auto" />
             <h3 className="text-lg font-semibold text-slate-600">No AI Summaries Available</h3>
             <p className="text-slate-500">
-              This document hasn't been processed by our AI models yet. Summaries will appear here once available.
+              This document hasn't been processed by our AI yet. Summaries will appear here once available.
             </p>
           </div>
         </div>
@@ -349,33 +300,35 @@ export default function FileDetailPage() {
     }
 
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 px-3 py-2 rounded-lg border border-purple-100">
-            <Bot className="h-5 w-5 text-purple-600" />
-            <span className="font-medium text-purple-700">AI Generated Summaries</span>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 px-4 py-3 rounded-xl border border-purple-100 shadow-sm">
+              <Bot className="h-5 w-5 text-purple-600" />
+              <span className="font-medium text-purple-700">AI Summary</span>
+            </div>
+            <Badge variant="outline" className="bg-white/80 text-slate-600 border-slate-200">
+              {geminiSummaries.length} {geminiSummaries.length === 1 ? 'summary' : 'summaries'}
+            </Badge>
           </div>
-          <Badge variant="outline" className="bg-slate-50 text-slate-600">
-            {summaries.length} {summaries.length === 1 ? 'model' : 'models'}
-          </Badge>
-        </div>
 
-        <div className="grid gap-6">
-          {summaries.map((summary, index) => (
-            <Card key={index} className="border border-slate-200 bg-gradient-to-br from-white to-slate-50">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Sparkles className="h-5 w-5 text-purple-500" />
-                  <span className="capitalize font-heading">{summary.model || 'AI Model'}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose prose-slate max-w-none">
-                  {formatText(summary.content)}
+          <div className="space-y-6">
+            {geminiSummaries.map((summary, index) => (
+              <div 
+                key={index} 
+                className="bg-gradient-to-br from-slate-50/90 via-purple-50/30 to-blue-50/40 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-slate-100/80 shadow-sm hover:shadow-lg transition-all duration-300 backdrop-blur-sm animate-in slide-in-from-bottom-3 fade-in duration-300"
+                style={{ animationDelay: `${index * 150}ms` }}
+              >
+                <div className="bg-white/50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-white/60 backdrop-blur-sm">
+                  <MarkdownRenderer
+                    content={summary.content}
+                    compact={false}
+                    className="w-full"
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -470,14 +423,9 @@ export default function FileDetailPage() {
           <div className="flex items-center justify-between">
             <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList>
-                <TabsTrigger value="document">Document</TabsTrigger>
+                <TabsTrigger value="document">Doc</TabsTrigger>
                 <TabsTrigger value="summary">
-                  AI Summary
-                  {summaries.length > 0 && (
-                    <Badge variant="secondary" className="ml-1">
-                      {summaries.length}
-                    </Badge>
-                  )}
+                  Summary
                 </TabsTrigger>
               </TabsList>
             </Tabs>
