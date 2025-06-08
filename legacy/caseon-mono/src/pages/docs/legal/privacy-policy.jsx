@@ -329,7 +329,7 @@ const PrivacyPolicy = () => {
           <div className="mt-4 bg-slate-50 p-4 rounded-lg">
             <p><strong>Data Protection Officer</strong></p>
             <p>Email: <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a></p>
-            <p>General inquiries: <a href="mailto:caseonza@gmail.com" className="text-indigo-600 hover:text-indigo-800">caseonza@gmail.com</a></p>
+            <p>General inquiries: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
             <p>Address: [Your business address]</p>
           </div>
         </LegalSection>

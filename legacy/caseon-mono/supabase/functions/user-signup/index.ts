@@ -15,7 +15,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
   from: 'C-h-ase <noreply@notify.caseon.co.za>',
   to: [email],
   subject: 'Welcome to CaseOn Legal Intelligence',
-  reply_to: 'caseonza@gmail.com',
+  reply_to: 'info@caseon.io',
   html: `
     <!DOCTYPE html>
     <html lang="en">
@@ -407,7 +407,7 @@ const getUserWelcomeEmailTemplate = (email: string) => ({
 // Email template for admin notification
 const getAdminNotificationEmailTemplate = (userEmail: string) => ({
   from: 'CaseOn System <system@notify.caseon.co.za>',
-  to: ['caseonza@gmail.com'],
+  to: ['info@caseon.io'],
   subject: 'New Legal Professional Registration - CaseOn',
   html: `
     <!DOCTYPE html>

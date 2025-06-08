@@ -17,7 +17,7 @@ const Features = () => {
     {
       icon: <Users className="h-7 w-7 text-indigo-600" />,
       title: "Team Collaboration",
-      description: "Work seamlessly with your entire legal team. Share case collections, assign research tasks, and collaborate in real-time on complex legal matters.",
+      description: "Invite members from your firm to access our search and share summaries and usage insights.",
       color: "from-purple-50 to-indigo-50",
       accentColor: "border-purple-100",
       iconBg: "bg-purple-100"
@@ -25,7 +25,7 @@ const Features = () => {
     {
       icon: <FileText className="h-7 w-7 text-indigo-600" />,
       title: "PDF Export & Sharing",
-      description: "Export cases with proper citations and formatting. Create professional PDF reports with your branding to share directly with clients or the court.",
+      description: "Access original source links or download our cached versions for offline reference.",
       color: "from-blue-50 to-cyan-50",
       accentColor: "border-blue-100",
       iconBg: "bg-blue-100"
@@ -199,7 +199,7 @@ const Features = () => {
                 Ready to transform your legal research?
               </h3>
               <p className="text-indigo-100 mb-6 text-sm md:text-base">
-                Join thousands of South African legal professionals already using CaseOn to find relevant cases faster.
+                Join hundreds of South African legal professionals already using CaseOn to find relevant cases faster.
               </p>
             </div>
             
