@@ -137,6 +137,12 @@ export default function BillingPage() {
     );
   }
 
+  // Filter plans to only show free plan temporarily
+  const filteredPlans = plans.filter(plan => 
+    plan.name.toLowerCase().includes('free') || 
+    plan.name.toLowerCase().includes('paralegal')
+  );
+
   return (
     <div className="container mx-auto py-10 px-4 md:px-6">
       <div className="flex flex-col space-y-8">
@@ -222,10 +228,10 @@ export default function BillingPage() {
             <TabsContent value="billing">
               {/* Available Plans - Moved to top for visibility */}
               <AvailablePlans 
-                plans={plans} 
+                plans={filteredPlans} 
                 currentPlan={currentPlan} 
-                setSelectedPlanId={setSelectedPlanId} 
-                setIsPlanChangeDialogOpen={setIsPlanChangeDialogOpen} 
+                setSelectedPlanId={() => {}}
+                setIsPlanChangeDialogOpen={() => {}}
               />
 
               {/* Current Plan Card - Moved after plans */}
@@ -464,12 +470,12 @@ export default function BillingPage() {
 
         {/* Dialogs */}
         <ChangePlanDialog 
-          isPlanChangeDialogOpen={isPlanChangeDialogOpen}
-          setIsPlanChangeDialogOpen={setIsPlanChangeDialogOpen}
+          isPlanChangeDialogOpen={false}
+          setIsPlanChangeDialogOpen={() => {}}
           selectedPlanId={selectedPlanId}
-          plans={plans}
+          plans={filteredPlans}
           planChangeLoading={planChangeLoading}
-          handleChangePlan={handleChangePlan}
+          handleChangePlan={() => {}}
         />
 
         <ViewInvoiceDialog 

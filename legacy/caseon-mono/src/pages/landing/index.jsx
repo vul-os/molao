@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import TopBar from '@/components/nav/top-bar';
 import Hero from './hero';
 import Features from './features';
-import Pricing from './pricing';
 import Footer from './footer';
 
 const LandingPage = () => {
@@ -37,9 +36,6 @@ const LandingPage = () => {
         </div>
         <div id="features">
           <Features />
-        </div>
-        <div id="pricing">
-          <Pricing />
         </div>
       </div>
       <Footer />

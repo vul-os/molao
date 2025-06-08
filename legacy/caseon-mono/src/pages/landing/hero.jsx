@@ -4,18 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { suggestedSearches } from '@/pages/search/constants';
 
 const Hero = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeHighlight, setActiveHighlight] = useState(0);
   const deviceRef = useRef(null);
+  const navigate = useNavigate();
   
-  const searchSuggestions = [
-    'POPI Act compliance insights',
-    'Latest on Consumer Protection Act',
-    'Analysis of Labour Relations Amendments',
-    'Prescription Act judgments 2023'
+  // Extract some good examples from the constants
+  const heroSearchSuggestions = [
+    suggestedSearches[0].queries[0], // "Show me landmark cases about freedom of expression"
+    suggestedSearches[1].queries[0], // "Show me leading cases about contract breach"
+    suggestedSearches[2].queries[0], // "Show me cases about unlawful arrests"
+    suggestedSearches[0].queries[2], // "Search for cases about dignity"
   ];
   
   // Cycle through highlight animations
@@ -25,6 +29,11 @@ const Hero = () => {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  // Handle input blur with delay to allow click to register
+  const handleInputBlur = () => {
+    setTimeout(() => setIsSearchFocused(false), 200);
+  };
 
   return (
     <section className="relative flex flex-col justify-center items-center py-8 md:py-12 px-4 md:px-8 overflow-hidden bg-white">
@@ -134,14 +143,20 @@ const Hero = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setIsSearchFocused(true)}
-                  onBlur={() => setIsSearchFocused(false)}
+                  onBlur={handleInputBlur}
                 placeholder="Search case law, acts or legal concepts..." 
                 className="pl-12 pr-12 py-4 w-full border border-indigo-100 bg-white rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 text-slate-800 placeholder-slate-400 text-base shadow"
                 />
                 <Button 
                   size="sm" 
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1 px-3 transition-all duration-200"
-                  onClick={() => window.location.href = '/signup'}
+                  onClick={() => {
+                    if (searchQuery.trim()) {
+                      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                    } else {
+                      navigate('/signup');
+                    }
+                  }}
                 >
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -157,13 +172,15 @@ const Hero = () => {
                 >
               <p className="text-xs uppercase text-indigo-500 font-semibold mb-2">Popular searches:</p>
               <ul className="space-y-1.5">
-                    {searchSuggestions.map((suggestion, idx) => (
+                    {heroSearchSuggestions.map((suggestion, idx) => (
                       <li key={idx}>
                     <motion.button 
                       className="w-full text-left px-3 py-2 hover:bg-indigo-50 rounded-lg text-sm text-slate-700 flex items-center transition-colors duration-150"
                       whileHover={{ x: 5 }}
-                      onClick={() => {
-                        setSearchQuery(suggestion);
+                      onMouseDown={() => {
+                        // Test format: navigate to search with simple query parameter
+                        const testQuery = suggestion.replace(/\s+/g, '+');
+                        navigate(`/search?q=${testQuery}`);
                       }}
                     >
                       <Bookmark className="h-4 w-4 mr-2.5 text-indigo-500 flex-shrink-0" />

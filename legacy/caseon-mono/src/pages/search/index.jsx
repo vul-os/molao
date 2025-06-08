@@ -16,7 +16,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import SearchInput from "./search-input";
 import LegalLoader from "./legal-loader";
 import MarkdownRenderer from "@/components/markdown-renderer";
@@ -29,8 +29,12 @@ export default function SearchPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   const [searchQuery, setSearchQuery] = useState(() => {
-    // Initialize from session storage or location state
+    // Initialize from URL params first, then fallback to session storage or location state
+    const urlQuery = searchParams.get('q');
+    if (urlQuery) return urlQuery;
     return sessionStorage.getItem('searchQuery') || location.state?.searchQuery || "";
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -40,14 +44,24 @@ export default function SearchPage() {
     return storedResults ? JSON.parse(storedResults) : location.state?.searchResults || [];
   });
   const [showSuggestions, setShowSuggestions] = useState(() => {
-    // Show suggestions if no search results
-    return !(sessionStorage.getItem('searchResults') || location.state?.searchResults);
+    // Show suggestions if no search results and no URL query
+    const urlQuery = searchParams.get('q');
+    return !urlQuery && !(sessionStorage.getItem('searchResults') || location.state?.searchResults);
   });
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
   
   // Add state for search cancellation
   const [searchController, setSearchController] = useState(null);
+  
+  // Add state to track if a search has been performed
+  const [hasSearched, setHasSearched] = useState(() => {
+    // Initialize based on whether we have results from session storage or location state
+    const storedResults = sessionStorage.getItem('searchResults');
+    const hasStoredResults = storedResults ? JSON.parse(storedResults).length > 0 : false;
+    const hasLocationResults = location.state?.searchResults?.length > 0;
+    return hasStoredResults || hasLocationResults;
+  });
   
   // Add state for usage limits dialog
   const [showLimitDialog, setShowLimitDialog] = useState(false);
@@ -59,6 +73,16 @@ export default function SearchPage() {
 
   // Add state for expanded summaries
   const [expandedSummaries, setExpandedSummaries] = useState(new Set());
+
+  // Simple function to update search query and URL together
+  const updateSearchQuery = useCallback((newQuery) => {
+    setSearchQuery(newQuery);
+    if (newQuery.trim()) {
+      setSearchParams({ q: newQuery }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  }, [setSearchParams]);
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -75,9 +99,12 @@ export default function SearchPage() {
       setShowSuggestions(false);
     } else {
       sessionStorage.removeItem('searchResults');
-      setShowSuggestions(true);
+      // Only show suggestions if no search has been performed
+      if (!hasSearched) {
+        setShowSuggestions(true);
+      }
     }
-  }, [searchResults]);
+  }, [searchResults, hasSearched]);
 
   // Clear search state
   const clearSearch = useCallback(() => {
@@ -86,6 +113,8 @@ export default function SearchPage() {
     setShowSuggestions(true);
     sessionStorage.removeItem('searchQuery');
     sessionStorage.removeItem('searchResults');
+    // Clear URL parameters
+    setSearchParams({}, { replace: true });
     
     // Reset textarea height and focus
     if (textareaRef.current) {
@@ -93,7 +122,8 @@ export default function SearchPage() {
       // Return focus to textarea after clearing
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
-  }, []);
+    setHasSearched(false);
+  }, [setSearchParams]);
 
   // Handle refresh
   useEffect(() => {
@@ -106,20 +136,6 @@ export default function SearchPage() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
-
-  // Handle navigation state changes
-  useEffect(() => {
-    if (location.state?.searchResults?.length > 0) {
-      setSearchResults(location.state.searchResults);
-      setShowSuggestions(false);
-      if (location.state.searchQuery) {
-        setSearchQuery(location.state.searchQuery);
-      }
-    } else if (!location.state) {
-      // If no state in navigation, clear the search
-      clearSearch();
-    }
-  }, [location.state, clearSearch]);
 
   // Auto-scroll to bottom when results change
   useEffect(() => {
@@ -170,6 +186,11 @@ export default function SearchPage() {
     const query = queryOverride || searchQuery;
     if (!query.trim()) return;
     
+    // Update the search query and URL if we're using an override
+    if (queryOverride) {
+      updateSearchQuery(queryOverride);
+    }
+    
     // Cancel any existing search
     if (searchController) {
       searchController.abort();
@@ -181,11 +202,7 @@ export default function SearchPage() {
     
     setIsLoading(true);
     setShowSuggestions(false);
-    
-    // Update the search query state if we're using an override
-    if (queryOverride) {
-      setSearchQuery(queryOverride);
-    }
+    setHasSearched(true);
     
     try {
       // Get firm_id from activeFirm in auth context
@@ -534,7 +551,7 @@ export default function SearchPage() {
         {/* Search Input */}
         <SearchInput
           searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          setSearchQuery={updateSearchQuery}
           handleSearch={handleSearch}
           isFocused={isFocused}
           setIsFocused={setIsFocused}
@@ -566,7 +583,7 @@ export default function SearchPage() {
       </div>
 
       {/* Main content area */}
-      <div className="flex-1" style={{ paddingTop: searchResults.length > 0 ? '200px' : '140px' }}>
+      <div className="flex-1" style={{ paddingTop: searchResults.length > 0 ? '180px' : '120px' }}>
         <div className="h-full">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 pt-8">
@@ -700,7 +717,7 @@ export default function SearchPage() {
                 ))}
               </div>
             </div>
-          ) : searchQuery ? (
+          ) : searchQuery && hasSearched ? (
             <div className="flex flex-col items-center justify-center h-64 text-center pt-8">
               <div className="text-slate-300 mb-4">
                 <Search className="h-12 w-12" />
@@ -717,15 +734,15 @@ export default function SearchPage() {
                 Try a different search
               </Button>
             </div>
-          ) : showSuggestions && !searchQuery ? (
-            <div className="pt-8 pb-6">
+          ) : showSuggestions || (!hasSearched && searchQuery) ? (
+            <div className="pt-2 sm:pt-4 pb-6">
               <div className="max-w-4xl mx-auto px-4">
-                <div className="flex flex-col items-center text-center gap-4 mb-8">
-                  <div className="bg-white/60 p-4 rounded-full border border-slate-200/80">
-                    <Scale className="h-8 w-8 text-green-700" />
+                <div className="flex flex-col items-center text-center gap-1 sm:gap-2 mb-4 sm:mb-8">
+                  <div className="bg-white/60 p-3 sm:p-4 rounded-full border border-slate-200/80">
+                    <Scale className="h-6 w-6 sm:h-8 sm:w-8 text-green-700" />
                   </div>
                   <div>
-                    <h1 className="font-heading text-2xl font-bold text-slate-800 mb-2">
+                    <h1 className="font-heading text-xl sm:text-2xl font-bold text-slate-800 mb-1 sm:mb-2">
                       Legal Case Search
                     </h1>
                     <p className="text-sm text-slate-600 max-w-lg">
@@ -735,7 +752,7 @@ export default function SearchPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 justify-center mb-8">
+                <div className="flex flex-wrap gap-2 justify-center mb-6 sm:mb-8">
                   <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Constitutional cases</Badge>
                   <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Human rights</Badge>
                   <Badge variant="outline" className="bg-white/80 hover:bg-green-50 cursor-pointer text-slate-700 hover:text-green-800 border-slate-200/80 backdrop-blur-sm">Property law</Badge>

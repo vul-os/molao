@@ -56,6 +56,7 @@ const BillingPage = lazyImport(() => import('./pages/billing'));
 const DocsPage = lazyImport(() => import('./pages/docs'));
 const GettingStarted = lazyImport(() => import('./pages/docs/getting-started'));
 const SearchDocs = lazyImport(() => import('./pages/docs/search'));
+const PricingDocs = lazyImport(() => import('./pages/docs/pricing'));
 const Members = lazyImport(() => import('./pages/docs/members'));
 const Contact = lazyImport(() => import('./pages/docs/contact'));
 const SitemapPage = lazyImport(() => import('./pages/docs/sitemap'));
@@ -86,6 +87,7 @@ const AppRoutes = () => {
           <Route index element={null} />
           <Route path="getting-started" element={<GettingStarted />} />
           <Route path="search" element={<SearchDocs />} />
+          <Route path="pricing" element={<PricingDocs />} />
           <Route path="members" element={<Members />} />
           <Route path="contact" element={<Contact />} />
           <Route path="sitemap" element={<SitemapPage />} />

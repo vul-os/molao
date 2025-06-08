@@ -24,9 +24,16 @@ const Footer = () => {
             <p className="text-xs font-medium tracking-wider text-slate-500 uppercase mb-4">
               LEGAL INTELLIGENCE
             </p>
-            <p className="text-sm text-slate-500 mb-4">
-              Transforming legal research with cutting-edge technology and comprehensive case databases.
-            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <p className="text-sm text-slate-500">
+                Transforming legal research in South Africa with cutting-edge technology.
+              </p>
+              <img 
+                src="/sa.svg" 
+                alt="South African Flag" 
+                className="h-6 w-8 rounded-sm shadow-sm" 
+              />
+            </div>
             <div className="flex space-x-3 mt-4">
               <a href="/" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -56,12 +63,6 @@ const Footer = () => {
               <li>
                 <a href="#features" className="flex items-center group hover:text-indigo-600 transition-colors">
                   Features
-                  <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
-                </a>
-              </li>
-              <li>
-                <a href="#pricing" className="flex items-center group hover:text-indigo-600 transition-colors">
-                  Pricing
                   <ArrowRight className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transform group-hover:translate-x-1 transition-all" />
                 </a>
               </li>
@@ -131,9 +132,6 @@ const Footer = () => {
         {/* Bottom footer */}
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} CaseOn. All rights reserved.</p>
-          <div className="flex items-center">
-            <span className="text-xs text-slate-400">Made with AI-powered legal intelligence for South African professionals</span>
-          </div>
         </div>
       </div>
     </footer>

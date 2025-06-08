@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Book, Search, Users, Mail, Home, Gavel, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Book, Search, Users, Mail, Home, Gavel, HelpCircle, CreditCard } from 'lucide-react';
 import TopBar from '@/components/nav/top-bar';
 
 const DocsPage = () => {
@@ -27,6 +27,12 @@ const DocsPage = () => {
       icon: <Search className="h-4 w-4" />,
       path: '/docs/search',
       id: 'search'
+    },
+    {
+      title: 'Pricing',
+      icon: <CreditCard className="h-4 w-4" />,
+      path: '/docs/pricing',
+      id: 'pricing'
     },
     {
       title: 'Team Members',
