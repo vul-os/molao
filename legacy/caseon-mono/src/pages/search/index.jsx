@@ -672,8 +672,8 @@ export default function SearchPage() {
 
                             {/* AI Summary Section - Full width on mobile */}
                             {file.summaries && file.summaries.length > 0 && file.summaries.some(s => s?.content?.trim()) && expandedSummaries.has(file.id) && (
-                              <div className="mt-5 pt-5 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300 fade-in">
-                                <div className="flex items-center justify-between mb-5">
+                              <div className="mt-0 pt-0 border-t border-slate-100 animate-in slide-in-from-top-2 duration-300 fade-in">
+                                <div className="flex items-center justify-between mb-2">
                                   {file.summaries.length > 1 && (
                                     <Badge variant="outline" className="text-xs bg-gradient-to-r from-purple-50 to-blue-50 text-purple-700 border-purple-200 font-medium animate-in fade-in duration-300 delay-75">
                                       {file.summaries.length} models
@@ -690,7 +690,7 @@ export default function SearchPage() {
                                         className="bg-gradient-to-br from-slate-50/90 via-purple-50/30 to-blue-50/40 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-slate-100/80 shadow-sm hover:shadow-lg transition-all duration-300 backdrop-blur-sm w-full animate-in slide-in-from-bottom-3 fade-in duration-300"
                                         style={{ animationDelay: `${idx * 75 + 200}ms` }}
                                       >
-                                        <div className="summary-content bg-white/50 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/60 backdrop-blur-sm w-full">
+                                        <div className="rounded-lg sm:rounded-xl">
                                           <MarkdownRenderer
                                             content={summary.content}
                                             compact={false}
