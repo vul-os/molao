@@ -10,6 +10,7 @@ interface SearchRequest {
   query: string
   firm_id?: string
   limit?: number
+  score_threshold?: number
 }
 
 interface ModalSearchResult {
@@ -67,7 +68,7 @@ serve(async (req) => {
     )
 
     // Parse request body
-    const { query, firm_id, limit = 10 }: SearchRequest = await req.json()
+    const { query, firm_id, limit = 10, score_threshold = 0.75 }: SearchRequest = await req.json()
 
     if (!query) {
       return new Response(
@@ -152,7 +153,8 @@ serve(async (req) => {
     // Call the simplified Modal search endpoint (only query and limit)
     const modalSearchPayload = {
       query,
-      limit
+      limit,
+      score_threshold
     }
 
     const modalResponse = await fetch('https://exolutionza--caseon-inference-search.modal.run', {

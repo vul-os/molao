@@ -1,9 +1,10 @@
 import React from "react";
-import { Search, X, ArrowRight, Loader2, Gavel, Mail, Bell } from "lucide-react";
+import { Search, X, ArrowRight, Loader2, Gavel, Mail, Bell, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { useEffect } from "react";
 
 export default function SearchInput({
   searchQuery,
@@ -16,12 +17,24 @@ export default function SearchInput({
   adjustTextareaHeight,
   toast,
   onInviteClick,
+  onSettingsClick,
   cancelSearch,
   canCancel,
-  clearSearch
+  clearSearch,
+  scoreThreshold,
+  searchLimit
 }) {
   const { pendingInvites } = useAuth();
   const inviteCount = pendingInvites?.length || 0;
+
+  // Auto-resize textarea when searchQuery changes
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    }
+  }, [searchQuery, textareaRef]);
 
   return (
     <div className="sticky top-0 z-20 bg-gradient-to-b from-slate-50 to-transparent pt-6 pb-4 px-4">
@@ -46,6 +59,21 @@ export default function SearchInput({
               </Button>
             </div>
           )}
+
+          {/* Settings button row */}
+          <div className="flex justify-end">
+            <Button
+              onClick={onSettingsClick}
+              variant="outline"
+              size="sm"
+              className="bg-white/80 hover:bg-white/95 border-slate-200/80 text-slate-700 hover:text-slate-800 transition-all duration-200 shadow-sm hover:shadow-md backdrop-blur-sm group"
+            >
+              <Settings className="h-4 w-4 mr-2 text-slate-500 group-hover:text-slate-700" />
+              <div className="text-xs text-slate-500 font-medium">
+                {Math.round((scoreThreshold || 0.75) * 100)}% sensitivity • {searchLimit || 50} documents
+              </div>
+            </Button>
+          </div>
 
           {/* Modern search input with subtle shadow */}
           <div className={cn(
@@ -77,8 +105,6 @@ export default function SearchInput({
                   // Limit to 500 characters
                   if (e.target.value.length <= 500) {
                     setSearchQuery(e.target.value);
-                    // Adjust height after content changes
-                    setTimeout(() => adjustTextareaHeight(), 0);
                   }
                 }}
                 onKeyDown={(e) => {
@@ -140,6 +166,8 @@ export default function SearchInput({
                 <button
                   type="button"
                   onClick={(e) => {
+                    e.preventDefault(); // Prevent any form submission behavior
+                    e.stopPropagation(); // Stop event bubbling
                     console.log('Search button clicked:', { 
                       isLoading, 
                       canCancel, 
