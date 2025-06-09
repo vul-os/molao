@@ -85,7 +85,7 @@ export default function SearchPage() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [scoreThreshold, setScoreThreshold] = useState(() => {
     const stored = localStorage.getItem('searchSettings');
-    return stored ? JSON.parse(stored).scoreThreshold : 0.75;
+    return stored ? JSON.parse(stored).scoreThreshold : 0.70;
   });
   const [searchLimit, setSearchLimit] = useState(() => {
     const stored = localStorage.getItem('searchSettings');
@@ -651,12 +651,12 @@ export default function SearchPage() {
                     <div className="text-slate-400 text-[10px] mt-0.5 hidden sm:block">More cases, less precise</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-medium text-slate-700">75%</div>
+                    <div className="font-medium text-slate-700">70%</div>
                     <div className="text-slate-500">Default</div>
                     <div className="text-slate-400 text-[10px] mt-0.5 hidden sm:block">Recommended</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-medium text-slate-700">100%</div>
+                    <div className="font-medium text-slate-700">90%</div>
                     <div className="text-slate-500">Precise</div>
                     <div className="text-slate-400 text-[10px] mt-0.5 hidden sm:block">Fewer cases, highly relevant</div>
                   </div>
@@ -697,7 +697,7 @@ export default function SearchPage() {
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     {searchLimit <= 25 ? "Quick review" : 
-                     searchLimit <= 75 ? "Standard research" : 
+                     searchLimit <= 70 ? "Standard research" : 
                      "Comprehensive analysis"}
                   </div>
                 </div>
@@ -744,8 +744,8 @@ export default function SearchPage() {
             <Button
               variant="outline"
               onClick={() => {
-                // Reset to defaults (75% sensitivity, 50 documents)
-                setScoreThreshold(0.75);
+                // Reset to defaults (70% sensitivity, 50 documents)
+                setScoreThreshold(0.70);
                 setSearchLimit(50);
               }}
               className="w-full sm:w-auto order-2 sm:order-1"
