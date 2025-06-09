@@ -682,21 +682,18 @@ export default function SearchPage() {
                     value={searchLimit}
                     onChange={(e) => {
                       const value = parseInt(e.target.value);
-                      // Dynamic max limit based on threshold
-                      const maxLimit = scoreThreshold < 0.4 ? 50 : 
-                                     scoreThreshold < 0.6 ? 100 : 250;
-                      if (value >= 1 && value <= maxLimit) {
+                      if (value >= 1 && value <= 200) {
                         setSearchLimit(value);
                       }
                     }}
                     min={1}
-                    max={scoreThreshold < 0.4 ? 50 : scoreThreshold < 0.6 ? 100 : 250}
+                    max={200}
                     className="text-sm sm:text-base font-medium text-center h-10 sm:h-12"
                   />
                 </div>
                 <div className="text-center sm:text-right">
                   <div className="text-xs sm:text-sm text-slate-600">
-                    <span className="font-medium">Max:</span> {scoreThreshold < 0.4 ? 50 : scoreThreshold < 0.6 ? 100 : 250} documents
+                    <span className="font-medium">Range:</span> 1-200 documents
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     {searchLimit <= 25 ? "Quick review" : 
