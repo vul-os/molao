@@ -49,6 +49,15 @@ interface UsageData {
   plan_name: string
 }
 
+interface SearchResponse {
+  results: FileResult[]
+  total: number
+  query: string
+  limit: number
+  score_threshold: number
+  usage: UsageData
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -83,6 +92,28 @@ serve(async (req) => {
     if (!firm_id) {
       return new Response(
         JSON.stringify({ error: 'Firm ID is required' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Validate score_threshold
+    if (score_threshold < 0.0 || score_threshold > 1.0) {
+      return new Response(
+        JSON.stringify({ error: 'Score threshold must be between 0.0 and 1.0' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    // Validate limit
+    if (limit < 1 || limit > 100) {
+      return new Response(
+        JSON.stringify({ error: 'Limit must be between 1 and 100' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -126,7 +157,10 @@ serve(async (req) => {
         JSON.stringify({ 
           error: limitMessage,
           usage: usage,
-          billing_limit_reached: true
+          billing_limit_reached: true,
+          query,
+          limit,
+          score_threshold
         }),
         { 
           status: 200, 
@@ -157,6 +191,8 @@ serve(async (req) => {
       score_threshold
     }
 
+    console.log(`Search request: query="${query}", limit=${limit}, score_threshold=${score_threshold}, firm_id=${firm_id}`)
+
     const modalResponse = await fetch('https://exolutionza--caseon-inference-search.modal.run', {
       method: 'POST',
       headers: {
@@ -178,6 +214,8 @@ serve(async (req) => {
 
     const modalData: ModalSearchResponse = await modalResponse.json()
 
+    console.log(`Modal search returned ${modalData.results?.length || 0} results`)
+
     if (!modalData.results || modalData.results.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -185,6 +223,7 @@ serve(async (req) => {
           total: 0,
           query,
           limit,
+          score_threshold,
           usage: usage
         }),
         { 
@@ -234,6 +273,7 @@ serve(async (req) => {
     }
 
     // Process results: match Modal results with local file data and create PDF URLs
+    // Respect the original order and scores from Modal search
     const results: FileResult[] = modalData.results
       .map(modalResult => {
         const localFile = fileMap.get(modalResult.file_name)
@@ -278,6 +318,7 @@ serve(async (req) => {
         total: results.length,
         query,
         limit,
+        score_threshold,
         usage: usage
       }),
       { 
