@@ -112,8 +112,12 @@ export default function SearchPage() {
     
     console.log('Starting search process...');
     
-    // Reset search settings to defaults for each new search (but not for sensitivity adjustments)
-    if (!skipSettingsReset) {
+    // Only reset search settings to defaults when starting a completely new search query
+    // Don't reset if user is adjusting settings and re-searching, or if this is a suggestion click with same query
+    const isNewQuery = queryOverride && queryOverride !== searchState.searchQuery;
+    const shouldResetSettings = !skipSettingsReset && isNewQuery;
+    
+    if (shouldResetSettings) {
       searchState.setScoreThreshold(0.75);
       searchState.setSearchLimit(50);
     }
