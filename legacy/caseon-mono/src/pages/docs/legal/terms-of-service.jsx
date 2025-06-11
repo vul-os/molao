@@ -270,7 +270,7 @@ const TermsOfService = () => {
             <strong>Assignment:</strong> You may not assign these Terms without our written consent. We may assign these Terms without restriction.
           </p>
           <p>
-            <strong>Contact Information:</strong> For legal notices, contact us at <a href="mailto:legal@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">legal@caseon.co.za</a>.
+            <strong>Contact Information:</strong> For legal notices, contact us at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>.
           </p>
         </LegalSection>
         
@@ -283,7 +283,7 @@ const TermsOfService = () => {
           className="py-5 sm:py-6 mt-8 sm:mt-10 border-t border-slate-200"
         >
           <p className="text-slate-600 text-sm">
-            For questions about these Terms of Service, please contact us at <a href="mailto:legal@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">legal@caseon.co.za</a>.
+            For questions about these Terms of Service, please contact us at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>.
           </p>
           
           <div className="flex flex-wrap gap-4 mt-5 sm:mt-6">

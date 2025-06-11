@@ -228,7 +228,7 @@ const PrivacyPolicy = () => {
             <li><strong>Withdraw Consent:</strong> Withdraw consent for consent-based processing</li>
           </ul>
           <p className="mt-4">
-            To exercise these rights, contact our Data Protection Officer at <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a>. We will respond within 30 days.
+            To exercise these rights, contact our Data Protection Officer at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>. We will respond within 30 days.
           </p>
         </LegalSection>
         
@@ -294,7 +294,7 @@ const PrivacyPolicy = () => {
             <li>Right to non-discrimination for exercising CCPA rights</li>
           </ul>
           <p className="mt-4">
-            To exercise these rights, contact us at <a href="mailto:privacy@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">privacy@caseon.co.za</a>.
+            To exercise these rights, contact us at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>.
           </p>
         </LegalSection>
         
@@ -328,7 +328,7 @@ const PrivacyPolicy = () => {
           </p>
           <div className="mt-4 bg-slate-50 p-4 rounded-lg">
             <p><strong>Data Protection Officer</strong></p>
-            <p>Email: <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a></p>
+            <p>Email: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
             <p>General inquiries: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
             <p>Address: [Your business address]</p>
           </div>
@@ -343,7 +343,7 @@ const PrivacyPolicy = () => {
           className="py-5 sm:py-6 mt-8 sm:mt-10 border-t border-slate-200"
         >
           <p className="text-slate-600 text-sm">
-            For questions about our Privacy Policy, please contact our Data Protection Officer at <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a>.
+            For questions about our Privacy Policy, please contact our Data Protection Officer at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>.
           </p>
           
           <div className="flex flex-wrap gap-4 mt-5 sm:mt-6">

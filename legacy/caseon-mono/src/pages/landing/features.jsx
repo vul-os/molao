@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Users, FileText, Zap, ArrowRight, Scale, Gavel, BookOpen } from 'lucide-react';
+import { Search, Users, FileText, Zap, ArrowRight, Scale, Gavel, BookOpen, ScrollText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,14 @@ const Features = () => {
       color: "from-indigo-50 to-blue-50",
       accentColor: "border-indigo-100",
       iconBg: "bg-indigo-100"
+    },
+    {
+      icon: <ScrollText className="h-7 w-7 text-emerald-600" />,
+      title: "AI-Generated Summaries",
+      description: "Get concise, intelligent summaries of complex legal cases. Our AI extracts key facts, legal principles, and outcomes to save you time.",
+      color: "from-emerald-50 to-green-50",
+      accentColor: "border-emerald-100",
+      iconBg: "bg-emerald-100"
     },
     {
       icon: <Users className="h-7 w-7 text-indigo-600" />,
@@ -95,7 +103,7 @@ const Features = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 relative">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 relative">
           {/* Decorative element */}
           <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-200 to-transparent"></div>
           
@@ -133,16 +141,6 @@ const Features = () => {
                   <div className="relative">
                     <div className="absolute -left-4 top-0 bottom-0 w-px border-l border-dashed border-slate-300"></div>
                     <p className="text-base text-slate-600 leading-relaxed mb-6 pl-6">{feature.description}</p>
-                  </div>
-                  
-                  <div className="mt-auto pt-4">
-                    <motion.button 
-                      className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-                      whileHover={{ x: 5 }}
-                    >
-                      Learn more
-                      <ArrowRight className="ml-1 h-4 w-4" />
-                    </motion.button>
                   </div>
                 </div>
                 
