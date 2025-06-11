@@ -191,7 +191,7 @@ export default function SearchInput({
                     isLoading && canCancel ? 
                       "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-400 hover:to-orange-400" :
                       searchQuery.trim() ? 
-                        "bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500" : 
+                        "bg-gradient-to-r from-black to-gray-600 hover:from-gray-900 hover:to-gray-500 shadow-lg hover:shadow-xl" : 
                         "bg-slate-200 text-slate-500"
                   )}
                   aria-label={isLoading && canCancel ? "Cancel search" : "Search"}

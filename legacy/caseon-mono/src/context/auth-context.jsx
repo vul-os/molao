@@ -64,6 +64,14 @@ export function AuthProvider({ children, onNavigate, pathname }) {
 
   const handleAuthStateChange = useCallback((event, session) => {
     console.log('Auth state changed:', event);
+    
+    // Ignore INITIAL_SESSION events as they are often false positives
+    // that can disrupt ongoing operations without meaningful state changes
+    if (event === 'INITIAL_SESSION') {
+      console.log('Ignoring INITIAL_SESSION event to prevent disruption');
+      return;
+    }
+    
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
       if (session?.user) {
         setUser({

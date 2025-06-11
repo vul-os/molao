@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ArrowRight, Book, Scale, Bookmark, Gavel, FileText, Sparkles, Zap, BarChart, Brain } from 'lucide-react';
+import { Search, ArrowRight, Book, Scale, Bookmark, Gavel, FileText, Sparkles, Zap, BarChart, Brain, ScrollText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -199,6 +199,13 @@ const Hero = () => {
             >
               <Brain className="h-4 w-4 text-indigo-600" />
               <span>AI Understanding</span>
+            </motion.div>
+            <motion.div 
+              className="flex items-center gap-2 text-sm font-medium text-slate-700 bg-white px-4 py-2.5 rounded-lg border border-slate-200 shadow-sm"
+              whileHover={{ y: -2, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05)" }}
+            >
+              <ScrollText className="h-4 w-4 text-emerald-600" />
+              <span>AI Summaries</span>
             </motion.div>
             <motion.div 
               className="flex items-center gap-2 text-sm font-medium text-slate-700 bg-white px-4 py-2.5 rounded-lg border border-slate-200 shadow-sm"

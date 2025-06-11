@@ -344,8 +344,8 @@ const CookiePolicy = () => {
           </p>
           <div className="mt-4 bg-slate-50 p-4 rounded-lg">
             <p><strong>Data Protection Officer</strong></p>
-            <p>Email: <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a></p>
-            <p>Cookie concerns: <a href="mailto:privacy@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">privacy@caseon.co.za</a></p>
+            <p>Email: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
+            <p>Cookie concerns: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
             <p>General inquiries: <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a></p>
             <p>Address: [Your business address]</p>
           </div>
@@ -363,7 +363,7 @@ const CookiePolicy = () => {
           className="py-5 sm:py-6 mt-8 sm:mt-10 border-t border-slate-200"
         >
           <p className="text-slate-600 text-sm">
-            For questions about our Cookie Policy, please contact us at <a href="mailto:dpo@caseon.co.za" className="text-indigo-600 hover:text-indigo-800">dpo@caseon.co.za</a>.
+            For questions about our Cookie Policy, please contact us at <a href="mailto:info@caseon.io" className="text-indigo-600 hover:text-indigo-800">info@caseon.io</a>.
           </p>
           
           <div className="flex flex-wrap gap-4 mt-5 sm:mt-6">
