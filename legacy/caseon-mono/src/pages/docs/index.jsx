@@ -95,10 +95,6 @@ const DocsPage = () => {
       answer: "Simply sign up for a free account to get started with our Paralegal plan. You can upgrade to a paid plan at any time. Once registered, you'll have immediate access to our basic search functionality."
     },
     {
-      question: "Can I export or share my research?",
-      answer: "Yes, depending on your plan, you can export cases with proper citations and formatting. You can create professional PDF reports with your branding to share directly with clients or the court."
-    },
-    {
       question: "Is my data secure?",
       answer: "Yes, we take data security very seriously. All your data is encrypted and stored securely. We never share your information with third parties without your explicit consent."
     }
