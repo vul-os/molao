@@ -35,9 +35,9 @@ export default function LegalLoader({ isLoading, message = "Searching legal docu
   const [iconIndex, setIconIndex] = useState(0);
   
   const icons = [
-    <Scale key="scale" className="h-10 w-10 text-green-700" />,
-    <Gavel key="gavel" className="h-10 w-10 text-green-700" />,
-    <BookOpen key="book" className="h-10 w-10 text-green-700" />
+    <Scale key="scale" className="h-10 w-10 text-slate-700" />,
+    <Gavel key="gavel" className="h-10 w-10 text-slate-700" />,
+    <BookOpen key="book" className="h-10 w-10 text-slate-700" />
   ];
   
   // Get a random quote
@@ -80,7 +80,7 @@ export default function LegalLoader({ isLoading, message = "Searching legal docu
         <div className="animate-pulse">
           {icons[iconIndex]}
         </div>
-        <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-ping" />
+        <div className="absolute -top-1 -right-1 h-3 w-3 bg-slate-500 rounded-full animate-ping" />
       </div>
       
       {/* Quote display with animation */}
@@ -92,7 +92,7 @@ export default function LegalLoader({ isLoading, message = "Searching legal docu
       {/* Loading message */}
       <div className="mt-6 flex items-center gap-2">
         <div className="relative w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
-          <div className="absolute inset-0 bg-green-600 animate-progressBar"></div>
+          <div className="absolute inset-0 bg-slate-600 animate-progressBar"></div>
         </div>
         <span className="text-sm text-slate-600">{message}</span>
       </div>
