@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Your CaseOn Account</title>
+    <style>
+        /* Reset styles */
+        * { box-sizing: border-box; }
+        body, table, td, p, h1, h2, h3 { margin: 0; padding: 0; }
+        img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        
+        /* Base styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        .email-header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 40px 32px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Abstract background pattern */
+        .email-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 1px, transparent 1px),
+                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.3;
+        }
+
+        .logo-container {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 24px;
+        }
+
+        .logo-svg {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background-color: #ffffff;
+            padding: 8px;
+            display: inline-block;
+            vertical-align: middle;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .logo-text {
+            display: inline-block;
+            color: #ffffff;
+            font-size: 32px;
+            font-weight: 600;
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            margin-left: 12px;
+            vertical-align: middle;
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitle {
+            color: #cbd5e1;
+            font-size: 14px;
+            margin: 8px 0 0 0;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .email-content {
+            padding: 48px 32px;
+            background-color: #ffffff;
+        }
+
+        .email-footer {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 32px;
+            text-align: center;
+            font-size: 13px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        h1 {
+            color: #1e293b;
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0 0 24px 0;
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            line-height: 1.2;
+        }
+
+        p {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 16px 32px;
+            border-radius: 8px;
+            margin: 32px 0;
+            transition: all 0.2s ease;
+            font-size: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+            border: none;
+        }
+
+        .button:hover {
+            background: linear-gradient(135deg, #334155 0%, #475569 100%);
+            box-shadow: 0 6px 16px rgba(30, 41, 59, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .welcome-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 32px 0;
+            text-align: center;
+        }
+
+        .welcome-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .link-fallback {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 24px 0;
+            font-size: 14px;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #1e293b;
+        }
+
+        .security-notice {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 32px 0;
+            font-size: 15px;
+            color: #92400e;
+        }
+
+        .security-notice strong {
+            color: #78350f;
+        }
+
+        .help-section {
+            background-color: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 32px 0;
+            border: 1px solid #e2e8f0;
+        }
+
+        .footer-links {
+            margin: 16px 0;
+        }
+
+        .footer-links a {
+            color: #64748b;
+            text-decoration: none;
+            margin: 0 12px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: #1e293b;
+        }
+
+        .footer-branding {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        /* Mobile responsive */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+            }
+            
+            .email-header, .email-content, .email-footer {
+                padding: 24px 20px !important;
+            }
+            
+            .logo-text {
+                font-size: 24px !important;
+                margin-left: 8px !important;
+            }
+            
+            h1 {
+                font-size: 24px !important;
+            }
+            
+            .button {
+                padding: 14px 24px !important;
+                font-size: 15px !important;
+            }
+            
+            .welcome-card {
+                padding: 20px 16px !important;
+            }
+        }
+
+        /* Dark mode support for email clients that support it */
+        @media (prefers-color-scheme: dark) {
+            .email-content {
+                background-color: #0f172a !important;
+            }
+            
+            h1, p {
+                color: #f1f5f9 !important;
+            }
+            
+            .help-section {
+                background-color: #1e293b !important;
+                border-color: #334155 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="email-header">
+            <div class="logo-container">
+                <div class="logo-svg">
+                    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                        <!-- Magnifying glass -->
+                        <g transform="translate(30, 0) scale(0.8)">
+                            <path d="M 160,160 L 110,110" stroke="#1e293b" stroke-width="12" stroke-linecap="round"/>
+                            <circle cx="70" cy="70" r="50" fill="none" stroke="#1e293b" stroke-width="12"/>
+                        </g>
+                        <!-- Document -->
+                        <g transform="translate(95, 70) scale(1.5)">
+                            <path d="M 0,-20 L 50,-20 L 50,40" fill="none" stroke="#1e293b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+                            <line x1="0" y1="-20" x2="0" y2="40" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+                            <path d="M 50,-20 L 35,-20 L 50,-5 Z" fill="#1e293b" stroke="#1e293b" stroke-width="5" stroke-linejoin="round"/>
+                        </g>
+                    </svg>
+                </div>
+                <span class="logo-text">CaseOn</span>
+            </div>
+            <p class="header-subtitle">Legal Intelligence</p>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="email-content">
+            <h1>Confirm Your Email Address</h1>
+            
+            <div class="welcome-card">
+                <div class="welcome-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </div>
+                <p style="margin: 0; font-weight: 600; color: #1e293b; font-size: 18px;">Welcome to CaseOn!</p>
+                <p style="margin: 8px 0 0 0; color: #64748b; font-size: 15px;">You're one step away from accessing powerful legal research tools</p>
+            </div>
+            
+            <p>Hello,</p>
+            
+            <p>Thank you for creating your CaseOn account. We're excited to have you join our community of legal professionals leveraging AI-powered tools to research and analyze South African cases more efficiently.</p>
+            
+            <p>Please confirm your email address by clicking the button below to activate your account:</p>
+            
+            <div style="text-align: center;">
+                <a href="{{ .ConfirmationURL }}" class="button">Confirm Email Address</a>
+            </div>
+            
+            <p>If the button above doesn't work, you can also confirm your account by copying and pasting the following link into your browser:</p>
+            
+            <div class="link-fallback">{{ .ConfirmationURL }}</div>
+            
+            <div class="security-notice">
+                <p style="margin: 0;"><strong>Security Notice:</strong> This confirmation link will expire in 24 hours for your protection. If you didn't create a CaseOn account, you can safely ignore this email.</p>
+            </div>
+            
+            <div class="help-section">
+                <p style="margin: 0 0 12px 0; font-weight: 600; color: #1e293b;">Need help getting started?</p>
+                <p style="margin: 0; font-size: 15px;">Once your account is confirmed, you'll have access to our comprehensive legal research database. If you have any questions, our support team is here to help at <a href="mailto:support@caseon.io" style="color: #3b82f6; text-decoration: none;">support@caseon.io</a></p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="email-footer">
+            <p style="margin: 0 0 16px 0; font-weight: 600; color: #1e293b;">© 2025 CaseOn. All rights reserved.</p>
+            
+            <div class="footer-links">
+                <a href="https://caseon.co.za/docs/legal/terms-of-service">Terms of Service</a>
+                <a href="https://caseon.co.za/docs/legal/privacy-policy">Privacy Policy</a>
+                <a href="https://caseon.co.za/docs">Help Center</a>
+            </div>
+            
+            <div class="footer-branding">
+                <p style="margin: 0;">CaseOn - Legal Intelligence Platform</p>
+                <p style="margin: 4px 0 0 0;">Empowering South African legal professionals with AI-powered research tools</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

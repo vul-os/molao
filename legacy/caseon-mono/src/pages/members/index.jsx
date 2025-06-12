@@ -134,7 +134,7 @@ export default function MembersPage() {
        // Format the token properly if it's not already
       const authToken = session?.access_token.startsWith('Bearer ') ?  session?.access_token : `Bearer ${ session?.access_token}`;
 
-      const response = await fetch('https://gxwpvpqatisvkpgpstst.supabase.co/functions/v1/invite-member', {
+      const response = await fetch('https://app.caseon.co.za/functions/v1/invite-member', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
