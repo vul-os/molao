@@ -35,6 +35,28 @@ func isValidHref(href string) bool {
 	return true
 }
 
+// isValidDatabaseURL checks if the href is a valid database URL
+func isValidDatabaseURL(href string) bool {
+	// Check if it's a South African database URL
+	if strings.HasPrefix(href, "/za/") {
+		// Check if it's one of the valid categories
+		return strings.Contains(href, "/cases/") || 
+			   strings.Contains(href, "/journals/") || 
+			   strings.Contains(href, "/other/") ||
+			   strings.Contains(href, "/gaz/")
+	}
+	
+	// Check for other African database URLs
+	if strings.Contains(href, "/ao/") || strings.Contains(href, "/bw/") || 
+	   strings.Contains(href, "/ea/") || strings.Contains(href, "/mg/") ||
+	   strings.Contains(href, "/mu/") || strings.Contains(href, "/mz/") ||
+	   strings.Contains(href, "/sa/") {
+		return true
+	}
+	
+	return false
+}
+
 // Step 1: Collect and cache base URLs
 func collectBaseURLs() (string, error) {
 	today := time.Now().Format("2006-01-02")
@@ -95,7 +117,9 @@ func collectBaseURLs() (string, error) {
 		if !isValidHref(href) {
 			return
 		}
-		if strings.Contains(href, "/cases/") || strings.Contains(href, "/judgments/") || strings.Contains(href, "/other/") {
+		
+		// Use the new database URL validation
+		if isValidDatabaseURL(href) {
 			absoluteURL := e.Request.AbsoluteURL(href)
 			absoluteURL = strings.TrimSuffix(absoluteURL, "/")
 
@@ -109,8 +133,8 @@ func collectBaseURLs() (string, error) {
 		}
 	})
 
-	log.Printf("Collecting base URLs from %s/content/databases", BASE_URL)
-	err = c.Visit(BASE_URL + "/content/databases")
+	log.Printf("Collecting base URLs from %s/content/databases.html", BASE_URL)
+	err = c.Visit(BASE_URL + "/content/databases.html")
 	if err != nil {
 		return "", fmt.Errorf("failed to visit base page: %v", err)
 	}
@@ -185,7 +209,7 @@ func collectCaseURLs(baseFileName string) (string, error) {
 
 	// Initialize a collector
 	c := colly.NewCollector(
-		colly.AllowedDomains("www.saflii.org"),
+		colly.AllowedDomains("www.saflii.org", "saflii.org"),
 	)
 	c.IgnoreRobotsTxt = true
 
@@ -212,6 +236,7 @@ func collectCaseURLs(baseFileName string) (string, error) {
 				if !isValidHref(href) {
 					return
 				}
+				
 				// Check for year directories (e.g., "2015/")
 				if strings.HasPrefix(href, "20") && strings.HasSuffix(href, "/") {
 					yearURL := e.Request.AbsoluteURL(href)
@@ -226,9 +251,14 @@ func collectCaseURLs(baseFileName string) (string, error) {
 					}
 				}
 
-				// Collect case URLs
+				// Collect case URLs - look for .html files that are not toc- files
 				if strings.HasSuffix(strings.ToLower(href), ".html") {
 					fullURL := e.Request.AbsoluteURL(href)
+					
+					// Skip unwanted HTML files
+					if strings.Contains(strings.ToLower(fullURL), "toc-") {
+						return
+					}
 
 					// Ensure the case URL is unique
 					_, loaded := caseURLMap.LoadOrStore(fullURL, true)
