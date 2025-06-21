@@ -244,6 +244,9 @@ func (u *BunnyCDNUploader) GetFileURL(fileName string) string {
 // ExtractDetailsFromURL extracts the folder, year, and case number from the case URL
 // Example: "https://www.saflii.org/za/cases/ZACC/2004/12.html" -> ("ZACC", "2004", "12", nil)
 // Also handles: "http://saflii.org/za/other/ZAGPJHCRolls/recent.html" -> ("ZAGPJHCRolls", "unknown", "recent", nil)
+// And: "https://www.saflii.org/za/gaz/ZAWCPrGaz/2019/2.html" -> ("ZAWCPrGaz", "2019", "2", nil)
+// And: "https://www.saflii.org/za/other/ZAWCHCRolls/2019/129.html" -> ("ZAWCHCRolls", "2019", "129", nil)
+// And: "https://www.saflii.org/za/journals/ADRY/2013/4.html" -> ("ADRY", "2013", "4", nil)
 func ExtractDetailsFromURL(caseURL string) (string, string, string, error) {
 	parsedURL, err := url.Parse(caseURL)
 	if err != nil {
@@ -272,8 +275,23 @@ func ExtractDetailsFromURL(caseURL string) (string, string, string, error) {
 		folder = cleanSegments[2]
 		year = cleanSegments[3]
 		caseFile = cleanSegments[4]
+	} else if len(cleanSegments) >= 5 && cleanSegments[1] == "gaz" {
+		// Gazette structure: /za/gaz/{FOLDER}/{YEAR}/{CASE}.html
+		folder = cleanSegments[2]
+		year = cleanSegments[3]
+		caseFile = cleanSegments[4]
+	} else if len(cleanSegments) >= 5 && cleanSegments[1] == "journals" {
+		// Journals structure: /za/journals/{FOLDER}/{YEAR}/{CASE}.html
+		folder = cleanSegments[2]
+		year = cleanSegments[3]
+		caseFile = cleanSegments[4]
+	} else if len(cleanSegments) >= 5 && cleanSegments[1] == "other" {
+		// Other structure with year: /za/other/{FOLDER}/{YEAR}/{CASE}.html
+		folder = cleanSegments[2]
+		year = cleanSegments[3]
+		caseFile = cleanSegments[4]
 	} else if len(cleanSegments) >= 4 && cleanSegments[1] == "other" {
-		// Other structure: /za/other/{FOLDER}/{CASE}.html
+		// Other structure without year: /za/other/{FOLDER}/{CASE}.html
 		folder = cleanSegments[2]
 		year = "unknown" // No year in this structure
 		caseFile = cleanSegments[3]
@@ -391,6 +409,16 @@ func extractTitleFromHTML(htmlContent []byte) string {
 func isValidUUID(u string) bool {
 	_, err := uuid.Parse(u)
 	return err == nil
+}
+
+// generateFileName creates a consistent filename for all URL structures
+func generateFileName(folder, year, caseNumber, extension string) string {
+	if year == "unknown" {
+		// For URLs without year, use folder-caseNumber format
+		return fmt.Sprintf("%s-%s.%s", folder, caseNumber, extension)
+	}
+	// For URLs with year, use folder-year-caseNumber format
+	return fmt.Sprintf("%s-%s-%s.%s", folder, year, caseNumber, extension)
 }
 
 // checkFileExists checks if a file with the given filename already exists in the database
@@ -538,6 +566,131 @@ func insertFileRecord(ctx context.Context, supabaseClient *supabase.Client, file
 	return fileID, nil
 }
 
+// BatchCheckFilesExist checks if multiple files exist in the database at once
+func BatchCheckFilesExist(ctx context.Context, supabaseClient *supabase.Client, fileNames []string) (map[string]bool, error) {
+	if len(fileNames) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	log.Printf("🔍 BatchCheckFilesExist: Starting check for %d files", len(fileNames))
+	
+	// If we have too many files, split into smaller chunks
+	maxBatchSize := 800 // Supabase/PostgreSQL can handle large IN clauses, but let's be safe
+	if len(fileNames) > maxBatchSize {
+		log.Printf("⚠️ BatchCheckFilesExist: Large batch (%d files), splitting into chunks of %d", len(fileNames), maxBatchSize)
+		
+		allResults := make(map[string]bool)
+		for i := 0; i < len(fileNames); i += maxBatchSize {
+			end := i + maxBatchSize
+			if end > len(fileNames) {
+				end = len(fileNames)
+			}
+			
+			chunk := fileNames[i:end]
+			log.Printf("🔍 BatchCheckFilesExist: Processing chunk %d-%d (%d files)", i+1, end, len(chunk))
+			
+			chunkResults, err := BatchCheckFilesExist(ctx, supabaseClient, chunk)
+			if err != nil {
+				return nil, err
+			}
+			
+			// Merge results
+			for k, v := range chunkResults {
+				allResults[k] = v
+			}
+		}
+		
+		log.Printf("✅ BatchCheckFilesExist: Completed chunked processing for %d files", len(fileNames))
+		return allResults, nil
+	}
+
+	// Create a context with timeout for this specific operation
+	checkCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var existingFiles []map[string]interface{}
+	
+	// Define the batch check operation with retry
+	operation := func() error {
+		select {
+		case <-checkCtx.Done():
+			return fmt.Errorf("batch check operation timed out or cancelled")
+		default:
+		}
+
+		log.Printf("🔍 BatchCheckFilesExist: Executing database query for %d files", len(fileNames))
+		startTime := time.Now()
+		
+		// Perform the select query with IN clause for batch checking
+		type checkResult struct {
+			resp []byte
+			err  error
+		}
+		
+		resultChan := make(chan checkResult, 1)
+		
+		go func() {
+			log.Printf("🔍 BatchCheckFilesExist: Starting database query...")
+			r, _, e := supabaseClient.From("files").Select("file_name", "", false).In("file_name", fileNames).Execute()
+			log.Printf("🔍 BatchCheckFilesExist: Database query completed after %v", time.Since(startTime))
+			resultChan <- checkResult{resp: r, err: e}
+		}()
+		
+		select {
+		case <-checkCtx.Done():
+			log.Printf("❌ BatchCheckFilesExist: Database check timed out after %v", time.Since(startTime))
+			return fmt.Errorf("database batch check timed out after 60 seconds")
+		case result := <-resultChan:
+			duration := time.Since(startTime) 
+			if result.err != nil {
+				log.Printf("❌ BatchCheckFilesExist: Database check failed after %v: %v", duration, result.err)
+				return fmt.Errorf("database batch check failed: %v", result.err)
+			}
+			
+			log.Printf("✅ BatchCheckFilesExist: Database query successful after %v", duration)
+			
+			// Parse the response to get existing files
+			if err := json.Unmarshal(result.resp, &existingFiles); err != nil {
+				log.Printf("❌ BatchCheckFilesExist: Failed to parse response: %v", err)
+				return fmt.Errorf("failed to parse batch check response: %v", err)
+			}
+			
+			log.Printf("📊 BatchCheckFilesExist: Found %d existing files in response", len(existingFiles))
+			return nil
+		}
+	}
+
+	// Configure exponential backoff for retries
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxElapsedTime = 2 * time.Minute
+	expBackoff.InitialInterval = 1 * time.Second
+	expBackoff.MaxInterval = 10 * time.Second
+
+	log.Printf("🔄 BatchCheckFilesExist: Starting retry operation...")
+	// Retry the check operation
+	if err := backoff.Retry(operation, backoff.WithContext(expBackoff, checkCtx)); err != nil {
+		log.Printf("❌ BatchCheckFilesExist: Failed after all retries: %v", err)
+		return nil, fmt.Errorf("failed to batch check file existence after retries: %v", err)
+	}
+
+	log.Printf("✅ BatchCheckFilesExist: Building response map...")
+	// Create a map of existing files
+	existsMap := make(map[string]bool)
+	for _, fileName := range fileNames {
+		existsMap[fileName] = false // Default to false
+	}
+	
+	// Mark existing files as true
+	for _, file := range existingFiles {
+		if fileName, ok := file["file_name"].(string); ok {
+			existsMap[fileName] = true
+		}
+	}
+
+	log.Printf("✅ BatchCheckFilesExist: Completed - %d files exist, %d files need processing", len(existingFiles), len(fileNames)-len(existingFiles))
+	return existsMap, nil
+}
+
 func main() {
 	// Load configuration
 	log.Println("🚀 Starting scraper...")
@@ -605,9 +758,109 @@ func main() {
 	}
 	log.Printf("🔄 URLs reversed - will process from last to first")
 
-	// Initialize progress bar
+	// Context for operations
+	ctx := context.Background()
+
+	// Pre-process URLs to filter out already existing files in batches
+	log.Println("🔍 Checking which files already exist in database...")
+	var urlsToProcess []string
+	batchSize := 250 // Reduced from 500 since we're checking 2 files per URL now
+	
+	// Initialize overall progress bar for the checking phase
+	checkingBar := mpb.New(mpb.WithWidth(80))
+	checkBar := checkingBar.AddBar(int64(totalCases),
+		mpb.PrependDecorators(
+			decor.Name("Checking existing files: "),
+			decor.CountersNoUnit("%d/%d", decor.WCSyncWidth),
+		),
+		mpb.AppendDecorators(
+			decor.Percentage(decor.WC{W: 5}),
+		),
+	)
+
+	for i := 0; i < len(caseURLs); i += batchSize {
+		end := i + batchSize
+		if end > len(caseURLs) {
+			end = len(caseURLs)
+		}
+		
+		batch := caseURLs[i:end]
+		var fileNamesInBatch []string
+		var validURLsInBatch []string
+		var urlToFileMap []map[string]string // Track both RTF and PDF filenames for each URL
+		
+		log.Printf("🔍 Processing batch %d: URLs %d-%d (%d URLs)", (i/batchSize)+1, i+1, end, len(batch))
+		
+		// Extract file names for this batch (check both RTF and PDF)
+		for _, cURL := range batch {
+			folder, year, caseNumber, err := ExtractDetailsFromURL(cURL)
+			if err != nil {
+				log.Printf("❌ Failed to extract details from URL '%s': %v", cURL, err)
+				checkBar.IncrBy(1)
+				continue
+			}
+			
+			rtfFileName := generateFileName(folder, year, caseNumber, "rtf")
+			pdfFileName := generateFileName(folder, year, caseNumber, "pdf")
+			
+			// Add both filenames to check
+			fileNamesInBatch = append(fileNamesInBatch, rtfFileName, pdfFileName)
+			validURLsInBatch = append(validURLsInBatch, cURL)
+			urlToFileMap = append(urlToFileMap, map[string]string{
+				"rtf": rtfFileName,
+				"pdf": pdfFileName,
+			})
+		}
+		
+		if len(fileNamesInBatch) == 0 {
+			log.Printf("⚠️ Batch %d: No valid URLs found, skipping", (i/batchSize)+1)
+			checkBar.IncrBy(end - i)
+			continue
+		}
+		
+		log.Printf("🔍 Batch %d: Checking %d filenames for %d URLs", (i/batchSize)+1, len(fileNamesInBatch), len(validURLsInBatch))
+		
+		// Batch check existence
+		existsMap, err := BatchCheckFilesExist(ctx, supabaseClient, fileNamesInBatch)
+		if err != nil {
+			log.Printf("❌ Failed to batch check files existence for batch %d: %v", (i/batchSize)+1, err)
+			// Add all URLs to process on error to be safe
+			urlsToProcess = append(urlsToProcess, validURLsInBatch...)
+			log.Printf("🚨 Adding all %d URLs from failed batch to processing queue", len(validURLsInBatch))
+		} else {
+			// Only add URLs for files that don't exist (neither RTF nor PDF)
+			newFilesInBatch := 0
+			for j, fileMap := range urlToFileMap {
+				rtfExists := existsMap[fileMap["rtf"]]
+				pdfExists := existsMap[fileMap["pdf"]]
+				
+				// Only process if neither RTF nor PDF exists
+				if !rtfExists && !pdfExists {
+					urlsToProcess = append(urlsToProcess, validURLsInBatch[j])
+					newFilesInBatch++
+				}
+			}
+			log.Printf("📊 Batch %d: %d files need processing out of %d checked", (i/batchSize)+1, newFilesInBatch, len(validURLsInBatch))
+		}
+		
+		checkBar.IncrBy(end - i)
+		log.Printf("✅ Batch %d completed", (i/batchSize)+1)
+	}
+	
+	checkingBar.Wait()
+	
+	remainingCases := len(urlsToProcess)
+	alreadyProcessed := totalCases - remainingCases
+	log.Printf("📊 Pre-filtering complete: %d files already exist, %d files need processing", alreadyProcessed, remainingCases)
+	
+	if remainingCases == 0 {
+		log.Println("🎉 All files have already been processed!")
+		return
+	}
+
+	// Initialize progress bar for actual processing
 	p := mpb.New(mpb.WithWidth(80))
-	bar := p.AddBar(int64(totalCases),
+	bar := p.AddBar(int64(remainingCases),
 		mpb.PrependDecorators(
 			decor.Name("Processing RTFs: "),
 			decor.CountersNoUnit("%d/%d", decor.WCSyncWidth),
@@ -627,14 +880,14 @@ func main() {
 
 	// Setup concurrency with worker pool pattern
 	concurrency := config.Concurrency
-	log.Printf("🔧 Setting up worker pool with %d workers", concurrency)
+	log.Printf("🔧 Setting up worker pool with %d workers for %d remaining files", concurrency, remainingCases)
 	
 	// Create channels for work distribution
 	urlChan := make(chan string, concurrency*2) // Buffer to prevent blocking
 	var wg sync.WaitGroup
 
 	// Context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
+	processCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Handle OS Interrupts for graceful shutdown
@@ -657,33 +910,33 @@ func main() {
 			
 			for cURL := range urlChan {
 				select {
-				case <-ctx.Done():
+				case <-processCtx.Done():
 					log.Printf("👷‍♂️ Worker %d stopping due to context cancellation", workerID)
 					return
 				default:
-					processCase(ctx, workerID, cURL, uploader, supabaseClient, downloadClient, bar)
+					processCase(processCtx, workerID, cURL, uploader, supabaseClient, downloadClient, bar)
 				}
 			}
 			log.Printf("👷‍♂️ Worker %d finished", workerID)
 		}(i)
 	}
 
-	// Send URLs to workers
-	log.Println("📤 Distributing URLs to workers...")
+	// Send URLs to workers (only URLs that need processing)
+	log.Printf("📤 Distributing %d URLs to workers...", remainingCases)
 	go func() {
 		defer close(urlChan)
-		for i, cURL := range caseURLs {
+		for i, cURL := range urlsToProcess {
 			select {
-			case <-ctx.Done():
-				log.Printf("📤 URL distribution stopped at %d/%d due to context cancellation", i, totalCases)
+			case <-processCtx.Done():
+				log.Printf("📤 URL distribution stopped at %d/%d due to context cancellation", i, remainingCases)
 				return
 			case urlChan <- cURL:
 				if (i+1)%100 == 0 || i == 0 {
-					log.Printf("📤 Distributed %d/%d URLs to workers", i+1, totalCases)
+					log.Printf("📤 Distributed %d/%d URLs to workers", i+1, remainingCases)
 				}
 			}
 		}
-		log.Printf("📤 All %d URLs distributed to workers", totalCases)
+		log.Printf("📤 All %d URLs distributed to workers", remainingCases)
 	}()
 
 	// Wait for all workers to finish
@@ -708,107 +961,186 @@ func processCase(ctx context.Context, workerID int, cURL string, uploader *Bunny
 	}
 	log.Printf("👷‍♂️ Worker %d: Extracted folder '%s', year '%s', case '%s' from %s", workerID, folder, year, caseNumber, cURL)
 
-	// Skip URLs with unknown year
-	if year == "unknown" {
-		log.Printf("⏭️ Worker %d: Skipping URL with unknown year: %s", workerID, cURL)
-		return
-	}
-
-	// Construct filename using court code, year, and case number
-	fileName := fmt.Sprintf("%s-%s-%s.rtf", folder, year, caseNumber)
-	log.Printf("📝 Worker %d: Expected file name: %s", workerID, fileName)
-
-	// // Check if file already exists in the database before downloading
-	// exists, err := checkFileExists(ctx, supabaseClient, fileName, workerID)
-	// if err != nil {
-	// 	log.Printf("❌ Worker %d: Failed to check file existence in database: %v", workerID, err)
-	// 	return
-	// }
-	// if exists {
-	// 	log.Printf("⏭️ Worker %d: Skipping already processed file: %s", workerID, fileName)
-	// 	return
-	// }
-
-	// // First, download the HTML page to extract the title
-	// log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
-	// htmlData, _, err := DownloadFile(downloadClient, cURL, "")
-	// if err != nil {
-	// 	log.Printf("❌ Worker %d: Failed to download HTML from '%s': %v", workerID, cURL, err)
-	// 	return
-	// }
+	// Check if this is a gazette URL (/za/gaz/)
+	isPdfURL := strings.Contains(cURL, "/za/gaz/")
 	
-	// Construct both URLs and filenames at the start
-	rtfLink := strings.TrimSuffix(cURL, ".html") + ".rtf"
-	pdfLink := strings.TrimSuffix(cURL, ".html") + ".pdf"
-	rtfFileName := fileName  // Use the consistent filename you already generated
-	pdfFileName := strings.TrimSuffix(fileName, ".rtf") + ".pdf"
-
-	// Download RTF
-	log.Printf("👷‍♂️ Worker %d: Attempting to download RTF from: %s", workerID, rtfLink)
-	rtfData, _, err := DownloadFile(downloadClient, rtfLink, cURL)
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to download RTF from '%s': %v", workerID, rtfLink, err)
-		return
-	}
-	log.Printf("✅ Worker %d: Successfully downloaded RTF file: %s (size: %.2f KB)", workerID, rtfFileName, float64(len(rtfData))/1024)
-
-	// Upload RTF
-	cdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", rtfFileName)
-	log.Printf("📝 Worker %d: CDN path: %s", workerID, cdnPath)
-	log.Printf("⬆️ Worker %d: Uploading to Bunny CDN: %s", workerID, cdnPath)
-	err = uploader.UploadFile(rtfFileName, rtfData)
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, cdnPath, err)
-		return
-	}
-	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, cdnPath)
-
-	// Download PDF
-	log.Printf("👷‍♂️ Worker %d: Attempting to download PDF from: %s", workerID, pdfLink)
-	pdfData, _, err := DownloadFile(downloadClient, pdfLink, cURL)
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to download PDF from '%s': %v", workerID, pdfLink, err)
-		return
-	}
-	log.Printf("✅ Worker %d: Successfully downloaded PDF file: %s (size: %.2f KB)", workerID, pdfFileName, float64(len(pdfData))/1024)
-
-	// Upload PDF
-	pdfCdnPath := fmt.Sprintf("caseonza.b-cdn.net/%s", pdfFileName)
-	log.Printf("📝 Worker %d: CDN path: %s", workerID, pdfCdnPath)
-	err = uploader.UploadFile(pdfFileName, pdfData)
-	if err != nil {
-		log.Printf("❌ Worker %d: Failed to upload '%s' to Bunny CDN: %v", workerID, pdfCdnPath, err)
-		return
-	}
-	log.Printf("✅ Worker %d: Successfully uploaded to Bunny CDN: %s", workerID, pdfCdnPath)
+	// Construct filename based on URL type
+	var fileName string
+	var fileType string
+	var mimeType string
 	
-	// // Extract title from HTML
-	// title := extractTitleFromHTML(htmlData)
-	// if title == "" {
-	// 	log.Printf("⚠️ Worker %d: Could not extract title from HTML for '%s'", workerID, cURL)
-	// } else {
-	// 	log.Printf("📝 Worker %d: Extracted title: %s", workerID, title)
-	// }
+	if isPdfURL {
+		fileName = generateFileName(folder, year, caseNumber, "pdf")
+		fileType = "pdf"
+		mimeType = "application/pdf"
+		log.Printf("📰 Worker %d: Detected gazette URL, will process PDF file: %s", workerID, fileName)
+	} else {
+		fileName = generateFileName(folder, year, caseNumber, "rtf")
+		fileType = "rtf"
+		mimeType = "application/rtf"
+		log.Printf("📝 Worker %d: Standard URL, will process RTF file: %s", workerID, fileName)
+	}
 
+	// Note: We no longer need to check existence here since it's been pre-filtered
+	// But we keep a safety check in case of race conditions for both RTF and PDF
+	rtfFileName := generateFileName(folder, year, caseNumber, "rtf")
+	pdfFileName := generateFileName(folder, year, caseNumber, "pdf")
+	
+	// Check if either RTF or PDF already exists
+	rtfExists, err := checkFileExists(ctx, supabaseClient, rtfFileName, workerID)
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to check RTF file existence in database: %v", workerID, err)
+		return
+	}
+	
+	pdfExists, err := checkFileExists(ctx, supabaseClient, pdfFileName, workerID)
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to check PDF file existence in database: %v", workerID, err)
+		return
+	}
+	
+	if rtfExists || pdfExists {
+		existingFile := rtfFileName
+		if pdfExists {
+			existingFile = pdfFileName
+		}
+		log.Printf("⏭️ Worker %d: File was created by another process, skipping: %s", workerID, existingFile)
+		return
+	}
 
-	// // Prepare data for 'files' table with source_url and file_title
-	// fileRecord := map[string]interface{}{
-	// 	"file_name":  fileName,
-	// 	"file_type":  "rtf",
-	// 	"cdn_path":   cdnPath,
-	// 	"file_size":  len(rtfData),
-	// 	"mime_type":  "application/rtf",
-	// 	"source_url": cURL,
-	// 	"file_title": title,
-	// }
+	// First, download the HTML page to extract the title
+	log.Printf("👷‍♂️ Worker %d: Downloading HTML page to extract title from: %s", workerID, cURL)
+	htmlData, _, err := DownloadFile(downloadClient, cURL, "")
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to download HTML from '%s': %v", workerID, cURL, err)
+		return
+	}
+	
+	// Extract title from HTML
+	title := extractTitleFromHTML(htmlData)
+	if title == "" {
+		log.Printf("⚠️ Worker %d: Could not extract title from HTML for '%s'", workerID, cURL)
+	} else {
+		log.Printf("📝 Worker %d: Extracted title: %s", workerID, title)
+	}
 
-	// // Insert into 'files' table
-	// log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, fileName)
-	// fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, fileName)
-	// if err != nil {
-	// 	log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, fileName, err)
-	// 	return
-	// }
-	// log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, fileName, fileID)
-	log.Printf("✅ Worker %d: Successfully processed case: %s", workerID, fileName)
+	var fileData []byte
+	var cdnPath string
+	
+	if isPdfURL {
+		// For gazette URLs, download and process PDF only
+		pdfLink := strings.TrimSuffix(cURL, ".html") + ".pdf"
+		log.Printf("👷‍♂️ Worker %d: Downloading PDF from: %s", workerID, pdfLink)
+		
+		fileData, _, err = DownloadFile(downloadClient, pdfLink, cURL)
+		if err != nil {
+			log.Printf("❌ Worker %d: Failed to download PDF from '%s': %v", workerID, pdfLink, err)
+			return
+		}
+		log.Printf("✅ Worker %d: Successfully downloaded PDF file: %s (size: %.2f KB)", workerID, fileName, float64(len(fileData))/1024)
+		
+		// Upload PDF to CDN
+		cdnPath = fmt.Sprintf("cdn.caseon.io/%s", fileName)
+		log.Printf("⬆️ Worker %d: Uploading PDF to Bunny CDN: %s", workerID, cdnPath)
+		err = uploader.UploadFile(fileName, fileData)
+		if err != nil {
+			log.Printf("❌ Worker %d: Failed to upload PDF '%s' to Bunny CDN: %v", workerID, cdnPath, err)
+			return
+		}
+		log.Printf("✅ Worker %d: Successfully uploaded PDF to Bunny CDN: %s", workerID, cdnPath)
+		
+	} else {
+		// For non-gazette URLs, download RTF and PDF as before
+		rtfLink := strings.TrimSuffix(cURL, ".html") + ".rtf"
+		pdfLink := strings.TrimSuffix(cURL, ".html") + ".pdf"
+		pdfFileName := strings.TrimSuffix(fileName, ".rtf") + ".pdf"
+
+		// Download RTF with PDF fallback
+		log.Printf("👷‍♂️ Worker %d: Attempting to download RTF from: %s", workerID, rtfLink)
+		fileData, _, err = DownloadFile(downloadClient, rtfLink, cURL)
+		if err != nil {
+			log.Printf("❌ Worker %d: Failed to download RTF from '%s': %v", workerID, rtfLink, err)
+			log.Printf("🔄 Worker %d: Trying PDF fallback from: %s", workerID, pdfLink)
+			
+			// Try PDF as fallback
+			fileData, _, err = DownloadFile(downloadClient, pdfLink, cURL)
+			if err != nil {
+				log.Printf("❌ Worker %d: Failed to download PDF fallback from '%s': %v", workerID, pdfLink, err)
+				return
+			}
+			
+			// Update file metadata to PDF since RTF failed
+			fileName = pdfFileName
+			fileType = "pdf"
+			mimeType = "application/pdf"
+			log.Printf("✅ Worker %d: Successfully downloaded PDF as fallback: %s (size: %.2f KB)", workerID, fileName, float64(len(fileData))/1024)
+			log.Printf("🔄 Worker %d: Updated filename for database: %s (type: %s, mime: %s)", workerID, fileName, fileType, mimeType)
+		} else {
+			log.Printf("✅ Worker %d: Successfully downloaded RTF file: %s (size: %.2f KB)", workerID, fileName, float64(len(fileData))/1024)
+		}
+
+		// Upload the file (RTF or PDF fallback)
+		cdnPath = fmt.Sprintf("cdn.caseon.io/%s", fileName)
+		log.Printf("⬆️ Worker %d: Uploading %s to Bunny CDN: %s", workerID, fileType, cdnPath)
+		err = uploader.UploadFile(fileName, fileData)
+		if err != nil {
+			log.Printf("❌ Worker %d: Failed to upload %s '%s' to Bunny CDN: %v", workerID, fileType, cdnPath, err)
+			return
+		}
+		log.Printf("✅ Worker %d: Successfully uploaded %s to Bunny CDN: %s", workerID, fileType, cdnPath)
+
+		// Only download and upload additional PDF if we successfully got RTF (not fallback)
+		if fileType == "rtf" {
+			// Download PDF
+			log.Printf("👷‍♂️ Worker %d: Attempting to download PDF from: %s", workerID, pdfLink)
+			pdfData, _, err := DownloadFile(downloadClient, pdfLink, cURL)
+			if err != nil {
+				log.Printf("❌ Worker %d: Failed to download PDF from '%s': %v", workerID, pdfLink, err)
+				// Don't return here, continue with just the RTF
+			} else {
+				log.Printf("✅ Worker %d: Successfully downloaded PDF file: %s (size: %.2f KB)", workerID, pdfFileName, float64(len(pdfData))/1024)
+
+				// Upload PDF
+				pdfCdnPath := fmt.Sprintf("cdn.caseon.io/%s", pdfFileName)
+				err = uploader.UploadFile(pdfFileName, pdfData)
+				if err != nil {
+					log.Printf("❌ Worker %d: Failed to upload PDF '%s' to Bunny CDN: %v", workerID, pdfCdnPath, err)
+					// Don't return here, continue with just the RTF
+				} else {
+					log.Printf("✅ Worker %d: Successfully uploaded PDF to Bunny CDN: %s", workerID, pdfCdnPath)
+				}
+			}
+		}
+	}
+
+	// Prepare data for 'files' table with source_url and file_title
+	fileRecord := map[string]interface{}{
+		"file_name":  fileName,
+		"file_type":  fileType,
+		"cdn_path":   cdnPath,
+		"file_size":  len(fileData),
+		"mime_type":  mimeType,
+		"source_url": cURL,
+		"file_title": title,
+	}
+
+	// Verify filename extension matches file type before saving to database
+	if fileType == "pdf" && !strings.HasSuffix(fileName, ".pdf") {
+		log.Printf("❌ Worker %d: CRITICAL ERROR - File type is PDF but filename doesn't end with .pdf: %s", workerID, fileName)
+		return
+	}
+	if fileType == "rtf" && !strings.HasSuffix(fileName, ".rtf") {
+		log.Printf("❌ Worker %d: CRITICAL ERROR - File type is RTF but filename doesn't end with .rtf: %s", workerID, fileName)
+		return
+	}
+	log.Printf("✅ Worker %d: Filename verification passed - %s matches type %s", workerID, fileName, fileType)
+
+	// Insert into 'files' table
+	log.Printf("💾 Worker %d: Inserting file record into database: %s", workerID, fileName)
+	fileID, err := insertFileRecord(ctx, supabaseClient, fileRecord, workerID, fileName)
+	if err != nil {
+		log.Printf("❌ Worker %d: Failed to insert record into 'files' for '%s': %v", workerID, fileName, err)
+		return
+	}
+	log.Printf("✅ Worker %d: Successfully processed case: %s (file_id: %s)", workerID, fileName, fileID)
 }
