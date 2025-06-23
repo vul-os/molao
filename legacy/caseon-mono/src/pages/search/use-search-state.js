@@ -1,147 +1,71 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 
 export function useSearchState() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const hasInitialized = useRef(false);
   
-  // Initialize search query from URL params, session storage, or location state
+  // Simple, stable state management that doesn't reinitialize on URL changes
   const [searchQuery, setSearchQuery] = useState(() => {
-    const urlQuery = searchParams.get('q');
-    if (urlQuery) return urlQuery;
-    return sessionStorage.getItem('searchQuery') || location.state?.searchQuery || "";
+    const initial = searchParams.get('q') || location.state?.searchQuery || "";
+    hasInitialized.current = true;
+    return initial;
   });
 
-  // Initialize search results from session storage or location state
   const [searchResults, setSearchResults] = useState(() => {
-    const storedResults = sessionStorage.getItem('searchResults');
-    return storedResults ? JSON.parse(storedResults) : location.state?.searchResults || [];
+    return location.state?.searchResults || [];
   });
 
-  // Track total results count (before pagination/limits)
-  const [totalResults, setTotalResults] = useState(() => {
-    const storedTotal = sessionStorage.getItem('totalResults');
-    return storedTotal ? parseInt(storedTotal, 10) : 0;
-  });
-
-  // Show suggestions if no search results and no URL query
-  const [showSuggestions, setShowSuggestions] = useState(() => {
-    const urlQuery = searchParams.get('q');
-    return !urlQuery && !(sessionStorage.getItem('searchResults') || location.state?.searchResults);
-  });
-
-  // Track if a search has been performed
-  const [hasSearched, setHasSearchedState] = useState(() => {
-    const hasActiveSearch = sessionStorage.getItem('hasActiveSearch') === 'true';
-    const storedResults = sessionStorage.getItem('searchResults');
-    const hasStoredResults = storedResults ? JSON.parse(storedResults).length > 0 : false;
-    const hasLocationResults = location.state?.searchResults?.length > 0;
-    
-    return hasActiveSearch || hasStoredResults || hasLocationResults;
-  });
-
-  // Loading and search controller state
+  const [totalResults, setTotalResults] = useState(0);
+  const [originalSearchTotal, setOriginalSearchTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [searchController, setSearchController] = useState(null);
-
-  // Add reranking state here, using sessionStorage to survive re-renders
-  const [isReranking, _setIsReranking] = useState(
-    () => sessionStorage.getItem('isReranking') === 'true'
-  );
-
-  const setIsReranking = useCallback((value) => {
-    if (value) {
-      sessionStorage.setItem('isReranking', 'true');
-    } else {
-      sessionStorage.removeItem('isReranking');
-    }
-    _setIsReranking(value);
-  }, []);
-
-  useEffect(() => {
-    const rerankingStatus = sessionStorage.getItem('isReranking') === 'true';
-    if (rerankingStatus !== isReranking) {
-      _setIsReranking(rerankingStatus);
-    }
+  const [isReranking, setIsReranking] = useState(false);
+  const [hasSearched, setHasSearched] = useState(() => {
+    return !!(searchParams.get('q') || location.state?.searchResults?.length > 0);
   });
 
-  // Custom setter with logging and session storage
-  const setHasSearched = useCallback((value) => {
-    console.log('🔄 Setting hasSearched:', value, 'from:', hasSearched);
-    setHasSearchedState(value);
-    if (value) {
-      sessionStorage.setItem('hasActiveSearch', 'true');
-    } else {
-      sessionStorage.removeItem('hasActiveSearch');
+  // Only sync query from URL params on initial load, not on subsequent URL updates
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      const urlQuery = searchParams.get('q');
+      if (urlQuery && urlQuery !== searchQuery) {
+        setSearchQuery(urlQuery);
+        setHasSearched(true);
+      }
+      hasInitialized.current = true;
     }
-  }, [hasSearched]);
+  }, [searchParams, searchQuery]);
 
-  // Update search query without updating URL
-  const updateSearchQuery = useCallback((newQuery) => {
-    setSearchQuery(newQuery);
-  }, []);
+  // Computed state
+  const showSuggestions = !hasSearched && searchResults.length === 0 && !searchQuery;
 
-  // Clear search state
+  // Simple clear function
   const clearSearch = useCallback(() => {
-    console.log('🧹 clearSearch called');
+    console.log('🧹 Clearing search state');
     setSearchQuery("");
     setSearchResults([]);
     setTotalResults(0);
-    setShowSuggestions(true);
-    sessionStorage.removeItem('searchQuery');
-    sessionStorage.removeItem('searchResults');
-    sessionStorage.removeItem('totalResults');
-    sessionStorage.removeItem('hasActiveSearch');
-    setSearchParams({}, { replace: true });
+    setOriginalSearchTotal(0);
     setHasSearched(false);
-  }, [setSearchParams, setHasSearched]);
+    setIsReranking(false);
+    setIsLoading(false);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
-  // Cancel search
+  // Simple cancel function
   const cancelSearch = useCallback(() => {
-    console.log('Cancelling search - before:', { searchController: !!searchController, isLoading });
+    console.log('🚫 Cancelling search');
     if (searchController) {
       searchController.abort();
       setSearchController(null);
-      setIsLoading(false);
-      setShowSuggestions(false);
     }
-    console.log('Cancelling search - after cleanup');
-  }, [searchController, isLoading]);
+    setIsLoading(false);
+    setIsReranking(false);
+  }, [searchController]);
 
-  // Effects should be last
-  // -----------------------
-
-  // Update session storage when search state changes
-  useEffect(() => {
-    if (searchQuery) {
-      sessionStorage.setItem('searchQuery', searchQuery);
-    } else {
-      sessionStorage.removeItem('searchQuery');
-    }
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (searchResults.length > 0) {
-      sessionStorage.setItem('searchResults', JSON.stringify(searchResults));
-      setShowSuggestions(false);
-    } else {
-      sessionStorage.removeItem('searchResults');
-      if (!hasSearched && !isLoading) {
-        setShowSuggestions(true);
-      }
-    }
-  }, [searchResults, hasSearched, isLoading]);
-
-  // Update session storage when total results changes
-  useEffect(() => {
-    if (totalResults > 0) {
-      sessionStorage.setItem('totalResults', totalResults.toString());
-    } else {
-      sessionStorage.removeItem('totalResults');
-    }
-  }, [totalResults]);
-
-  // Clean up search controller on unmount
+  // Clean up controller on unmount
   useEffect(() => {
     return () => {
       if (searchController) {
@@ -150,40 +74,23 @@ export function useSearchState() {
     };
   }, [searchController]);
 
-  // Clean up session storage on page refresh
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      sessionStorage.removeItem('searchQuery');
-      sessionStorage.removeItem('searchResults');
-      sessionStorage.removeItem('totalResults');
-      sessionStorage.removeItem('isReranking');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
-
-  // Debug: Log reranking state changes
-  useEffect(() => {
-    console.log('🔄 SEARCH STATE: isReranking changed to:', isReranking);
-  }, [isReranking]);
-  
   return {
     // State
     searchQuery,
     searchResults,
     totalResults,
+    originalSearchTotal,
     showSuggestions,
     hasSearched,
     isLoading,
     searchController,
     isReranking,
     
-    // Actions
-    setSearchQuery: updateSearchQuery,
+    // Actions - direct setters for stability
+    setSearchQuery,
     setSearchResults,
     setTotalResults,
-    setShowSuggestions,
+    setOriginalSearchTotal,
     setHasSearched,
     setIsLoading,
     setSearchController,

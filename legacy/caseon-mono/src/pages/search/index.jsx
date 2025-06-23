@@ -60,22 +60,7 @@ export default function SearchPage() {
   // Add state for expanded summaries
   const [expandedSummaries, setExpandedSummaries] = useState(new Set());
 
-  // Restore search state if auth context resets during search
-  useEffect(() => {
-    const activeSearchState = localStorage.getItem('activeSearchState');
-    if (activeSearchState && !searchState.hasSearched && !searchState.searchQuery && searchState.searchResults.length === 0) {
-      try {
-        const state = JSON.parse(activeSearchState);
-        console.log('Restoring search state after auth reset:', state);
-        searchState.setSearchQuery(state.query);
-        searchState.setHasSearched(state.hasSearched);
-        searchState.setShowSuggestions(state.showSuggestions);
-      } catch (error) {
-        console.error('Error restoring search state:', error);
-        localStorage.removeItem('activeSearchState');
-      }
-    }
-  }, [user, activeFirm]);
+  // No need for complex state restoration - the hook handles it
 
   // Auto-scroll to bottom when results change
   useEffect(() => {
@@ -96,267 +81,162 @@ export default function SearchPage() {
     }
   };
 
-  const handleRerank = async (query, fileIds, currentResults = null) => {
-    if (searchState.isReranking) return; // Prevent concurrent reranking
-    if (!fileIds || fileIds.length === 0) return;
-    
-    const resultsToUse = currentResults || searchState.searchResults;
-    
-    // Start reranking
-    console.log('🔄 Starting rerank...');
-    searchState.setIsReranking(true);
-    
-    // Show indicator for at least 800ms so user can see it
-    const minDisplayTime = new Promise(resolve => setTimeout(resolve, 800));
-    
-    try {
-      const firmId = activeFirm?.id;
-      
-      console.log('Active firm context for rerank:', { activeFirm, firmId });
-      
-      if (!firmId) {
-        throw new Error('No active firm found. Please select a firm.');
-      }
-      
-      console.log('Making rerank request with:', {
-        query,
-        file_ids: fileIds,
-        firm_id: firmId
-      });
-      
-      // Use Supabase functions.invoke() to call the rerank function
-      const { data, error } = await supabase.functions.invoke('rerank', {
-        body: {
-          query: query,
-          file_ids: fileIds,
-          firm_id: firmId
-        }
-      });
-      
-      console.log('Rerank response received:', { data, error });
-      
-      if (error) {
-        console.error('Rerank error:', error);
-        toast({
-          title: "Reranking failed",
-          description: error.message || "Unable to rerank results. Showing original order.",
-          variant: "destructive"
-        });
-        await minDisplayTime;
-        searchState.setIsReranking(false);
-        return;
-      }
-      
-      // Check for billing limit
-      if (data && data.billing_limit_reached) {
-        await minDisplayTime;
-        searchState.setIsReranking(false);
-        console.log('✅ Rerank complete (billing limit)');
-        return;
-      }
-      
-      const rerankedResults = data?.results || [];
-      
-      if (rerankedResults.length > 0) {
-        // Reorder results based on reranked order
-        const rerankedIds = rerankedResults.map(r => r.id);
-        const originalMap = new Map();
-        resultsToUse.forEach(result => {
-          originalMap.set(result.id, result);
-        });
-        
-        const newOrderedResults = [];
-        
-        // Add reranked items in their new order
-        rerankedIds.forEach((id) => {
-          const original = originalMap.get(id);
-          if (original) {
-            newOrderedResults.push({ ...original, reranked: true });
-            originalMap.delete(id);
-          }
-        });
-        
-        // Add remaining items
-        const remaining = Array.from(originalMap.values()).map(r => ({ ...r, reranked: false }));
-        newOrderedResults.push(...remaining);
-        
-        // Wait for minimum display time, then update results
-        await minDisplayTime;
-        searchState.setSearchResults(newOrderedResults);
-        searchState.setIsReranking(false);
-        console.log('✅ Rerank complete!');
-        
-        toast({
-          title: "Results reranked",
-          description: `Reordered ${rerankedIds.length} results by relevance.`,
-          duration: 2000,
-        });
-      } else {
-        await minDisplayTime;
-        searchState.setIsReranking(false);
-        console.log('✅ Rerank complete (no results)');
-      }
-      
-    } catch (error) {
-      await minDisplayTime;
-      searchState.setIsReranking(false);
-      console.log('❌ Rerank failed:', error.message);
-      
-      toast({
-        title: "Reranking failed",
-        description: error.message || "Unable to rerank results. Showing original order.",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleSearch = async (queryOverride = null) => {
-    console.log('handleSearch called with:', { queryOverride, searchQuery: searchState.searchQuery });
     const query = queryOverride || searchState.searchQuery;
-    console.log('Query to search:', query);
+    console.log('🔍 Starting search for:', query);
+    
     if (!query.trim()) {
       console.log('No query provided, returning early');
       return;
     }
-    
-    console.log('Starting search process...');
     
     // Update the search query if we're using an override
     if (queryOverride) {
       searchState.setSearchQuery(queryOverride);
     }
     
-    // Preserve current search state before starting
-    const currentSearchState = {
-      query: query,
-      hasSearched: true,
-      showSuggestions: false
-    };
-    
-    // Cancel any existing search
+    // Cancel any existing operations
     if (searchState.searchController) {
       searchState.searchController.abort();
     }
     
-    // Create new AbortController for this search
+    // Create new AbortController for this entire search+rerank operation
     const controller = new AbortController();
     searchState.setSearchController(controller);
     
-    // Set search state with explicit preservation
+    // Set initial search state
     searchState.setIsLoading(true);
-    searchState.setShowSuggestions(false);
     searchState.setHasSearched(true);
-    
-    // Store search state in localStorage as backup
-    localStorage.setItem('activeSearchState', JSON.stringify(currentSearchState));
+    searchState.setIsReranking(false); // Reset reranking state
     
     try {
-      // Get firm_id from activeFirm in auth context
       const firmId = activeFirm?.id;
-      
-      console.log('Active firm context:', { activeFirm, firmId });
       
       if (!firmId) {
         throw new Error('No active firm found. Please select a firm.');
       }
       
-      console.log('Making search request with:', {
-        query,
-        firm_id: firmId
-      });
+      console.log('🔍 Making search request...');
       
-      // Use Supabase functions.invoke() which handles authentication automatically
-      const { data, error } = await supabase.functions.invoke('search', {
+      const searchResponse = await supabase.functions.invoke('search', {
         body: {
           query: query,
           firm_id: firmId
         }
       });
       
-      console.log('Search response received:', { data, error });
+      console.log('🔍 Search response received:', { data: searchResponse.data, error: searchResponse.error });
       
-      // Check if the search was cancelled
+      // Check if the operation was cancelled
       if (controller.signal.aborted) {
         console.log('Search was aborted');
         return;
       }
       
-      if (error) {
-        console.error('Search error:', error);
-        
-        // Clean up state before handling errors
-        searchState.setIsLoading(false);
-        searchState.setSearchController(null);
-        
-        
-        // Handle other errors - but preserve search state
-        toast({
-          title: "Search failed",
-          description: error.message || "Unable to perform search. Please try again.",
-          variant: "destructive"
-        });
-        searchState.setSearchResults([]);
-        searchState.setTotalResults(0);
-        searchState.setHasSearched(true);
-        searchState.setShowSuggestions(false);
-        return;
+      if (searchResponse.error) {
+        console.error('Search error:', searchResponse.error);
+        throw new Error(searchResponse.error.message || 'Search failed');
       }
       
-      // Check if this is a billing limit response
-      if (data && data.billing_limit_reached) {
-        console.log('Billing limit reached:', data);
-        setLimitErrorMessage(data.error || "You've reached your usage limit for this plan.");
-        if (data.usage) {
-          setUsageDetails(data.usage);
+      // Handle billing limit
+      if (searchResponse.data?.billing_limit_reached) {
+        console.log('Billing limit reached:', searchResponse.data);
+        setLimitErrorMessage(searchResponse.data.error || "You've reached your usage limit for this plan.");
+        if (searchResponse.data.usage) {
+          setUsageDetails(searchResponse.data.usage);
         }
         setShowLimitDialog(true);
-        // Clean up state but preserve search state
+        
         searchState.setIsLoading(false);
         searchState.setSearchController(null);
-        searchState.setHasSearched(true);
-        searchState.setShowSuggestions(false);
         return;
       }
       
-      // Set search results and clean up state
-      const results = data?.results || [];
-      const total = data?.total || results.length;
-      console.log('Setting search results:', results.length, 'of', total, 'total results');
-      searchState.setSearchResults(results);
+      // Get initial search results
+      const initialResults = searchResponse.data?.results || [];
+      const total = searchResponse.data?.total || initialResults.length;
+      
+      console.log('✅ Search successful:', initialResults.length, 'results');
+      
+      // Set initial results immediately
+      searchState.setSearchResults(initialResults);
       searchState.setTotalResults(total);
+      searchState.setOriginalSearchTotal(total);
       searchState.setIsLoading(false);
-      searchState.setSearchController(null);
       
-      // Explicitly maintain search state
-      searchState.setHasSearched(true);
-      searchState.setShowSuggestions(false);
-      
-      // Update URL only after successful search
-      searchState.setSearchParams({ q: query }, { replace: true });
-      
-      // Clear backup search state on success
-      localStorage.removeItem('activeSearchState');
-      
-      // Auto-rerank top 50 results for better relevance
-      if (results.length > 0) {
-        const fileIds = results.slice(0, 50).map(r => r.id); // Limit to top 50 for performance
-        // Pass the current results to prevent race condition
-        handleRerank(query, fileIds, results);
+      // Now attempt reranking if we have enough results
+      if (initialResults.length > 1 && !controller.signal.aborted) {
+        console.log('🔄 Starting rerank phase...');
+        searchState.setIsReranking(true);
+        
+        // Send ALL file IDs - rerank endpoint will rerank first 50 and return all in proper order
+        const fileIds = initialResults.map(r => r.id);
+        
+        try {
+          const rerankResponse = await supabase.functions.invoke('rerank', {
+            body: {
+              query: query,
+              file_ids: fileIds,
+              firm_id: firmId
+            }
+          });
+          
+          console.log('🔄 Rerank response:', { data: rerankResponse.data, error: rerankResponse.error });
+          
+          // Check if cancelled during rerank
+          if (controller.signal.aborted) {
+            console.log('Rerank was aborted');
+            return;
+          }
+          
+          // Apply reranked results if successful
+          if (!rerankResponse.error && rerankResponse.data?.results?.length > 0) {
+            const rerankedResults = rerankResponse.data.results.map(result => ({
+              ...result,
+              _rerankTimestamp: Date.now() // Keep only timestamp for React key stability
+            }));
+            
+            console.log('✅ Applying reranked results:', rerankedResults.length);
+            searchState.setSearchResults(rerankedResults);
+            // Don't update originalSearchTotal - preserve it from initial search
+            // Only update totalResults to reflect current results count
+            searchState.setTotalResults(rerankedResults.length);
+            
+            toast({
+              title: "Results reranked",
+              description: `Reordered ${rerankedResults.length} results by relevance.`,
+              duration: 2000,
+            });
+          } else {
+            console.log('⚠️ Rerank failed or returned no results, keeping original order');
+            if (rerankResponse.error) {
+              console.error('Rerank error:', rerankResponse.error);
+            }
+          }
+          
+        } catch (rerankError) {
+          console.error('❌ Rerank failed:', rerankError);
+          // Don't show error toast for rerank failures - just keep original results
+        } finally {
+          searchState.setIsReranking(false);
+        }
       }
+      
+      // Clear controller after successful completion
+      searchState.setSearchController(null);
       
     } catch (error) {
       console.error('Search error details:', error);
       
-      // Don't show error toast if the request was aborted (cancelled)
+      // Don't show error toast if the request was aborted
       if (error.name === 'AbortError' || controller.signal.aborted) {
         console.log('Search was cancelled');
-        searchState.setIsLoading(false);
-        searchState.setSearchController(null); 
         return;
       }
       
-      // Clean up state before showing error
+      // Handle errors
       searchState.setIsLoading(false);
+      searchState.setIsReranking(false);
       searchState.setSearchController(null);
       
       toast({
@@ -364,10 +244,9 @@ export default function SearchPage() {
         description: error.message || "Unable to perform search. Please try again.",
         variant: "destructive"
       });
+      
       searchState.setSearchResults([]);
       searchState.setTotalResults(0);
-      searchState.setHasSearched(true);
-      searchState.setShowSuggestions(false);
     }
   };
 
@@ -501,7 +380,16 @@ export default function SearchPage() {
           animation: badge-glow 2s ease-in-out 3;
         }
         
-
+        /* Reranked item highlight */
+        .reranked-item {
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.06) 100%);
+          border-color: rgba(59, 130, 246, 0.2) !important;
+        }
+        
+        .reranked-item:hover {
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%);
+          border-color: rgba(59, 130, 246, 0.3) !important;
+        }
       `}</style>
 
       {/* Usage Limit Dialog */}
@@ -545,7 +433,7 @@ export default function SearchPage() {
         
         {/* Fixed Results Header */}
         {searchState.searchResults.length > 0 && (
-          <div className="px-4 pb-3 pt-1">
+          <div className="px-4 pb-2 pt-1">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -562,8 +450,8 @@ export default function SearchPage() {
                   )}
                 </div>
                 <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
-                  {searchState.totalResults && searchState.totalResults > searchState.searchResults.length ? (
-                    <>Showing {searchState.searchResults.length} of {searchState.totalResults} results</>
+                  {searchState.originalSearchTotal && searchState.originalSearchTotal > searchState.searchResults.length ? (
+                    <>Showing {searchState.searchResults.length} of {searchState.originalSearchTotal} results</>
                   ) : (
                     <>{searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}</>
                   )}
@@ -585,14 +473,14 @@ export default function SearchPage() {
             /* Scrollable Results Container */
             <div className="h-full overflow-y-auto results-scroll pb-6" id="search-results">
               <div 
-                className={`max-w-4xl mx-auto px-4 space-y-3 transition-all duration-300 ${
+                className={`mt-4 max-w-4xl mx-auto px-4 space-y-3 transition-all duration-300 ${
                   searchState.isReranking ? 'opacity-90' : 'opacity-100'
                 }`}
               >
                 {searchState.searchResults.map((file, index) => (
                   <div
-                    key={`${file.id}-${index}`}
-                    className="search-result-item"
+                    key={file._rerankTimestamp ? `${file.id}-${file._rerankTimestamp}` : `${file.id}-${index}`}
+                    className={cn("search-result-item", file.reranked && "reranked-item")}
                   >
                     <SearchResultCard
                       file={file}
@@ -600,7 +488,7 @@ export default function SearchPage() {
                       onToggleSummary={toggleSummaryExpansion}
                       onFileClick={handleFileClick}
                       isReranking={searchState.isReranking}
-                      showRerankBadge={file.reranked}
+                      showRerankBadge={!!file.reranked}
                       resultIndex={index + 1}
                     />
                   </div>

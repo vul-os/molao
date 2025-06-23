@@ -19,6 +19,7 @@ interface ModalRerankResult {
   score: number
   file_size?: number
   mime_type?: string
+  reranked: boolean
 }
 
 interface ModalRerankResponse {
@@ -36,6 +37,7 @@ interface FileResult {
     model: string
     content: string
   }>
+  reranked: boolean
 }
 
 interface UsageData {
@@ -273,7 +275,8 @@ serve(async (req) => {
           summaries: fileData.file_summaries?.map(summary => ({
             model: summary.model,
             content: summary.content
-          })) || []
+          })) || [],
+          reranked: modalResult.reranked
         }
       })
       .filter(result => result !== null) as FileResult[]
