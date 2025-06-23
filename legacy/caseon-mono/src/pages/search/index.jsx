@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot, BookOpen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -60,6 +60,13 @@ export default function SearchPage() {
   // Add state for expanded summaries
   const [expandedSummaries, setExpandedSummaries] = useState(new Set());
 
+  // Add summary-related state
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
+  const [showMobileSummary, setShowMobileSummary] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
   // No need for complex state restoration - the hook handles it
 
   // Auto-scroll to bottom when results change
@@ -81,6 +88,56 @@ export default function SearchPage() {
     }
   };
 
+  // Check if device is mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Restore summary state from navigation if returning from file detail
+  useEffect(() => {
+    if (location.state) {
+      const { summaryData: navSummaryData, summaryError: navSummaryError } = location.state;
+      if (navSummaryData) {
+        setSummaryData(navSummaryData);
+      }
+      if (navSummaryError) {
+        setSummaryError(navSummaryError);
+      }
+    }
+  }, [location.state]);
+
+  // Function to fetch summary
+  const fetchSummary = async (query) => {
+    if (!query.trim()) return;
+    
+    setSummaryLoading(true);
+    setSummaryError(null);
+    
+    try {
+      const response = await supabase.functions.invoke('summary', {
+        body: { query: query }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to generate summary');
+      }
+      
+      setSummaryData(response.data);
+    } catch (error) {
+      console.error('Summary error:', error);
+      setSummaryError(error.message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  // Modify handleSearch to also fetch summary
   const handleSearch = async (queryOverride = null) => {
     const query = queryOverride || searchState.searchQuery;
     console.log('🔍 Starting search for:', query);
@@ -108,6 +165,9 @@ export default function SearchPage() {
     searchState.setIsLoading(true);
     searchState.setHasSearched(true);
     searchState.setIsReranking(false); // Reset reranking state
+    
+    // Start summary fetch in parallel
+    fetchSummary(query);
     
     try {
       const firmId = activeFirm?.id;
@@ -260,7 +320,10 @@ export default function SearchPage() {
       state: {
         // Pass the current search results and query as state so we can restore them when returning
         searchResults: searchState.searchResults,
-        searchQuery: searchState.searchQuery
+        searchQuery: searchState.searchQuery,
+        // Also preserve summary state
+        summaryData: summaryData,
+        summaryError: summaryError
       }
     });
   };
@@ -339,11 +402,171 @@ export default function SearchPage() {
   // Clear search and return focus to textarea
   const clearSearchWithFocus = useCallback(() => {
     searchState.clearSearch();
+    setSummaryData(null);
+    setSummaryError(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = '52px';
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [searchState]);
+
+  // Summary Component
+  const SummarySection = ({ className = "", hideHeader = false }) => {
+    if (!summaryData && !summaryLoading && !summaryError) {
+      return null;
+    }
+
+    return (
+      <div className={cn("bg-white rounded-lg border border-slate-200 shadow-sm", className)}>
+        {!hideHeader && (
+          <div className="p-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-slate-600" />
+              <h3 className="font-heading text-base font-semibold text-slate-800">
+                Summary
+              </h3>
+              {summaryLoading && (
+                <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+              )}
+            </div>
+          </div>
+        )}
+        
+        <div className="p-4 space-y-4">
+          {summaryLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-slate-400" />
+                <p className="text-sm text-slate-500">Generating summary...</p>
+              </div>
+            </div>
+          ) : summaryError ? (
+            <div className="text-center py-6">
+              <AlertCircle className="h-5 w-5 mx-auto mb-2 text-red-400" />
+              <p className="text-sm text-red-600 mb-2">Failed to generate summary</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchSummary(searchState.searchQuery)}
+                className="text-xs"
+              >
+                Retry
+              </Button>
+            </div>
+          ) : summaryData ? (
+                         <div className="space-y-6">
+               {/* Case Names */}
+               {summaryData.case_names && summaryData.case_names.length > 0 && (
+                 <div>
+                   <h4 className="font-heading font-semibold text-base text-slate-800 mb-3 flex items-center gap-2">
+                     <Scale className="h-4 w-4 text-blue-600" />
+                     Relevant Cases
+                   </h4>
+                   <div className="space-y-2">
+                     {summaryData.case_names.map((caseName, index) => (
+                       <div key={index} className="text-sm bg-blue-50 rounded-lg px-3 py-2 text-slate-700 border border-blue-100 font-medium">
+                         {caseName}
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
+               {/* Condensed Summary */}
+               {summaryData.condensed_summary && (
+                 <div>
+                   <h4 className="font-heading font-bold text-lg text-slate-800 mb-3">Quick Overview</h4>
+                   <div className="summary-content text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-4 border border-slate-200">
+                     <MarkdownRenderer content={summaryData.condensed_summary} />
+                   </div>
+                 </div>
+               )}
+
+               {/* Long Summary */}
+               {summaryData.long_summary && (
+                 <div>
+                   <h4 className="font-heading font-bold text-lg text-slate-800 mb-3">Detailed Analysis</h4>
+                   <div className="summary-content text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-4 border border-slate-200">
+                     <MarkdownRenderer content={summaryData.long_summary} />
+                   </div>
+                 </div>
+               )}
+             </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  // Mobile Summary Snippet
+  const MobileSummarySnippet = () => {
+    if (isMobile === false || (!summaryData && !summaryLoading && !summaryError)) return null;
+
+    const getSnippetText = () => {
+      if (summaryLoading) return "Generating summary...";
+      if (summaryError) return "Failed to generate summary. Tap to retry.";
+      if (summaryData?.condensed_summary) {
+        // Extract first two sentences or truncate at ~100 chars
+        const text = summaryData.condensed_summary.replace(/[#*_`]/g, '').trim();
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        if (sentences.length >= 2) {
+          return sentences.slice(0, 2).join('. ') + '.';
+        }
+        return text.length > 100 ? text.substring(0, 100) + '...' : text;
+      }
+      return "Summary available. Tap to view.";
+    };
+
+    const handleSnippetClick = () => {
+      if (summaryError) {
+        // Retry summary generation on error
+        fetchSummary(searchState.searchQuery);
+      } else {
+        // Open dialog for normal cases
+        setShowMobileSummary(true);
+      }
+    };
+
+    return (
+      <div 
+        className="mx-4 mb-2 bg-white rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+        onClick={handleSnippetClick}
+      >
+        <div className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen className="h-3 w-3 text-blue-600 flex-shrink-0" />
+            <span className="text-xs font-medium text-slate-700">Summary</span>
+            {summaryLoading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+            {getSnippetText()}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Mobile Summary Dialog
+  const MobileSummaryDialog = () => {
+    if (isMobile === false) return null;
+
+    return (
+      <Dialog open={showMobileSummary} onOpenChange={setShowMobileSummary}>
+        <DialogContent className="max-w-[95vw] max-h-[85vh] overflow-y-auto p-4">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <BookOpen className="h-4 w-4" />
+              Summary
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="-mx-4">
+            <SummarySection className="border-0 shadow-none rounded-none" hideHeader={true} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   // Debug: Log every render
   console.log('🎯 COMPONENT RENDER - isReranking:', searchState.isReranking, '| results:', searchState.searchResults.length);
@@ -390,6 +613,36 @@ export default function SearchPage() {
           background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(147, 51, 234, 0.08) 100%);
           border-color: rgba(59, 130, 246, 0.3) !important;
         }
+        
+        /* Summary section markdown styling */
+        .summary-content h1, .summary-content h2, .summary-content h3 {
+          font-weight: 600;
+          color: rgb(30 41 59);
+          margin-top: 1rem;
+          margin-bottom: 0.5rem;
+        }
+        .summary-content h1 { font-size: 1.125rem; }
+        .summary-content h2 { font-size: 1rem; }
+        .summary-content h3 { font-size: 0.875rem; }
+        .summary-content p {
+          margin-bottom: 0.75rem;
+          line-height: 1.6;
+        }
+        .summary-content ul, .summary-content ol {
+          margin-left: 1rem;
+          margin-bottom: 0.75rem;
+        }
+        .summary-content li {
+          margin-bottom: 0.25rem;
+        }
+        .summary-content strong {
+          font-weight: 600;
+          color: rgb(30 41 59);
+        }
+        .summary-content em {
+          font-style: italic;
+          color: rgb(51 65 85);
+        }
       `}</style>
 
       {/* Usage Limit Dialog */}
@@ -406,7 +659,8 @@ export default function SearchPage() {
         onOpenChange={setShowInviteDialog}
       />
 
-
+      {/* Mobile Summary Dialog */}
+      <MobileSummaryDialog />
 
       {/* Fixed search header area */}
       <div 
@@ -431,10 +685,13 @@ export default function SearchPage() {
           canCancel={!!searchState.searchController}
         />
         
+        {/* Mobile Summary Snippet */}
+        <MobileSummarySnippet />
+        
         {/* Fixed Results Header */}
         {searchState.searchResults.length > 0 && (
           <div className="px-4 pb-2 pt-1">
-            <div className="max-w-4xl mx-auto">
+            <div className={cn("mx-auto", isMobile ? "max-w-4xl" : "max-w-7xl")}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <h2 className="font-heading text-lg font-semibold text-slate-800">
@@ -451,7 +708,7 @@ export default function SearchPage() {
                 </div>
                 <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
                   {searchState.originalSearchTotal && searchState.originalSearchTotal > searchState.searchResults.length ? (
-                    <>Showing {searchState.searchResults.length} of {searchState.originalSearchTotal} results</>
+                    <>{searchState.searchResults.length} of {searchState.originalSearchTotal} results</>
                   ) : (
                     <>{searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}</>
                   )}
@@ -465,35 +722,63 @@ export default function SearchPage() {
       {/* Main content area */}
       <div className="flex-1" style={{ paddingTop: `${headerHeight}px` }}>
         <div className="h-full">
-          {searchState.isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64 pt-8">
-              <LegalLoader isLoading={searchState.isLoading} />
+          {searchState.isLoading && searchState.searchResults.length === 0 ? (
+            /* Show loader with summary if available */
+            <div className={cn("h-full", isMobile ? "" : "lg:flex lg:gap-8 lg:justify-center lg:max-w-7xl lg:mx-auto lg:px-4")}>
+              {/* Loading area for results */}
+              <div className={cn("h-full", isMobile ? "" : "lg:flex-1 lg:max-w-4xl")}>
+                <div className="flex flex-col items-center justify-center h-64 pt-8 px-4">
+                  <LegalLoader isLoading={searchState.isLoading} />
+                </div>
+              </div>
+              
+              {/* Summary Column (Desktop Only) - Show even during loading */}
+              {!isMobile && (
+                <div className="hidden lg:block lg:w-80 xl:w-96 lg:flex-shrink-0 h-full overflow-y-auto results-scroll pb-6">
+                  <div className="mt-4">
+                    <SummarySection className="sticky top-4" />
+                  </div>
+                </div>
+              )}
             </div>
           ) : searchState.searchResults.length > 0 ? (
-            /* Scrollable Results Container */
-            <div className="h-full overflow-y-auto results-scroll pb-6" id="search-results">
-              <div 
-                className={`mt-4 max-w-4xl mx-auto px-4 space-y-3 transition-all duration-300 ${
-                  searchState.isReranking ? 'opacity-90' : 'opacity-100'
-                }`}
-              >
-                {searchState.searchResults.map((file, index) => (
-                  <div
-                    key={file._rerankTimestamp ? `${file.id}-${file._rerankTimestamp}` : `${file.id}-${index}`}
-                    className={cn("search-result-item", file.reranked && "reranked-item")}
-                  >
-                    <SearchResultCard
-                      file={file}
-                      expandedSummaries={expandedSummaries}
-                      onToggleSummary={toggleSummaryExpansion}
-                      onFileClick={handleFileClick}
-                      isReranking={searchState.isReranking}
-                      showRerankBadge={!!file.reranked}
-                      resultIndex={index + 1}
-                    />
-                  </div>
-                ))}
+            /* Two-column layout for desktop, single column for mobile */
+            <div className={cn("h-full", isMobile ? "" : "lg:flex lg:gap-8 lg:justify-center lg:max-w-7xl lg:mx-auto lg:px-4")}>
+              {/* Search Results Column */}
+              <div className={cn("h-full overflow-y-auto results-scroll pb-6", isMobile ? "" : "lg:flex-1 lg:max-w-4xl")}>
+                <div 
+                  className={cn("mt-4 space-y-3 transition-all duration-300", 
+                    isMobile ? "max-w-4xl mx-auto px-4" : "max-w-none px-4",
+                    searchState.isReranking ? 'opacity-90' : 'opacity-100'
+                  )}
+                >
+                  {searchState.searchResults.map((file, index) => (
+                    <div
+                      key={file._rerankTimestamp ? `${file.id}-${file._rerankTimestamp}` : `${file.id}-${index}`}
+                      className={cn("search-result-item", file.reranked && "reranked-item")}
+                    >
+                      <SearchResultCard
+                        file={file}
+                        expandedSummaries={expandedSummaries}
+                        onToggleSummary={toggleSummaryExpansion}
+                        onFileClick={handleFileClick}
+                        isReranking={searchState.isReranking}
+                        showRerankBadge={!!file.reranked}
+                        resultIndex={index + 1}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Summary Column (Desktop Only) */}
+              {!isMobile && (
+                <div className="hidden lg:block lg:w-80 xl:w-96 lg:flex-shrink-0 h-full overflow-y-auto results-scroll pb-6">
+                  <div className="mt-4">
+                    <SummarySection className="sticky top-4" />
+                  </div>
+                </div>
+              )}
             </div>
           ) : searchState.searchQuery && searchState.hasSearched ? (
             <SearchEmptyState
