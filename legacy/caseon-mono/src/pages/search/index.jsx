@@ -162,6 +162,7 @@ export default function SearchPage() {
     searchState.setSearchController(controller);
     
     // Set initial search state
+    searchState.setSearchResults([]);
     searchState.setIsLoading(true);
     searchState.setHasSearched(true);
     searchState.setIsReranking(false); // Reset reranking state

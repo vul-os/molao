@@ -69,40 +69,44 @@ Please structure your response in the following markdown format:
 
 Focus specifically on South African legislation, case law, and legal principles.`
 
-    // Call Gemini Flash API
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048,
-        }
-      })
-    })
+    let geminiData;
+    try {
+      const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          tools: [
+            {
+              "google_search": {}
+            }
+          ],
+          generationConfig: {
+            temperature: 1,
+            maxOutputTokens: 2048,
+          }
+        })
+      });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text()
-      console.error('Gemini API error:', geminiResponse.status, errorText)
-      return new Response(
-        JSON.stringify({ error: 'AI service unavailable' }),
-        { 
-          status: 503, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+      if (!geminiResponse.ok) {
+        const errorData = await geminiResponse.json().catch(() => geminiResponse.text());
+        console.error('Gemini API Error:', errorData);
+        const errorMessage = typeof errorData === 'string' ? errorData : (errorData.error?.message || 'Unknown error');
+        throw new Error(`Gemini API request failed with status ${geminiResponse.status}: ${errorMessage}`);
+      }
+
+      geminiData = await geminiResponse.json();
+
+    } catch (error) {
+      console.error('Error calling Gemini Flash API:', error);
+      throw error; // Re-throw to be caught by the main catch block
     }
-
-    const geminiData = await geminiResponse.json()
     
     if (!geminiData.candidates || geminiData.candidates.length === 0) {
       console.error('No candidates returned from Gemini API')
