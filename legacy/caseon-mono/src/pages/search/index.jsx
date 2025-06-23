@@ -493,6 +493,16 @@ export default function SearchPage() {
                )}
              </div>
           ) : null}
+          
+          {/* AI Disclaimer - only show when we have summary data */}
+          {summaryData && (
+            <div className="mt-6 pt-4 border-t border-slate-100">
+                              <p className="text-xs text-slate-500 leading-relaxed flex items-start gap-1">
+                  <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0 text-slate-400" />
+                  AI summaries may contain inaccuracies or hallucinations. Please verify important information with documents from search results.
+                </p>
+            </div>
+          )}
         </div>
       </div>
     );
