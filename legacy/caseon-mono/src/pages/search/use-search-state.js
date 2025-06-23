@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 
 export function useSearchState() {
@@ -16,6 +16,12 @@ export function useSearchState() {
   const [searchResults, setSearchResults] = useState(() => {
     const storedResults = sessionStorage.getItem('searchResults');
     return storedResults ? JSON.parse(storedResults) : location.state?.searchResults || [];
+  });
+
+  // Track total results count (before pagination/limits)
+  const [totalResults, setTotalResults] = useState(() => {
+    const storedTotal = sessionStorage.getItem('totalResults');
+    return storedTotal ? parseInt(storedTotal, 10) : 0;
   });
 
   // Show suggestions if no search results and no URL query
@@ -38,15 +44,25 @@ export function useSearchState() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchController, setSearchController] = useState(null);
 
-  // Search settings state with localStorage persistence
-  const [scoreThreshold, setScoreThreshold] = useState(() => {
-    const stored = localStorage.getItem('searchSettings');
-    return stored ? JSON.parse(stored).scoreThreshold : 0.75;
-  });
+  // Add reranking state here, using sessionStorage to survive re-renders
+  const [isReranking, _setIsReranking] = useState(
+    () => sessionStorage.getItem('isReranking') === 'true'
+  );
 
-  const [searchLimit, setSearchLimit] = useState(() => {
-    const stored = localStorage.getItem('searchSettings');
-    return stored ? JSON.parse(stored).searchLimit : 50;
+  const setIsReranking = useCallback((value) => {
+    if (value) {
+      sessionStorage.setItem('isReranking', 'true');
+    } else {
+      sessionStorage.removeItem('isReranking');
+    }
+    _setIsReranking(value);
+  }, []);
+
+  useEffect(() => {
+    const rerankingStatus = sessionStorage.getItem('isReranking') === 'true';
+    if (rerankingStatus !== isReranking) {
+      _setIsReranking(rerankingStatus);
+    }
   });
 
   // Custom setter with logging and session storage
@@ -70,9 +86,11 @@ export function useSearchState() {
     console.log('🧹 clearSearch called');
     setSearchQuery("");
     setSearchResults([]);
+    setTotalResults(0);
     setShowSuggestions(true);
     sessionStorage.removeItem('searchQuery');
     sessionStorage.removeItem('searchResults');
+    sessionStorage.removeItem('totalResults');
     sessionStorage.removeItem('hasActiveSearch');
     setSearchParams({}, { replace: true });
     setHasSearched(false);
@@ -90,11 +108,8 @@ export function useSearchState() {
     console.log('Cancelling search - after cleanup');
   }, [searchController, isLoading]);
 
-  // Save search settings to localStorage
-  useEffect(() => {
-    const settings = { scoreThreshold, searchLimit };
-    localStorage.setItem('searchSettings', JSON.stringify(settings));
-  }, [scoreThreshold, searchLimit]);
+  // Effects should be last
+  // -----------------------
 
   // Update session storage when search state changes
   useEffect(() => {
@@ -117,6 +132,15 @@ export function useSearchState() {
     }
   }, [searchResults, hasSearched, isLoading]);
 
+  // Update session storage when total results changes
+  useEffect(() => {
+    if (totalResults > 0) {
+      sessionStorage.setItem('totalResults', totalResults.toString());
+    } else {
+      sessionStorage.removeItem('totalResults');
+    }
+  }, [totalResults]);
+
   // Clean up search controller on unmount
   useEffect(() => {
     return () => {
@@ -126,37 +150,44 @@ export function useSearchState() {
     };
   }, [searchController]);
 
-  // Clear session storage on page refresh
+  // Clean up session storage on page refresh
   useEffect(() => {
     const handleBeforeUnload = () => {
       sessionStorage.removeItem('searchQuery');
       sessionStorage.removeItem('searchResults');
+      sessionStorage.removeItem('totalResults');
+      sessionStorage.removeItem('isReranking');
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Debug: Log reranking state changes
+  useEffect(() => {
+    console.log('🔄 SEARCH STATE: isReranking changed to:', isReranking);
+  }, [isReranking]);
+  
   return {
     // State
     searchQuery,
     searchResults,
+    totalResults,
     showSuggestions,
     hasSearched,
     isLoading,
     searchController,
-    scoreThreshold,
-    searchLimit,
+    isReranking,
     
     // Actions
     setSearchQuery: updateSearchQuery,
     setSearchResults,
+    setTotalResults,
     setShowSuggestions,
     setHasSearched,
     setIsLoading,
     setSearchController,
-    setScoreThreshold,
-    setSearchLimit,
+    setIsReranking,
     clearSearch,
     cancelSearch,
     

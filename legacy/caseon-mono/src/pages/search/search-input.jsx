@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, X, ArrowRight, Loader2, Gavel, Mail, Bell, Settings } from "lucide-react";
+import { Search, X, ArrowRight, Loader2, Gavel, Mail, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,9 @@ export default function SearchInput({
   adjustTextareaHeight,
   toast,
   onInviteClick,
-  onSettingsClick,
   cancelSearch,
   canCancel,
-  clearSearch,
-  scoreThreshold,
-  searchLimit
+  clearSearch
 }) {
   const { pendingInvites } = useAuth();
   const inviteCount = pendingInvites?.length || 0;
@@ -59,21 +56,6 @@ export default function SearchInput({
               </Button>
             </div>
           )}
-
-          {/* Settings button row */}
-          <div className="flex justify-end">
-            <Button
-              onClick={onSettingsClick}
-              variant="outline"
-              size="sm"
-              className="bg-white/80 hover:bg-white/95 border-slate-200/80 text-slate-700 hover:text-slate-800 transition-all duration-200 shadow-sm hover:shadow-md backdrop-blur-sm group"
-            >
-              <Settings className="h-4 w-4 mr-2 text-slate-500 group-hover:text-slate-700" />
-              <div className="text-xs text-slate-500 font-medium">
-                {Math.round((scoreThreshold || 0.75) * 100)}% sensitivity • {searchLimit || 50} documents
-              </div>
-            </Button>
-          </div>
 
           {/* Modern search input with subtle shadow */}
           <div className={cn(
@@ -198,37 +180,16 @@ export default function SearchInput({
                 >
                   {isLoading ? (
                     canCancel ? (
-                      <X className="h-5 w-5" />
+                      <X className="h-4 w-4" />
                     ) : (
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     )
                   ) : (
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-4 w-4" />
                   )}
                 </button>
               </div>
             </div>
-          </div>
-          
-          {/* Character counter or hint */}
-          <div className="flex justify-between px-1">
-            {isFocused && (
-              <div className="text-xs text-slate-500">
-                {searchQuery.includes('\n') ? 
-                  <span>Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 text-slate-600 font-mono text-[10px]">Shift+Enter</kbd> for new line, <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 text-slate-600 font-mono text-[10px]">Enter</kbd> to search</span> : 
-                  <span>Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border border-slate-300 text-slate-600 font-mono text-[10px]">Enter</kbd> to search</span>
-                }
-              </div>
-            )}
-            
-            {searchQuery && (
-              <div className={cn(
-                "text-xs font-medium transition-colors",
-                searchQuery.length > 450 ? "text-amber-600" : "text-slate-400"
-              )}>
-                {searchQuery.length}/500
-              </div>
-            )}
           </div>
         </div>
       </div>

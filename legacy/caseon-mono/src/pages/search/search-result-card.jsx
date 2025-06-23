@@ -8,7 +8,10 @@ export default function SearchResultCard({
   file, 
   expandedSummaries, 
   onToggleSummary, 
-  onFileClick 
+  onFileClick,
+  isReranking = false,
+  showRerankBadge = false,
+  resultIndex = 0
 }) {
   const isExpanded = expandedSummaries.has(file.id);
 
@@ -19,7 +22,9 @@ export default function SearchResultCard({
           <Card
             className={cn(
               "cursor-pointer transition-all hover:border-green-200 hover:bg-green-50/50 border-slate-200/80 bg-white/95 backdrop-blur-sm group overflow-hidden",
-              "hover:shadow-lg hover:shadow-green-100/50 hover:-translate-y-0.5"
+              "hover:shadow-lg hover:shadow-green-100/50 hover:-translate-y-0.5",
+              isReranking && "ring-1 ring-blue-200 bg-blue-50/20",
+              showRerankBadge && "ring-2 ring-blue-300 ring-offset-1"
             )}
             onClick={(e) => {
               // Don't toggle if clicking on summary expand button or arrow
@@ -39,12 +44,33 @@ export default function SearchResultCard({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1">
-                      <p className="font-heading text-sm font-semibold text-slate-900 line-clamp-2 leading-tight mb-1">
-                        {file.file_title || file.file_name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
-                      </p>
+                      <div className="flex items-start gap-2 mb-1">
+                        {/* Position indicator */}
+                        <span className="flex-shrink-0 w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs font-medium">
+                          {resultIndex}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-heading text-sm font-semibold text-slate-900 line-clamp-2 leading-tight">
+                            {file.file_title || file.file_name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-xs text-slate-500">
+                              PDF • {file.file_size ? `${(file.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
+                            </p>
+                            {showRerankBadge && (
+                              <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full reranked-badge">
+                                <Sparkles className="h-3 w-3" />
+                                Reranked
+                              </span>
+                            )}
+                            {file.score && (
+                              <span className="text-xs text-slate-400">
+                                {file.score.toFixed(1)}% match
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* AI Summary Toggle Button */}

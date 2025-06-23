@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot, Settings } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +26,6 @@ import { suggestedSearches } from "./constants";
 import { supabase } from "@/services/supabase-client";
 import InviteDialog from "@/components/invite-dialog";
 import UsageLimitDialog from "./usage-limit-dialog";
-import SearchSettingsDialog from "./search-settings-dialog";
 import SearchResultCard from "./search-result-card";
 import SearchWelcome from "./search-welcome";
 import SearchEmptyState from "./search-empty-state";
@@ -61,9 +59,6 @@ export default function SearchPage() {
 
   // Add state for expanded summaries
   const [expandedSummaries, setExpandedSummaries] = useState(new Set());
-
-  // Add state for search settings
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
   // Restore search state if auth context resets during search
   useEffect(() => {
@@ -101,8 +96,122 @@ export default function SearchPage() {
     }
   };
 
-  const handleSearch = async (queryOverride = null, skipSettingsReset = false) => {
-    console.log('handleSearch called with:', { queryOverride, searchQuery: searchState.searchQuery, skipSettingsReset });
+  const handleRerank = async (query, fileIds, currentResults = null) => {
+    if (searchState.isReranking) return; // Prevent concurrent reranking
+    if (!fileIds || fileIds.length === 0) return;
+    
+    const resultsToUse = currentResults || searchState.searchResults;
+    
+    // Start reranking
+    console.log('🔄 Starting rerank...');
+    searchState.setIsReranking(true);
+    
+    // Show indicator for at least 800ms so user can see it
+    const minDisplayTime = new Promise(resolve => setTimeout(resolve, 800));
+    
+    try {
+      const firmId = activeFirm?.id;
+      
+      console.log('Active firm context for rerank:', { activeFirm, firmId });
+      
+      if (!firmId) {
+        throw new Error('No active firm found. Please select a firm.');
+      }
+      
+      console.log('Making rerank request with:', {
+        query,
+        file_ids: fileIds,
+        firm_id: firmId
+      });
+      
+      // Use Supabase functions.invoke() to call the rerank function
+      const { data, error } = await supabase.functions.invoke('rerank', {
+        body: {
+          query: query,
+          file_ids: fileIds,
+          firm_id: firmId
+        }
+      });
+      
+      console.log('Rerank response received:', { data, error });
+      
+      if (error) {
+        console.error('Rerank error:', error);
+        toast({
+          title: "Reranking failed",
+          description: error.message || "Unable to rerank results. Showing original order.",
+          variant: "destructive"
+        });
+        await minDisplayTime;
+        searchState.setIsReranking(false);
+        return;
+      }
+      
+      // Check for billing limit
+      if (data && data.billing_limit_reached) {
+        await minDisplayTime;
+        searchState.setIsReranking(false);
+        console.log('✅ Rerank complete (billing limit)');
+        return;
+      }
+      
+      const rerankedResults = data?.results || [];
+      
+      if (rerankedResults.length > 0) {
+        // Reorder results based on reranked order
+        const rerankedIds = rerankedResults.map(r => r.id);
+        const originalMap = new Map();
+        resultsToUse.forEach(result => {
+          originalMap.set(result.id, result);
+        });
+        
+        const newOrderedResults = [];
+        
+        // Add reranked items in their new order
+        rerankedIds.forEach((id) => {
+          const original = originalMap.get(id);
+          if (original) {
+            newOrderedResults.push({ ...original, reranked: true });
+            originalMap.delete(id);
+          }
+        });
+        
+        // Add remaining items
+        const remaining = Array.from(originalMap.values()).map(r => ({ ...r, reranked: false }));
+        newOrderedResults.push(...remaining);
+        
+        // Wait for minimum display time, then update results
+        await minDisplayTime;
+        searchState.setSearchResults(newOrderedResults);
+        searchState.setIsReranking(false);
+        console.log('✅ Rerank complete!');
+        
+        toast({
+          title: "Results reranked",
+          description: `Reordered ${rerankedIds.length} results by relevance.`,
+          duration: 2000,
+        });
+      } else {
+        await minDisplayTime;
+        searchState.setIsReranking(false);
+        console.log('✅ Rerank complete (no results)');
+      }
+      
+    } catch (error) {
+      await minDisplayTime;
+      searchState.setIsReranking(false);
+      console.log('❌ Rerank failed:', error.message);
+      
+      toast({
+        title: "Reranking failed",
+        description: error.message || "Unable to rerank results. Showing original order.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSearch = async (queryOverride = null) => {
+    console.log('handleSearch called with:', { queryOverride, searchQuery: searchState.searchQuery });
     const query = queryOverride || searchState.searchQuery;
     console.log('Query to search:', query);
     if (!query.trim()) {
@@ -111,16 +220,6 @@ export default function SearchPage() {
     }
     
     console.log('Starting search process...');
-    
-    // Only reset search settings to defaults when starting a completely new search query
-    // Don't reset if user is adjusting settings and re-searching, or if this is a suggestion click with same query
-    const isNewQuery = queryOverride && queryOverride !== searchState.searchQuery;
-    const shouldResetSettings = !skipSettingsReset && isNewQuery;
-    
-    if (shouldResetSettings) {
-      searchState.setScoreThreshold(0.75);
-      searchState.setSearchLimit(50);
-    }
     
     // Update the search query if we're using an override
     if (queryOverride) {
@@ -155,10 +254,14 @@ export default function SearchPage() {
       // Get firm_id from activeFirm in auth context
       const firmId = activeFirm?.id;
       
+      console.log('Active firm context:', { activeFirm, firmId });
+      
+      if (!firmId) {
+        throw new Error('No active firm found. Please select a firm.');
+      }
+      
       console.log('Making search request with:', {
         query,
-        limit: searchState.searchLimit,
-        score_threshold: searchState.scoreThreshold,
         firm_id: firmId
       });
       
@@ -166,8 +269,6 @@ export default function SearchPage() {
       const { data, error } = await supabase.functions.invoke('search', {
         body: {
           query: query,
-          limit: searchState.searchLimit,
-          score_threshold: searchState.scoreThreshold,
           firm_id: firmId
         }
       });
@@ -187,16 +288,6 @@ export default function SearchPage() {
         searchState.setIsLoading(false);
         searchState.setSearchController(null);
         
-        // Handle unauthorized (401)
-        if (error.status === 401) {
-          toast({
-            title: "Session expired",
-            description: "Your session has expired. Please sign in again.",
-            variant: "destructive"
-          });
-          navigate('/signin');
-          return;
-        }
         
         // Handle other errors - but preserve search state
         toast({
@@ -205,6 +296,7 @@ export default function SearchPage() {
           variant: "destructive"
         });
         searchState.setSearchResults([]);
+        searchState.setTotalResults(0);
         searchState.setHasSearched(true);
         searchState.setShowSuggestions(false);
         return;
@@ -228,8 +320,10 @@ export default function SearchPage() {
       
       // Set search results and clean up state
       const results = data?.results || [];
-      console.log('Setting search results:', results.length, 'results');
+      const total = data?.total || results.length;
+      console.log('Setting search results:', results.length, 'of', total, 'total results');
       searchState.setSearchResults(results);
+      searchState.setTotalResults(total);
       searchState.setIsLoading(false);
       searchState.setSearchController(null);
       
@@ -242,6 +336,13 @@ export default function SearchPage() {
       
       // Clear backup search state on success
       localStorage.removeItem('activeSearchState');
+      
+      // Auto-rerank top 50 results for better relevance
+      if (results.length > 0) {
+        const fileIds = results.slice(0, 50).map(r => r.id); // Limit to top 50 for performance
+        // Pass the current results to prevent race condition
+        handleRerank(query, fileIds, results);
+      }
       
     } catch (error) {
       console.error('Search error details:', error);
@@ -264,6 +365,7 @@ export default function SearchPage() {
         variant: "destructive"
       });
       searchState.setSearchResults([]);
+      searchState.setTotalResults(0);
       searchState.setHasSearched(true);
       searchState.setShowSuggestions(false);
     }
@@ -358,17 +460,18 @@ export default function SearchPage() {
   // Clear search and return focus to textarea
   const clearSearchWithFocus = useCallback(() => {
     searchState.clearSearch();
-    // Reset search settings to defaults
-    searchState.setScoreThreshold(0.75);
-    searchState.setSearchLimit(50);
     if (textareaRef.current) {
       textareaRef.current.style.height = '52px';
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [searchState]);
 
+  // Debug: Log every render
+  console.log('🎯 COMPONENT RENDER - isReranking:', searchState.isReranking, '| results:', searchState.searchResults.length);
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-slate-100">
+
       {/* Add global font styles */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -383,6 +486,22 @@ export default function SearchPage() {
         .results-scroll::-webkit-scrollbar-track { background: rgb(241 245 249); border-radius: 3px; }
         .results-scroll::-webkit-scrollbar-thumb { background: rgb(203 213 225); border-radius: 3px; }
         .results-scroll::-webkit-scrollbar-thumb:hover { background: rgb(148 163 184); }
+        
+        /* Smooth list reordering */
+        .search-result-item {
+          transition: all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        
+        /* Reranked badge animation */
+        @keyframes badge-glow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+          50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+        }
+        .reranked-badge {
+          animation: badge-glow 2s ease-in-out 3;
+        }
+        
+
       `}</style>
 
       {/* Usage Limit Dialog */}
@@ -399,18 +518,14 @@ export default function SearchPage() {
         onOpenChange={setShowInviteDialog}
       />
 
-      {/* Search Settings Dialog */}
-      <SearchSettingsDialog
-        open={showSettingsDialog}
-        onOpenChange={setShowSettingsDialog}
-        scoreThreshold={searchState.scoreThreshold}
-        setScoreThreshold={searchState.setScoreThreshold}
-        searchLimit={searchState.searchLimit}
-        setSearchLimit={searchState.setSearchLimit}
-      />
+
 
       {/* Fixed search header area */}
-      <div className="fixed top-16 left-0 right-0 z-10 bg-slate-50/95 backdrop-blur-sm" ref={headerRef}>
+      <div 
+        className="fixed left-0 right-0 z-10 bg-slate-50/95 backdrop-blur-sm" 
+        style={{ top: '64px' }}
+        ref={headerRef}
+      >
         {/* Search Input */}
         <SearchInput
           searchQuery={searchState.searchQuery}
@@ -423,12 +538,9 @@ export default function SearchPage() {
           adjustTextareaHeight={adjustTextareaHeight}
           toast={toast}
           onInviteClick={() => setShowInviteDialog(true)}
-          onSettingsClick={() => setShowSettingsDialog(true)}
           clearSearch={clearSearchWithFocus}
           cancelSearch={searchState.cancelSearch}
           canCancel={!!searchState.searchController}
-          scoreThreshold={searchState.scoreThreshold}
-          searchLimit={searchState.searchLimit}
         />
         
         {/* Fixed Results Header */}
@@ -436,11 +548,25 @@ export default function SearchPage() {
           <div className="px-4 pb-3 pt-1">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center justify-between">
-                <h2 className="font-heading text-lg font-semibold text-slate-800">
-                  Search Results
-                </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="font-heading text-lg font-semibold text-slate-800">
+                    Search Results
+                  </h2>
+                  
+                  {/* Reranking indicator */}
+                  {searchState.isReranking && (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Reranking...</span>
+                    </div>
+                  )}
+                </div>
                 <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
-                  {searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}
+                  {searchState.totalResults && searchState.totalResults > searchState.searchResults.length ? (
+                    <>Showing {searchState.searchResults.length} of {searchState.totalResults} results</>
+                  ) : (
+                    <>{searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}</>
+                  )}
                 </span>
               </div>
             </div>
@@ -458,28 +584,32 @@ export default function SearchPage() {
           ) : searchState.searchResults.length > 0 ? (
             /* Scrollable Results Container */
             <div className="h-full overflow-y-auto results-scroll pb-6" id="search-results">
-              <div className="max-w-4xl mx-auto px-4 space-y-3">
-                {searchState.searchResults.map((file) => (
-                  <SearchResultCard
-                    key={file.id}
-                    file={file}
-                    expandedSummaries={expandedSummaries}
-                    onToggleSummary={toggleSummaryExpansion}
-                    onFileClick={handleFileClick}
-                  />
+              <div 
+                className={`max-w-4xl mx-auto px-4 space-y-3 transition-all duration-300 ${
+                  searchState.isReranking ? 'opacity-90' : 'opacity-100'
+                }`}
+              >
+                {searchState.searchResults.map((file, index) => (
+                  <div
+                    key={`${file.id}-${index}`}
+                    className="search-result-item"
+                  >
+                    <SearchResultCard
+                      file={file}
+                      expandedSummaries={expandedSummaries}
+                      onToggleSummary={toggleSummaryExpansion}
+                      onFileClick={handleFileClick}
+                      isReranking={searchState.isReranking}
+                      showRerankBadge={file.reranked}
+                      resultIndex={index + 1}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
           ) : searchState.searchQuery && searchState.hasSearched ? (
             <SearchEmptyState
               searchQuery={searchState.searchQuery}
-              scoreThreshold={searchState.scoreThreshold}
-              onReduceSensitivity={(newThreshold) => {
-                searchState.setScoreThreshold(newThreshold);
-                searchState.setShowSuggestions(false);
-                searchState.setHasSearched(true);
-                setTimeout(() => handleSearch(null, true), 100);
-              }}
               onTryDifferentSearch={() => searchState.setShowSuggestions(true)}
               toast={toast}
             />
@@ -488,13 +618,6 @@ export default function SearchPage() {
           ) : (
             <SearchEmptyState
               searchQuery={searchState.searchQuery}
-              scoreThreshold={searchState.scoreThreshold}
-              onReduceSensitivity={(newThreshold) => {
-                searchState.setScoreThreshold(newThreshold);
-                searchState.setShowSuggestions(false);
-                searchState.setHasSearched(true);
-                setTimeout(() => handleSearch(null, true), 100);
-              }}
               onTryDifferentSearch={() => searchState.setShowSuggestions(true)}
               toast={toast}
             />

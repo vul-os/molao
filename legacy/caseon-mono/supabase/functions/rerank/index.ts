@@ -6,12 +6,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface SearchRequest {
+interface RerankRequest {
   query: string
+  file_ids: string[]
   firm_id?: string
 }
 
-interface ModalSearchResult {
+interface ModalRerankResult {
   id: string
   file_name: string
   file_type: string
@@ -20,9 +21,8 @@ interface ModalSearchResult {
   mime_type?: string
 }
 
-interface ModalSearchResponse {
-  results: ModalSearchResult[]
-  total: number
+interface ModalRerankResponse {
+  results: ModalRerankResult[]
 }
 
 interface FileResult {
@@ -31,6 +31,7 @@ interface FileResult {
   file_title: string
   pdf_url: string
   file_size?: number
+  score: number
   summaries?: Array<{
     model: string
     content: string
@@ -48,7 +49,7 @@ interface UsageData {
   plan_name: string
 }
 
-interface SearchResponse {
+interface RerankResponse {
   results: FileResult[]
   total: number
   query: string
@@ -74,11 +75,23 @@ serve(async (req) => {
     )
 
     // Parse request body
-    const { query, firm_id }: SearchRequest = await req.json()
+    const { query, file_ids, firm_id }: RerankRequest = await req.json()
+
+    console.log(`Rerank request: query="${query}", file_ids=${file_ids?.length || 0}, firm_id=${firm_id}, no limit`)
 
     if (!query) {
       return new Response(
         JSON.stringify({ error: 'Query parameter is required' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    if (!file_ids || !Array.isArray(file_ids) || file_ids.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'file_ids array is required and must not be empty' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -154,51 +167,26 @@ serve(async (req) => {
       // Don't fail the request for this, just log it
     }
 
-    // CDN base URL
-    const CDN_URL = 'https://cdn.caseon.io/'
-
-    // Call the Modal search endpoint with query only (Google style - no limits)
-    const modalSearchPayload = {
-      query
+    // Call the Modal rerank endpoint
+    const modalRerankPayload = {
+      query,
+      file_ids
     }
 
-    console.log(`Search request: query="${query}", firm_id=${firm_id}, no limits`)
-    console.log(`Modal payload: ${JSON.stringify(modalSearchPayload)}`)
+    console.log(`Calling Modal rerank with ${file_ids.length} file IDs, limiting to top 50`)
 
-    let modalResponse
-    try {
-      console.log('About to call Modal endpoint...')
-      modalResponse = await fetch('https://exolutionza--caseon-inference-fastapi-wrapper.modal.run', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(modalSearchPayload)
-      })
-
-      console.log(`Modal response status: ${modalResponse.status}`)
-      console.log(`Modal response headers: ${JSON.stringify([...modalResponse.headers.entries()])}`)
-
-    } catch (fetchError) {
-      console.error('Modal fetch error:', fetchError)
-      console.error('Error type:', typeof fetchError)
-      console.error('Error name:', fetchError.name)
-      console.error('Error message:', fetchError.message)
-      console.error('Error stack:', fetchError.stack)
-      return new Response(
-        JSON.stringify({ error: 'Network error calling search service' }),
-        { 
-          status: 503, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    const modalResponse = await fetch('https://exolutionza--caseon-inference-fastapi-wrapper.modal.run/rerank', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(modalRerankPayload)
+    })
 
     if (!modalResponse.ok) {
-      const errorText = await modalResponse.text()
-      console.error('Modal search failed:', modalResponse.status, errorText)
+      console.error('Modal rerank failed:', modalResponse.status)
       return new Response(
-        JSON.stringify({ error: 'Search service unavailable' }),
+        JSON.stringify({ error: 'Rerank service unavailable' }),
         { 
           status: 503, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -206,9 +194,9 @@ serve(async (req) => {
       )
     }
 
-    const modalData: ModalSearchResponse = await modalResponse.json()
+    const modalData: ModalRerankResponse = await modalResponse.json()
 
-    console.log(`Modal search returned ${modalData.results?.length || 0} results`)
+    console.log(`Modal rerank returned ${modalData.results?.length || 0} results`)
 
     if (!modalData.results || modalData.results.length === 0) {
       return new Response(
@@ -225,13 +213,12 @@ serve(async (req) => {
       )
     }
 
-    // Extract file names from Modal results
-    const fileNames = modalData.results.map(result => result.file_name)
-    console.log(`Extracted ${fileNames.length} file names from Modal results`)
-    console.log(`Sample file names: ${fileNames.slice(0, 5).join(', ')}`)
+    // CDN base URL
+    const CDN_URL = 'https://cdn.caseon.io/'
 
-    // Query local files table to get file titles and summaries (no firm filtering)
-    console.log('Querying Supabase for file details...')
+    // Get file details and summaries for the reranked results
+    const fileIds = modalData.results.map(result => result.id)
+
     const { data: filesWithSummaries, error } = await supabaseClient
       .from('files')
       .select(`
@@ -245,10 +232,8 @@ serve(async (req) => {
           content
         )
       `)
-      .in('file_name', fileNames)
+      .in('id', fileIds)
       .not('cdn_path', 'is', null)
-    
-    console.log(`Supabase returned ${filesWithSummaries?.length || 0} files with CDN paths`)
 
     if (error) {
       console.error('Database query error:', error)
@@ -261,35 +246,30 @@ serve(async (req) => {
       )
     }
 
-    // Create a map of file names to file data for quick lookup
+    // Create a map of file IDs to file data for quick lookup
     const fileMap = new Map()
     if (filesWithSummaries) {
       filesWithSummaries.forEach(file => {
-        fileMap.set(file.file_name, file)
+        fileMap.set(file.id, file)
       })
     }
 
-    // Combine Modal results with local file data
-    console.log('Mapping Modal results to Supabase data...')
-    let mappedCount = 0
-    let notFoundCount = 0
-    
+    // Combine Modal results with local file data, preserving rerank order
     const results: FileResult[] = modalData.results
       .map(modalResult => {
-        const fileData = fileMap.get(modalResult.file_name)
+        const fileData = fileMap.get(modalResult.id)
         if (!fileData) {
-          console.warn(`No file data found for ${modalResult.file_name}`)
-          notFoundCount++
+          console.warn(`No file data found for ${modalResult.id}`)
           return null
         }
 
-        mappedCount++
         return {
           id: fileData.id,
           file_name: modalResult.file_name,
           file_title: fileData.file_title || modalResult.file_name,
           pdf_url: `${CDN_URL}${fileData.cdn_path}`,
           file_size: fileData.file_size || modalResult.file_size,
+          score: modalResult.score,
           summaries: fileData.file_summaries?.map(summary => ({
             model: summary.model,
             content: summary.content
@@ -298,13 +278,12 @@ serve(async (req) => {
       })
       .filter(result => result !== null) as FileResult[]
 
-    console.log(`Mapping summary: ${mappedCount} successful, ${notFoundCount} not found in database`)
-    console.log(`Returning ${results.length} results (filtered from ${modalData.results.length} Modal results)`)
+    console.log(`Returning ${results.length} reranked results`)
 
     return new Response(
       JSON.stringify({ 
         results,
-        total: modalData.total || results.length, // Use Modal's total count if available, fallback to results length
+        total: results.length,
         query,
         usage: usage
       }),
@@ -324,4 +303,4 @@ serve(async (req) => {
       }
     )
   }
-})
+}) 
