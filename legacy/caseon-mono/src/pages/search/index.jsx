@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot, BookOpen, X } from "lucide-react";
+import { Search, Loader2, Scale, ArrowUpRight, FileText, Send, AlertCircle, Sparkles, ChevronDown, ChevronUp, Bot, BookOpen, X, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -157,7 +157,7 @@ export default function SearchPage() {
       searchState.searchController.abort();
     }
     
-    // Create new AbortController for this entire search+rerank operation
+    // Create new AbortController for this entire search operation
     const controller = new AbortController();
     searchState.setSearchController(controller);
     
@@ -225,64 +225,6 @@ export default function SearchPage() {
       searchState.setOriginalSearchTotal(total);
       searchState.setIsLoading(false);
       
-      // Now attempt reranking if we have enough results
-      if (initialResults.length > 1 && !controller.signal.aborted) {
-        console.log('🔄 Starting rerank phase...');
-        searchState.setIsReranking(true);
-        
-        // Send ALL file IDs - rerank endpoint will rerank first 50 and return all in proper order
-        const fileIds = initialResults.map(r => r.id);
-        
-        try {
-          const rerankResponse = await supabase.functions.invoke('rerank', {
-            body: {
-              query: query,
-              file_ids: fileIds,
-              firm_id: firmId
-            }
-          });
-          
-          console.log('🔄 Rerank response:', { data: rerankResponse.data, error: rerankResponse.error });
-          
-          // Check if cancelled during rerank
-          if (controller.signal.aborted) {
-            console.log('Rerank was aborted');
-            return;
-          }
-          
-          // Apply reranked results if successful
-          if (!rerankResponse.error && rerankResponse.data?.results?.length > 0) {
-            const rerankedResults = rerankResponse.data.results.map(result => ({
-              ...result,
-              _rerankTimestamp: Date.now() // Keep only timestamp for React key stability
-            }));
-            
-            console.log('✅ Applying reranked results:', rerankedResults.length);
-            searchState.setSearchResults(rerankedResults);
-            // Don't update originalSearchTotal - preserve it from initial search
-            // Only update totalResults to reflect current results count
-            searchState.setTotalResults(rerankedResults.length);
-            
-            toast({
-              title: "Results reranked",
-              description: `Reordered ${rerankedResults.length} results by relevance.`,
-              duration: 2000,
-            });
-          } else {
-            console.log('⚠️ Rerank failed or returned no results, keeping original order');
-            if (rerankResponse.error) {
-              console.error('Rerank error:', rerankResponse.error);
-            }
-          }
-          
-        } catch (rerankError) {
-          console.error('❌ Rerank failed:', rerankError);
-          // Don't show error toast for rerank failures - just keep original results
-        } finally {
-          searchState.setIsReranking(false);
-        }
-      }
-      
       // Clear controller after successful completion
       searchState.setSearchController(null);
       
@@ -308,6 +250,100 @@ export default function SearchPage() {
       
       searchState.setSearchResults([]);
       searchState.setTotalResults(0);
+    }
+  };
+
+  // Separate rerank function
+  const handleRerank = async () => {
+    if (!searchState.searchQuery.trim() || searchState.searchResults.length <= 1) {
+      return;
+    }
+
+    // Cancel any existing operations
+    if (searchState.searchController) {
+      searchState.searchController.abort();
+    }
+
+    // Create new AbortController for reranking
+    const controller = new AbortController();
+    searchState.setSearchController(controller);
+    searchState.setIsReranking(true);
+
+    try {
+      const firmId = activeFirm?.id;
+      
+      if (!firmId) {
+        throw new Error('No active firm found. Please select a firm.');
+      }
+
+      console.log('🔄 Starting manual rerank...');
+      
+      // Send ALL file IDs - rerank endpoint will rerank first 50 and return all in proper order
+      const fileIds = searchState.searchResults.map(r => r.id);
+      
+      const rerankResponse = await supabase.functions.invoke('rerank', {
+        body: {
+          query: searchState.searchQuery,
+          file_ids: fileIds,
+          firm_id: firmId
+        }
+      });
+      
+      console.log('🔄 Rerank response:', { data: rerankResponse.data, error: rerankResponse.error });
+      
+      // Check if cancelled during rerank
+      if (controller.signal.aborted) {
+        console.log('Rerank was aborted');
+        return;
+      }
+      
+      // Apply reranked results if successful
+      if (!rerankResponse.error && rerankResponse.data?.results?.length > 0) {
+        const rerankedResults = rerankResponse.data.results.map(result => ({
+          ...result,
+          _rerankTimestamp: Date.now() // Keep only timestamp for React key stability
+        }));
+        
+        console.log('✅ Applying reranked results:', rerankedResults.length);
+        searchState.setSearchResults(rerankedResults);
+        // Don't update originalSearchTotal - preserve it from initial search
+        // Only update totalResults to reflect current results count
+        searchState.setTotalResults(rerankedResults.length);
+        
+        toast({
+          title: "Results reranked",
+          description: `Reordered ${rerankedResults.length} results by relevance.`,
+          duration: 2000,
+        });
+      } else {
+        console.log('⚠️ Rerank failed or returned no results');
+        if (rerankResponse.error) {
+          console.error('Rerank error:', rerankResponse.error);
+          toast({
+            title: "Rerank failed",
+            description: rerankResponse.error.message || "Unable to rerank results. Please try again.",
+            variant: "destructive"
+          });
+        }
+      }
+      
+    } catch (rerankError) {
+      console.error('❌ Rerank failed:', rerankError);
+      
+      // Don't show error toast if the request was aborted
+      if (rerankError.name === 'AbortError' || controller.signal.aborted) {
+        console.log('Rerank was cancelled');
+        return;
+      }
+      
+      toast({
+        title: "Rerank failed",
+        description: rerankError.message || "Unable to rerank results. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      searchState.setIsReranking(false);
+      searchState.setSearchController(null);
     }
   };
 
@@ -708,22 +744,49 @@ export default function SearchPage() {
                   <h2 className="font-heading text-lg font-semibold text-slate-800">
                     Search Results
                   </h2>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
+                    {searchState.originalSearchTotal && searchState.originalSearchTotal > searchState.searchResults.length ? (
+                      <>{searchState.searchResults.length} of {searchState.originalSearchTotal} results</>
+                    ) : (
+                      <>{searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}</>
+                    )}
+                  </span>
                   
-                  {/* Reranking indicator */}
-                  {searchState.isReranking && (
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Reranking...</span>
-                    </div>
+                  {/* Manual Rerank Button */}
+                  {searchState.searchResults.length > 1 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRerank}
+                            disabled={searchState.isReranking || searchState.isLoading}
+                            className="bg-white/80 hover:bg-white border-slate-200 hover:border-slate-300"
+                          >
+                            {searchState.isReranking ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Reranking...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Rerank
+                              </>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{searchState.isReranking ? 'Reranking results...' : 'Rerank results by relevance'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
-                <span className="text-sm text-slate-500 bg-white/60 px-3 py-1 rounded-full border border-slate-200/80">
-                  {searchState.originalSearchTotal && searchState.originalSearchTotal > searchState.searchResults.length ? (
-                    <>{searchState.searchResults.length} of {searchState.originalSearchTotal} results</>
-                  ) : (
-                    <>{searchState.searchResults.length} {searchState.searchResults.length === 1 ? 'result' : 'results'}</>
-                  )}
-                </span>
               </div>
             </div>
           </div>
