@@ -128,21 +128,13 @@ export default function FileDetailPage() {
       setFileNotFound(false);
       
       try {
-        // Fetch file metadata and summaries from Supabase
-        const { data: fileRecord, error } = await supabase
-          .from('files')
-          .select(`
-            *,
-            file_summaries (
-              model,
-              content
-            )
-          `)
-          .eq('id', fileId)
-          .single();
+        // Fetch file metadata and summaries using the Supabase function
+        const { data: fileRecord, error } = await supabase.functions.invoke('get-file-details', {
+          body: { file_id: fileId }
+        });
         
         if (error) {
-          console.error('Supabase query error:', error);
+          console.error('Supabase function error:', error);
           throw new Error(`Failed to load file metadata: ${error.message}`);
         }
         
@@ -155,24 +147,22 @@ export default function FileDetailPage() {
         // Update file metadata
         const updatedFileData = {
           fileName: fileRecord.file_title || fileRecord.file_name || "Document",
-          fileType: fileRecord.file_type || "pdf",
+          fileType: "pdf", // Function returns PDF files
           mimeType: fileRecord.mime_type || "application/pdf",
-          sourceUrl: fileRecord.source_url || null,
-          cdnUrl: fileRecord.cdn_path ? `https://${fileRecord.cdn_path}` : null
+          sourceUrl: null, // Not provided by the function currently
+          cdnUrl: fileRecord.pdf_url || null
         };
         setFileData(updatedFileData);
 
         // Set summaries
-        const validSummaries = (fileRecord.file_summaries || []).filter(s => s?.content?.trim());
+        const validSummaries = (fileRecord.summaries || []).filter(s => s?.content?.trim());
         setSummaries(validSummaries);
         setIsSummariesLoading(false);
 
         // Try to fetch PDF from CDN URL
         if (updatedFileData.cdnUrl) {
-          const pdfUrl = updatedFileData.cdnUrl.replace(/\.rtf$/i, '.pdf');
-          
           try {
-            const pdfResponse = await fetch(pdfUrl);
+            const pdfResponse = await fetch(updatedFileData.cdnUrl);
             
             if (!pdfResponse.ok) {
               throw new Error(`PDF not found: ${pdfResponse.status}`);

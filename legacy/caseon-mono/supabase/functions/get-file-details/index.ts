@@ -190,14 +190,29 @@ serve(async (req) => {
       }
     }
 
-    // CDN base URL
-    const CDN_URL = 'https://cdn.caseon.io/'
+    // Construct PDF URL - check if cdn_path already contains the domain
+    let pdfUrl = fileData.cdn_path
+    if (pdfUrl && pdfUrl.startsWith('https://')) {
+      // Already a full URL, use as-is
+      pdfUrl = pdfUrl
+    } else if (pdfUrl && pdfUrl.startsWith('cdn.caseon.io/')) {
+      // Contains domain but missing protocol
+      pdfUrl = `https://${pdfUrl}`
+    } else if (pdfUrl) {
+      // Just a path, add full CDN URL
+      pdfUrl = `https://cdn.caseon.io/${pdfUrl}`
+    }
+
+    // Convert .rtf extension to .pdf
+    if (pdfUrl && pdfUrl.toLowerCase().endsWith('.rtf')) {
+      pdfUrl = pdfUrl.slice(0, -4) + '.pdf'
+    }
 
     const response: FileDetailsResponse = {
       id: fileData.id,
       file_name: fileData.file_name,
       file_title: fileData.file_title || fileData.file_name,
-      pdf_url: `${CDN_URL}${fileData.cdn_path}`,
+      pdf_url: pdfUrl,
       file_size: fileData.file_size,
       mime_type: fileData.mime_type,
       created_at: fileData.created_at,
