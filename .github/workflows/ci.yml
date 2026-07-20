@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # Formatting first: it is the cheapest failure to fix.
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Build
+        run: cargo build --workspace --all-targets
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+  web:
+    name: Web UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The UI is built by a separate workstream; skip cleanly rather than
+      # failing the run when apps/web is not present in this revision.
+      - name: Detect web UI
+        id: detect
+        run: |
+          if [ -f apps/web/package.json ] && [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "apps/web not present in this revision — skipping web job."
+          fi
+
+      - name: Set up Node
+        if: steps.detect.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        if: steps.detect.outputs.present == 'true'
+        run: npm ci
+
+      - name: Build
+        if: steps.detect.outputs.present == 'true'
+        run: npm run build
+
+      - name: Typecheck
+        if: steps.detect.outputs.present == 'true'
+        run: npm run typecheck
+
+  # Every command in a README or docs page has to actually work from a clean
+  # clone. This checks the cheap half of that: no doc links into the void.
+  docs:
+    name: Docs links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # site/ is excluded: its markdown is a flattened copy of the repo docs,
+      # and docs.html rewrites cross-document links client-side.
+      - name: Check relative links in markdown resolve
+        run: |
+          st=0
+          while IFS= read -r file; do
+            dir=$(dirname "$file")
+            for link in $(grep -oE '\]\([^)#:]+\.md(#[^)]*)?\)' "$file" 2>/dev/null \
+                          | sed -E 's/^\]\(//; s/\)$//; s/#.*$//'); do
+              if [ ! -e "$dir/$link" ]; then
+                echo "::error file=$file::broken link to $link"
+                st=1
+              fi
+            done
+          done < <(find . -name '*.md' \
+                        -not -path './node_modules/*' \
+                        -not -path './target/*' \
+                        -not -path './site/*')
+          exit $st

@@ -1,0 +1,13 @@
+[package]
+name = "molao-cite"
+description = "Deterministic South African legal citation parser — neutral, reported, and case-number citations extracted from judgment text."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+molao-core.workspace = true
+regex = "1.11"
+serde.workspace = true

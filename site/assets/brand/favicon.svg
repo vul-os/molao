@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Molao">
+  <!-- Simplified ring: six nodes, two chords — stays legible at 16px. -->
+  <g stroke="#18181B" stroke-width="1.6" stroke-linecap="round" opacity="0.5" fill="none">
+    <path d="M16 5 L25.53 21.5"/>
+    <path d="M16 5 L6.47 21.5"/>
+  </g>
+  <g fill="#18181B">
+    <circle cx="25.53" cy="10.5" r="3"/><circle cx="25.53" cy="21.5" r="3"/>
+    <circle cx="16" cy="27" r="3"/><circle cx="6.47" cy="21.5" r="3"/>
+    <circle cx="6.47" cy="10.5" r="3"/>
+  </g>
+  <circle cx="16" cy="5" r="4" fill="#E9A23B"/>
+</svg>

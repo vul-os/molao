@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/molao-core",
+    "crates/molao-cite",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/vul-os/molao"
+authors = ["Molao contributors"]
+
+[workspace.dependencies]
+molao-core = { path = "crates/molao-core", version = "0.1.0" }
+molao-cite = { path = "crates/molao-cite", version = "0.1.0" }
+molao-graph = { path = "crates/molao-graph", version = "0.1.0" }
+molao-corpus = { path = "crates/molao-corpus", version = "0.1.0" }
+
+anyhow = "1"
+blake3 = "1.5"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = "0.4"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
+tracing = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
