@@ -205,6 +205,82 @@ fn demo_seeds_a_corpus_and_stats_reports_it() {
 }
 
 #[test]
+fn ingest_of_akoma_ntoso_lands_in_the_right_region() {
+    // The licensed-bulk path: an Akoma Ntoso judgment from a non-ZA
+    // jurisdiction must land under that jurisdiction's region, derived from the
+    // court code's country prefix (UGSC -> UG), and as Manual provenance
+    // because a file import is not a witnessed fetch.
+    let dir = workdir("akn");
+    let db = dir.join("akn.db");
+    let xml = dir.join("ugsc_2024_4.xml");
+    // A minimal but structurally real Akoma Ntoso judgment. Invented content.
+    std::fs::write(
+        &xml,
+        r##"<?xml version="1.0" encoding="UTF-8"?>
+<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0"
+            xmlns:akn="https://laws.africa/akn">
+  <judgment name="judgment" contains="originalVersion">
+    <meta>
+      <identification source="#laws-africa">
+        <FRBRWork>
+          <FRBRthis value="/akn/ug/judgment/ugsc/2024/4/main"/>
+          <FRBRuri value="/akn/ug/judgment/ugsc/2024/4"/>
+          <FRBRalias value="Okello v Attorney General" name="title"/>
+          <FRBRdate date="2024-05-10" name="Judgment"/>
+          <FRBRauthor href="#ugsc"/>
+          <FRBRcountry value="ug"/>
+        </FRBRWork>
+      </identification>
+      <references source="#this">
+        <TLCOrganization eId="ugsc" href="/ontology/organization/ug/ugsc" showAs="Supreme Court of Uganda"/>
+      </references>
+      <proprietary source="#laws-africa">
+        <akn:neutralCitation>[2024] UGSC 4</akn:neutralCitation>
+      </proprietary>
+    </meta>
+    <judgmentBody>
+      <decision>
+        <p eId="dec__p_1"><num>1</num> This appeal turns on a single question of statutory interpretation.</p>
+      </decision>
+    </judgmentBody>
+  </judgment>
+</akomaNtoso>
+"##,
+    )
+    .expect("write akn fixture");
+
+    let out = Command::new(MOLAO)
+        .args(["ingest"])
+        .arg(&xml)
+        .arg("--db")
+        .arg(&db)
+        .output()
+        .expect("running molao ingest");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Akoma Ntoso"), "{stdout}");
+
+    let out = Command::new(MOLAO)
+        .args(["stats", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao stats");
+    let stats = String::from_utf8_lossy(&out.stdout);
+    // Landed under UG, not the ZA default, and Manual because unwitnessed.
+    assert!(stats.contains("UG"), "expected UG region: {stats}");
+    assert!(
+        stats.contains("manually entered"),
+        "expected manual provenance: {stats}"
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn ingest_reports_bad_records_and_exits_non_zero() {
     let dir = workdir("ingest");
     let input = dir.join("in");

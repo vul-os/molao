@@ -66,7 +66,14 @@ enum Command {
     /// Ingest judgments from a file or directory.
     ///
     /// `.jsonl` / `.ndjson` are JSON Lines, one judgment per line. `.txt` is the
-    /// header-and-body plain-text format. Anything else is skipped.
+    /// header-and-body plain-text format. `.xml` is Akoma Ntoso, the format
+    /// Laws.Africa / AfricanLII publish — this is the licensed-bulk path, and
+    /// the region is taken from the court code's country prefix. Anything else
+    /// is skipped.
+    ///
+    /// Locally imported judgments carry `Manual` provenance: an import from a
+    /// file is not a witnessed fetch, and the corpus should say so until a
+    /// witness corroborates the bytes.
     Ingest {
         /// File or directory to ingest.
         path: PathBuf,
@@ -231,10 +238,23 @@ fn main() -> Result<()> {
             let report = molao_corpus::ingest::ingest_path(&mut corpus, &path)
                 .with_context(|| format!("ingesting {}", path.display()))?;
 
+            // `.xml` is skipped by ingest_path (it only knows jsonl/txt), so the
+            // Akoma Ntoso pass here does not double-process anything.
+            let akn = ingest_akn(&mut corpus, &path)
+                .with_context(|| format!("ingesting Akoma Ntoso from {}", path.display()))?;
+
             println!(
                 "ingested {} judgment(s) from {} file(s); {} citation(s) newly resolved",
-                report.inserted, report.files, report.relinked
+                report.inserted + akn.inserted,
+                report.files + akn.files,
+                report.relinked + akn.relinked
             );
+            if akn.files > 0 {
+                println!(
+                    "  ({} from Akoma Ntoso, imported with Manual provenance)",
+                    akn.inserted
+                );
+            }
 
             // Scores are stale the moment the corpus changes, so recompute
             // rather than leaving a node ranking on yesterday's graph.
@@ -247,9 +267,11 @@ fn main() -> Result<()> {
                 graph.nodes().len()
             );
 
-            if !report.errors.is_empty() {
-                eprintln!("\n{} record(s) failed:", report.errors.len());
-                for (location, reason) in &report.errors {
+            let errors: Vec<(String, String)> =
+                report.errors.into_iter().chain(akn.errors).collect();
+            if !errors.is_empty() {
+                eprintln!("\n{} record(s) failed:", errors.len());
+                for (location, reason) in &errors {
                     eprintln!("  {location}: {reason}");
                 }
                 // Report everything, then fail — a silent partial ingest is how
@@ -452,6 +474,92 @@ fn run_index(command: IndexCommand) -> Result<()> {
 
 fn open(path: &std::path::Path) -> Result<Corpus> {
     Corpus::open(path).with_context(|| format!("opening corpus {}", path.display()))
+}
+
+/// What an Akoma Ntoso ingest pass did — same shape as the corpus ingest report
+/// so the two can be summed in the handler.
+#[derive(Default)]
+struct AknReport {
+    files: usize,
+    inserted: usize,
+    relinked: usize,
+    errors: Vec<(String, String)>,
+}
+
+/// Ingest every `.xml` (Akoma Ntoso) file under `path` into the corpus.
+///
+/// This is the licensed-bulk path: Laws.Africa and AfricanLII publish judgments
+/// as Akoma Ntoso, and [`molao_ingest::akn::parse`] turns one into a structured
+/// judgment. Region comes from the court code's ISO country prefix (`ZACC` is
+/// `ZA`, `UGSC` is `UG`), which is how the LII neutral-citation codes are
+/// built; an unrecognised prefix falls back to the default profile.
+///
+/// A file import is not a witnessed fetch, so judgments enter with **no**
+/// provenance — `ProvenanceClass::Manual`. A witness corroborates the bytes
+/// later; the corpus should not pretend a local file was independently seen.
+fn ingest_akn(corpus: &mut Corpus, path: &std::path::Path) -> Result<AknReport> {
+    let mut report = AknReport::default();
+    let mut files = Vec::new();
+    collect_xml(path, &mut files);
+
+    for file in files {
+        report.files += 1;
+        let loc = file.display().to_string();
+        let xml = match std::fs::read_to_string(&file) {
+            Ok(x) => x,
+            Err(e) => {
+                report.errors.push((loc, e.to_string()));
+                continue;
+            }
+        };
+        let judgment = match molao_ingest::akn::parse(&xml) {
+            Ok(j) => j,
+            Err(e) => {
+                report.errors.push((loc, e.to_string()));
+                continue;
+            }
+        };
+        // LII court codes carry the ISO country prefix; use it as the region
+        // when it names a profile we know, else let the corpus default apply.
+        let region = judgment.court.get(..2).filter(|p| {
+            let up = p.to_uppercase();
+            molao_core::region::builtin(&up).is_some()
+        });
+        let result = match region {
+            Some(code) => corpus.insert_judgment_in_region(&judgment, &[], &code.to_uppercase()),
+            None => corpus.insert_judgment(&judgment, &[]),
+        };
+        match result {
+            Ok(()) => report.inserted += 1,
+            Err(e) => report.errors.push((loc, e.to_string())),
+        }
+    }
+
+    if report.inserted > 0 {
+        report.relinked = corpus
+            .relink()
+            .context("relinking citations after Akoma Ntoso ingest")?;
+    }
+    Ok(report)
+}
+
+/// Collect `.xml` files from a file or directory (one level; the corpus ingest
+/// walker is the model for depth, and judgments are not nested deep).
+fn collect_xml(path: &std::path::Path, out: &mut Vec<PathBuf>) {
+    let is_xml = |p: &std::path::Path| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("xml"));
+    if path.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(path) {
+            let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+            paths.sort(); // deterministic order
+            for p in paths {
+                if p.is_file() && is_xml(&p) {
+                    out.push(p);
+                }
+            }
+        }
+    } else if is_xml(path) {
+        out.push(path.to_path_buf());
+    }
 }
 
 /// Start the HTTP server and block until shutdown.

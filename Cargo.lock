@@ -2519,6 +2519,7 @@ dependencies = [
  "molao-corpus",
  "molao-graph",
  "molao-index",
+ "molao-ingest",
  "rust-embed",
  "serde",
  "serde_json",

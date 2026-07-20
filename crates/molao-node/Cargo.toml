@@ -17,6 +17,7 @@ molao-cite.workspace = true
 molao-corpus.workspace = true
 molao-graph.workspace = true
 molao-index.workspace = true
+molao-ingest.workspace = true
 
 anyhow.workspace = true
 serde.workspace = true

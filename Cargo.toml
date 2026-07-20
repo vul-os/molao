@@ -25,6 +25,7 @@ molao-cite = { path = "crates/molao-cite", version = "0.1.0" }
 molao-graph = { path = "crates/molao-graph", version = "0.1.0" }
 molao-corpus = { path = "crates/molao-corpus", version = "0.1.0" }
 molao-index = { path = "crates/molao-index", version = "0.1.0" }
+molao-ingest = { path = "crates/molao-ingest", version = "0.1.0" }
 
 anyhow = "1"
 blake3 = "1.5"

@@ -70,10 +70,14 @@ would be enough: sourcing rules with no corroboration would still trust a
 single uploader; corroboration with no sourcing rules would happily corroborate
 a bulk SAFLII scrape by running it three times.
 
-**Status:** the software that enacts this — a robots-respecting crawler for
-self-publishing courts, a licensed-bulk importer for Akoma Ntoso, and the
-witness-signing daemon, all producing the same `Provenance` record — is
-`molao-ingest`, being written this session. It has not ingested a real
+**Status:** the software that enacts this is `molao-ingest`. The **licensed-bulk
+path is wired into the node**: `molao ingest <file-or-dir>` reads Akoma Ntoso
+`.xml` (alongside the JSON Lines and plain-text formats), takes the region from
+the court code's country prefix, and stores each judgment with `Manual`
+provenance — because a file import is not a witnessed fetch, and the corpus
+should say so until a witness corroborates the bytes. The **robots-respecting
+crawler and the witness-signing daemon** are built and tested as library code
+but are not yet exposed as node commands, and none of it has ingested a real
 document yet. There is no public corpus.
 
 ## The organisations (ZA)
