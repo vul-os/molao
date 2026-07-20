@@ -177,8 +177,9 @@ citation convention: `[2020] UKSC 1`, `[2020] HCA 1`, `[2020] NZSC 1`,
 means writing a profile and touching no core logic —
 [docs/COURTS.md](COURTS.md#adding-a-jurisdiction).
 
-The honest caveat: the profile refactor is **in progress**. The registries are
-currently ZA-populated constants.
+The honest caveat: `ZA` is the only fully-populated profile. `GENERIC` works
+anywhere but finds only neutral citations and case numbers — reported citations
+need an enumerated law-report series list, and a generic profile has none.
 
 ### How do I help?
 

@@ -143,7 +143,7 @@ Stated plainly, because a threat model that only lists wins is marketing.
 - **A quorum under common pressure.** Signers drawn from one jurisdiction can
   be compelled together. Geographic and institutional spread of the signer set
   is a governance problem, not a code problem. See
-  [GOVERNANCE.md](../GOVERNANCE.md).
+  [GOVERNANCE.md](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md).
 - **Upstream error.** If a court publishes the wrong file, witnesses will
   faithfully corroborate the wrong file. Molao attests to what the canonical
   source served, not to what the court meant to serve.
@@ -170,6 +170,6 @@ Stated plainly, because a threat model that only lists wins is marketing.
 
 ## Reporting
 
-Security issues go to the process in [SECURITY.md](../SECURITY.md). Corpus
+Security issues go to the process in [SECURITY.md](https://github.com/vul-os/molao/blob/main/SECURITY.md). Corpus
 integrity problems — a judgment that does not match its source — are as
 important as code vulnerabilities and use the same path.

@@ -105,7 +105,7 @@ point of authority wearing a quorum's clothes.
 The honest limit: a quorum can still collude, and attestors drawn from one
 jurisdiction can be pressured together. Spread of the signer set is the only
 answer, and it is governance, not cryptography. See
-[GOVERNANCE.md](../GOVERNANCE.md) and
+[GOVERNANCE.md](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md) and
 [THREAT-MODEL.md](THREAT-MODEL.md#what-this-does-not-protect-against).
 
 ## Designing against decay

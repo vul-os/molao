@@ -106,3 +106,9 @@ jobs:
                         -not -path './target/*' \
                         -not -path './site/*')
           exit $st
+
+      # The mini-site's markdown is a generated mirror of the canonical docs.
+      # It has drifted before -- a refactor updated docs/COURTS.md and left
+      # site/docs/courts.md telling readers the feature was unimplemented.
+      - name: Check site/docs mirror is in sync
+        run: node scripts/sync-site-docs.mjs --check

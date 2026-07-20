@@ -28,13 +28,18 @@ The layers everything else has to agree on exactly.
   citations, in a jurisdiction-neutral grammar; 24-series `ZA` registry; paragraph and page pinpoints; stable citation
   keys; deterministic ordering; precision tests against prose and statutes
 
-### Region profiles · In progress
+### Region profiles · Done
 
-The grammar is jurisdiction-neutral and the tier model is shared, but the court
-and series registries are still ZA-populated constants rather than loadable
-profiles. Extracting them into a profile model — with a `generic` profile that
-works anywhere on day one — is in progress. See
-[docs/COURTS.md](docs/COURTS.md).
+Court and law-report registries are loadable TOML profiles, not compiled-in
+constants. `ZA` ships populated; `GENERIC` works anywhere from day one.
+`profiles/za.toml` is parsed in a test and asserted equal to the built-in ZA
+profile, so the two cannot drift. Adding a jurisdiction means writing a file —
+see [docs/COURTS.md](courts.md#adding-a-jurisdiction) and
+[profiles/README.md](profiles/README.md).
+
+The honest limit: `GENERIC` finds neutral citations and case numbers, not
+reported ones. Enumerating a jurisdiction's law-report series is what makes
+reported-citation parsing possible at all.
 
 ## Phase 1 — A working node · In progress
 
@@ -43,7 +48,7 @@ Making the corpus readable.
 - `molao-corpus`: SQLite storage, FTS5 search, ingest — **in progress**
 - `molao-graph`: citation edges, resolution against the corpus, authority
   scoring — **in progress**
-- The node binary: `axum` HTTP server implementing [docs/API.md](docs/API.md),
+- The node binary: `axum` HTTP server implementing [docs/API.md](api.md),
   UI embedded via `rust-embed` — **in progress**
 - `apps/web`: TypeScript, Vite, Preact. Search, judgment, citations, graph and
   status screens — **in progress**
@@ -79,7 +84,7 @@ The hardest phase, and mostly not a software problem.
 - The first signed release
 
 Sourcing ethics are settled and are a floor, not a default:
-[docs/SOURCES.md](docs/SOURCES.md).
+[docs/SOURCES.md](sources.md).
 
 ## Phase 4 — The citator · Designed, not built
 
@@ -121,9 +126,9 @@ Not backlog. Decisions.
 
 | Excluded | Why |
 |---|---|
-| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one. [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases) |
+| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one. [docs/THREAT-MODEL.md](threat-model.md#why-embeddings-are-excluded-from-releases) |
 | **Any hosted service** | No accounts, no telemetry, no billing, ever. There is nothing to be a customer of. |
-| **Bulk SAFLII scraping** | SAFLII declines to be a bulk re-supplier and has said so. [docs/SOURCES.md](docs/SOURCES.md) |
+| **Bulk SAFLII scraping** | SAFLII declines to be a bulk re-supplier and has said so. [docs/SOURCES.md](sources.md) |
 | **Legislation** | A different grammar and corpus. Laws.Africa does it well. |
 | **Editorial headnotes from commercial reports** | Genuinely the publisher's work. |
 | **A single-signer release mode** | `threshold >= 2` is enforced in code and will not be made configurable. |

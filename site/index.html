@@ -165,7 +165,7 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
 
   <div class="status">
     <div class="label">Honest status · 0.1.0</div>
-    <p><code>molao-core</code> and <code>molao-cite</code> are written and tested. Storage, citation graph, node server and web UI are <strong>in progress</strong>, as is the <strong>region-profile refactor</strong> — the registries are currently ZA-populated constants rather than loadable profiles.</p>
+    <p>All five crates are written and tested — core types, the citation parser, the corpus store, the citation graph, and the node itself. Court and law-report registries are <strong>loadable region profiles</strong>: <code>ZA</code> ships populated, <code>GENERIC</code> works anywhere, and <a href="https://github.com/vul-os/molao/tree/main/profiles" class="accent">adding a jurisdiction</a> means writing a TOML file, not changing code.</p>
     <p><strong>There is no bundled corpus.</strong> A node starts empty; <code>molao demo</code> seeds a synthetic corpus so you can see the software work. Treatment attestations and P2P distribution are <strong>designed, not built</strong>. Semantic search is <strong>deliberately excluded</strong> — <a href="./docs.html#threat-model" class="accent">here is why</a>.</p>
   </div>
 </div>
@@ -339,7 +339,7 @@ cargo run -p molao-node</code></pre>
       </div>
       <div class="card">
         <h3>What you get, honestly</h3>
-        <p>The core crates are complete and tested. The node server and UI are <strong>in progress</strong> — run <code>cargo run -p molao-node -- --help</code> to see what your clone actually offers.</p>
+        <p>A working node: <code>serve</code>, <code>ingest</code>, <code>demo</code>, <code>verify</code> and <code>stats</code>, with full-text search, a citation graph and a web UI in one binary. Run <code>cargo run -p molao-node -- --help</code> to see what your clone offers.</p>
         <p><strong>A node starts empty.</strong> There is no bundled corpus and no public signed release yet. <code>molao demo</code> seeds a synthetic corpus so search, judgments, citations and the graph have something to show.</p>
       </div>
     </div>

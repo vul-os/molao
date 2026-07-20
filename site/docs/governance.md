@@ -135,7 +135,7 @@ maintainers. Some decisions are not the maintainers' to make:
 | Court and series registry entries | Maintainers, with an `EXTRACTOR_VERSION` bump where behaviour changes |
 | What enters a release | The quorum, by signing |
 | Signer set membership | The quorum, with an epoch bump |
-| Sourcing ethics ([docs/SOURCES.md](docs/SOURCES.md)) | Maintainers, and it is a floor rather than a default — the ethical position is not up for optimisation |
+| Sourcing ethics ([docs/SOURCES.md](sources.md)) | Maintainers, and it is a floor rather than a default — the ethical position is not up for optimisation |
 
 ## Commitments
 

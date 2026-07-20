@@ -10,13 +10,13 @@ most valuable ones involve no code at all.
 | **Citation-parser test cases** | A real judgment whose citations are mis-parsed is worth more than a feature. Open an issue with the text and what should have been extracted. |
 | **Court registry corrections** | Divisions get renamed, seats move, new codes appear. The registry is only as current as somebody keeps it. |
 | **Series registry additions** | A missing series means citations to it silently do not exist. |
-| **Running a node** | A mirror costs almost nothing and makes the network real. [docs/RUNNING-A-NODE.md](docs/RUNNING-A-NODE.md) |
+| **Running a node** | A mirror costs almost nothing and makes the network real. [docs/RUNNING-A-NODE.md](running-a-node.md) |
 | **Institutional attestation** | Assembling a genuinely independent signer set is the hardest unsolved problem here, and it is organisational rather than technical. [GOVERNANCE.md](GOVERNANCE.md) |
 | **Code** | The corpus, graph and node crates are where the work is. |
 
 ## Before you write code
 
-Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). It is the contract, and the
+Read [docs/ARCHITECTURE.md](architecture.md). It is the contract, and the
 non-negotiables at the end of it are genuinely non-negotiable.
 
 The two that catch people out:
@@ -73,7 +73,7 @@ New behaviour needs tests. Two kinds are particularly welcome:
 
 ## Sourcing
 
-If you are writing an ingester, read [docs/SOURCES.md](docs/SOURCES.md) first.
+If you are writing an ingester, read [docs/SOURCES.md](sources.md) first.
 The short version: courts and gazettes directly, licensed bulk data from
 Laws.Africa / AfricanLII, and SAFLII is a citation-resolution target rather than
 a scrape target. **A bulk SAFLII scraper will not be merged.** That is a

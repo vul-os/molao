@@ -28,13 +28,18 @@ The layers everything else has to agree on exactly.
   citations, in a jurisdiction-neutral grammar; 24-series `ZA` registry; paragraph and page pinpoints; stable citation
   keys; deterministic ordering; precision tests against prose and statutes
 
-### Region profiles · In progress
+### Region profiles · Done
 
-The grammar is jurisdiction-neutral and the tier model is shared, but the court
-and series registries are still ZA-populated constants rather than loadable
-profiles. Extracting them into a profile model — with a `generic` profile that
-works anywhere on day one — is in progress. See
-[docs/COURTS.md](docs/COURTS.md).
+Court and law-report registries are loadable TOML profiles, not compiled-in
+constants. `ZA` ships populated; `GENERIC` works anywhere from day one.
+`profiles/za.toml` is parsed in a test and asserted equal to the built-in ZA
+profile, so the two cannot drift. Adding a jurisdiction means writing a file —
+see [docs/COURTS.md](docs/COURTS.md#adding-a-jurisdiction) and
+[profiles/README.md](profiles/README.md).
+
+The honest limit: `GENERIC` finds neutral citations and case numbers, not
+reported ones. Enumerating a jurisdiction's law-report series is what makes
+reported-citation parsing possible at all.
 
 ## Phase 1 — A working node · In progress
 

@@ -10,12 +10,16 @@ before a dedicated profile for it exists. **ZA (South Africa) is the first
 fully-populated profile**, and it is the worked example throughout this
 document. It is never special-cased.
 
-> **Status: the region-profile refactor is in progress.** The court and series
-> registries currently exist as ZA-populated constants in `molao-core` and
-> `molao-cite`; the profile loading described here is being implemented
-> separately. The data model below is the target and the tiers, weights and ZA
-> entries are accurate to the code today. Check the crate source before relying
-> on a profile API.
+> **Status: implemented.** Region profiles live in
+> `molao_core::region`. `RegionProfile` carries the court and series registries;
+> `ZA` and `GENERIC` ship built in; `RegionProfile::from_toml` loads one at
+> runtime; `region::builtin`, `region::all_builtin` and `region::default_profile`
+> (which returns `ZA`) select between them. The ZA profile also ships as
+> [`profiles/za.toml`](https://github.com/vul-os/molao/blob/main/profiles/za.toml), and a test asserts that parsing it
+> yields exactly the built-in constant, so the two cannot drift.
+>
+> `molao_core::court::lookup`, `is_known_code` and `authority_weight` remain as
+> convenience wrappers over the default profile.
 
 ## Why this is feasible
 

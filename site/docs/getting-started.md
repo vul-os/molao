@@ -134,7 +134,7 @@ npm run typecheck
 npm run lint
 ```
 
-These are exactly what CI runs ([.github/workflows/ci.yml](../.github/workflows/ci.yml)).
+These are exactly what CI runs ([.github/workflows/ci.yml](https://github.com/vul-os/molao/blob/main/.github/workflows/ci.yml)).
 
 ## Where to go next
 

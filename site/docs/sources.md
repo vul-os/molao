@@ -132,7 +132,7 @@ buried in a licence file, and it must survive being mirrored to another node.
 
 ## Licensing of what Molao itself produces
 
-The **software** is MIT ([LICENSE](../LICENSE)).
+The **software** is MIT ([LICENSE](https://github.com/vul-os/molao/blob/main/LICENSE)).
 
 The **judgments** are not Molao's to license; they are public documents of the
 jurisdiction that produced them.

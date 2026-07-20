@@ -47,7 +47,7 @@ alteration is more damaging than most memory-safety bugs would be.
 - **Quorum collusion.** If k of n signers agree to publish falsehood, every
   check passes. This is a known and stated limit — the defence is institutional
   independence, not cryptography. See
-  [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md#what-this-does-not-protect-against).
+  [docs/THREAT-MODEL.md](threat-model.md#what-this-does-not-protect-against).
 - **Node operators seeing their users' searches.** Molao makes no anonymity
   claim. Run your own node; it is free and works offline.
 - **A node administrator changing their own node's database.** Molao does not

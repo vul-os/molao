@@ -85,13 +85,15 @@ weights, report series, applicable citation styles) and touching no core logic:
 [docs/COURTS.md](docs/COURTS.md#adding-a-jurisdiction).
 
 > [!NOTE]
-> **Status: 0.1.0, early.** `molao-core` and `molao-cite` are written and
-> tested. Storage, graph, node server and UI are **in progress**, as is the
-> **region-profile refactor** — the registries are currently ZA-populated
-> constants rather than loadable profiles. **There is no bundled corpus — a node
-> starts empty.** Treatment attestations and P2P
-> distribution are **designed, not built**. Semantic search is **deliberately
-> excluded** ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)).
+> **Status: 0.1.0, early.** All five crates are written and tested, and the
+> node runs: search, judgments, citations and the graph. Region profiles load
+> from TOML — `ZA` populated, `GENERIC` anywhere, though `GENERIC` finds only
+> neutral citations and case numbers because reported citations need an
+> enumerated report-series list. **There is no bundled corpus — a node starts
+> empty**, and `molao demo` seeds a synthetic one. No public signed release
+> exists yet. Treatment attestations and P2P distribution are **designed, not
+> built**. Semantic search is **deliberately excluded**
+> ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)).
 > Full status in [ROADMAP.md](ROADMAP.md).
 
 ## Part of VulOS
