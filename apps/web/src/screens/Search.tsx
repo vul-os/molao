@@ -194,10 +194,6 @@ function Result({ hit }: { hit: SearchHit }): JSX.Element {
   return (
     <a class="result" href={href(`case/${hit.id}`)}>
       <span class="result-title">{hit.title}</span>
-      <span class="result-cited">
-        <span class="mono dim">cited by </span>
-        <span class="mono">{hit.cited_by_count}</span>
-      </span>
       <div class="result-meta mono">
         {hit.neutral_citation && (
           <>
@@ -220,6 +216,11 @@ function Result({ hit }: { hit: SearchHit }): JSX.Element {
         </span>
         <Sep />
         <Authority value={hit.authority} />
+        <Sep />
+        <span class="result-cited">
+          <span class="dim">cited by </span>
+          {hit.cited_by_count}
+        </span>
       </div>
       <p class="result-snippet">
         <Snippet text={hit.snippet} />

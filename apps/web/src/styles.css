@@ -567,13 +567,15 @@ main {
   padding: 0;
 }
 
-/* A result is a small grid so the "cited by" counter can sit top-right on a
-   wide screen and drop to the end of the card on a narrow one, without the
-   markup having to change. */
+/* Every part of a result stacks in one column.
+   "cited by N" used to be a right-aligned second column. It read as a tidy
+   ledger on paper, but titles are short and the row is wide, so on a 1440px
+   screen it stranded itself ~600px from the title with nothing in between. It
+   is metadata, so it now lives at the end of the metadata line with the court,
+   date and authority, where it costs no horizontal space at all. */
 .result {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
   padding: 17px 16px 17px 14px;
   border-bottom: 1px solid var(--line);
   border-left: 2px solid transparent;
@@ -588,8 +590,6 @@ main {
 }
 
 .result-title {
-  grid-column: 1;
-  grid-row: 1;
   font-size: 15.5px;
   font-weight: 620;
   letter-spacing: -0.014em;
@@ -601,16 +601,12 @@ main {
 }
 
 .result-cited {
-  grid-column: 2;
-  grid-row: 1;
   flex: none;
-  text-align: right;
   white-space: nowrap;
+  color: var(--ink-2);
 }
 
 .result-meta {
-  grid-column: 1 / -1;
-  grid-row: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -619,8 +615,6 @@ main {
 }
 
 .result-snippet {
-  grid-column: 1 / -1;
-  grid-row: 3;
   margin: 8px 0 0;
   color: var(--ink-2);
   font-size: 13.5px;
@@ -1113,6 +1107,85 @@ a.citerow:hover .name {
   font-size: 11px;
 }
 
+/* The phone rendering of the citation neighbourhood. Hidden on desktop, where
+   the drawing says more; it takes over below the breakpoint, where the drawing
+   would have to be dragged sideways to be read. */
+.graph-lanes {
+  display: none;
+}
+
+.lane + .lane {
+  margin-top: 20px;
+}
+
+.lane-caption {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lane-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.lane-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.lane-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 44px minimum target, with room for two lines of title. */
+  min-height: 56px;
+  padding: 11px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lane-item.is-focus {
+  background: var(--surface-2);
+}
+
+.lane-dot {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface-2);
+}
+
+.lane-dot.is-apex {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.lane-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lane-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.lane-sub {
+  font-size: 11.5px;
+}
+
 /* Labels carry a halo in the surface colour so an edge passing behind one
    never eats it. Lanes keep edges out of the label bands by construction. */
 .gnode-label,
@@ -1388,6 +1461,16 @@ td.code a:hover {
 /* ---- mobile ------------------------------------------------------------- */
 
 @media (max-width: 720px) {
+  /* Swap the drawing for the lane lists. Exactly one is ever rendered to the
+     screen, so there is no duplicate reading order for a screen reader. */
+  .graph-wrap {
+    display: none;
+  }
+
+  .graph-lanes {
+    display: block;
+  }
+
   .topbar-in {
     height: 52px;
     gap: 10px;
@@ -1466,21 +1549,11 @@ td.code a:hover {
   }
 
   .result {
-    grid-template-columns: minmax(0, 1fr);
     padding: 15px 8px 15px 10px;
   }
 
   .result-title {
-    grid-column: 1;
     font-size: 15px;
-  }
-
-  /* Below the snippet on a phone: it is a footnote, not a headline. */
-  .result-cited {
-    grid-column: 1;
-    grid-row: 4;
-    margin-top: 8px;
-    text-align: left;
   }
 
   .case-head h1 {

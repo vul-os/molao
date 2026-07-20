@@ -200,6 +200,15 @@ export function CitationGraph({ id }: { id: string }): JSX.Element {
         </figcaption>
       </figure>
 
+      {/* The same neighbourhood, as grouped lists.
+          A lane of four nodes cannot fit a 390px screen, so on a phone the
+          drawing has to scroll sideways and clips its outer nodes at rest —
+          legible, but a picture you have to drag is a poor way to read a
+          citation list. The lanes carry the identical information (which
+          judgments cite this one, which it cites) in a form a thumb can
+          actually use. CSS shows exactly one of the two, never both. */}
+      <LaneList nodes={nodes} courts={courts} />
+
       {hidden > 0 && (
         <p class="mono dim hint">
           {hidden} lower-authority neighbour{hidden === 1 ? ' is' : 's are'} not drawn. The full edge list is on the
@@ -216,6 +225,63 @@ export function CitationGraph({ id }: { id: string }): JSX.Element {
           </span>
         </Note>
       </div>
+    </>
+  );
+}
+
+/** The lane bands in reading order, with captions that read as sentences. */
+const LANE_SECTIONS: { band: Band; caption: string }[] = [
+  { band: -1, caption: 'Cites this judgment' },
+  { band: 0, caption: 'This judgment' },
+  { band: 1, caption: 'Cited by this judgment' },
+];
+
+function LaneList({ nodes, courts }: { nodes: Placed[]; courts: Map<string, CourtRow> }): JSX.Element {
+  return (
+    <div class="graph-lanes">
+      {LANE_SECTIONS.map(({ band, caption }) => {
+        const items = nodes.filter((n) => n.band === band);
+        if (items.length === 0) return null;
+        return (
+          <section class="lane" key={band}>
+            <h3 class="lane-caption mono">
+              {caption}
+              <span class="dim"> {items.length}</span>
+            </h3>
+            <ul class="lane-list">
+              {items.map((n) => {
+                const apex = courts.get(n.court)?.tier === 'apex';
+                const focus = n.band === 0;
+                return (
+                  <li key={n.id}>
+                    {focus ? (
+                      <span class="lane-item is-focus">
+                        <LaneFace node={n} apex={apex} />
+                      </span>
+                    ) : (
+                      <a class="lane-item" href={href(`case/${n.id}`)}>
+                        <LaneFace node={n} apex={apex} />
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function LaneFace({ node, apex }: { node: Placed; apex: boolean }): JSX.Element {
+  return (
+    <>
+      <span class={`lane-dot${apex ? ' is-apex' : ''}`} aria-hidden="true" />
+      <span class="lane-text">
+        <span class="lane-title">{node.title}</span>
+        <span class="lane-sub mono dim">{node.sub}</span>
+      </span>
     </>
   );
 }

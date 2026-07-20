@@ -46,7 +46,10 @@ const DESKTOP_SHOTS = [
 const MOBILE_SHOTS = [
   { name: 'mobile-search', hash: SEARCH, wait: '.result' },
   { name: 'mobile-judgment', hash: JUDGMENT, wait: '.para .text' },
-  { name: 'mobile-graph', hash: `${JUDGMENT}/graph`, wait: '.graph-wrap svg .gnode' },
+  // Below the breakpoint the SVG is hidden and the neighbourhood renders as
+  // grouped lane lists, so wait for those rather than for nodes that are
+  // present in the DOM but never visible.
+  { name: 'mobile-graph', hash: `${JUDGMENT}/graph`, wait: '.graph-lanes .lane-item' },
 ];
 
 const MIME = {
