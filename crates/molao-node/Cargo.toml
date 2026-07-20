@@ -1,0 +1,37 @@
+[package]
+name = "molao-node"
+description = "The Molao node: serves a corpus of case law and its citation graph over a read-only HTTP API, with the web UI embedded."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "molao"
+path = "src/main.rs"
+
+[dependencies]
+molao-core.workspace = true
+molao-cite.workspace = true
+molao-corpus.workspace = true
+molao-graph.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+axum = "0.8"
+clap = { version = "4.5", features = ["derive"] }
+mime_guess = "2"
+rust-embed = "8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+ed25519-dalek.workspace = true
+hex.workspace = true

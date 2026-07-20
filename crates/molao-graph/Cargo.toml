@@ -1,0 +1,17 @@
+[package]
+name = "molao-graph"
+description = "The Molao citation graph: authority scoring, neighbourhood queries, and a byte-stable graph root."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+molao-core.workspace = true
+molao-corpus.workspace = true
+blake3.workspace = true
+hex.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+tracing.workspace = true

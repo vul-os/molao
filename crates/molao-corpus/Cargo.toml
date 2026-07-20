@@ -1,0 +1,19 @@
+[package]
+name = "molao-corpus"
+description = "The Molao judgment store: SQLite + FTS5, citation extraction on ingest, and a citation-key resolver."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+molao-core.workspace = true
+molao-cite.workspace = true
+blake3.workspace = true
+hex.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "crates/molao-core",
     "crates/molao-cite",
+    "crates/molao-corpus",
+    "crates/molao-graph",
+    "crates/molao-node",
 ]
 
 [workspace.package]
