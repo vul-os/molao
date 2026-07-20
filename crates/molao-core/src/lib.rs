@@ -1,7 +1,6 @@
 //! # molao-core
 //!
-//! Shared types for Molao: the free, decentralized commons of South African
-//! law.
+//! Shared types for Molao: the free, decentralized commons of case law.
 //!
 //! This crate owns the things every other crate and every node must agree on
 //! exactly:
@@ -9,8 +8,12 @@
 //! - [`doc`] — how a judgment is identified ([`DocId`], the BLAKE3 hash of its
 //!   canonical text), what a structured judgment looks like, and how provenance
 //!   is recorded.
-//! - [`court`] — the South African court registry and the hierarchy that gives
-//!   authority ranking its meaning.
+//! - [`court`] — what a court is and the tier hierarchy that gives authority
+//!   ranking its meaning.
+//! - [`region`] — region profiles: the court and law-report-series registries
+//!   themselves, as data. Jurisdiction is a profile a node picks, never an
+//!   assumption baked into the parser. South Africa (`ZA`) is the first
+//!   populated profile and the default; `GENERIC` works anywhere.
 //! - [`release`] — threshold-signed corpus releases. No single party can
 //!   publish one.
 //!
@@ -37,10 +40,12 @@
 
 pub mod court;
 pub mod doc;
+pub mod region;
 pub mod release;
 
 pub use court::{Court, Tier};
 pub use doc::{canonicalise, DocId, Judgment, Paragraph, Provenance, ProvenanceClass};
+pub use region::{RegionError, RegionProfile, Series};
 pub use release::{Manifest, SignedRelease, Signer, SignerSet};
 
 /// Version of this crate, surfaced in release manifests and the node's

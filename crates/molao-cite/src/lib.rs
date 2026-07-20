@@ -1,7 +1,12 @@
 //! # molao-cite
 //!
-//! Deterministic extraction of South African legal citations from judgment
-//! text.
+//! Deterministic extraction of legal citations from judgment text.
+//!
+//! The citation *grammar* lives here and is jurisdiction-neutral. Which court
+//! codes and which law-report series exist is data, supplied by a
+//! [`molao_core::region::RegionProfile`]. [`extract`] uses the default profile;
+//! [`Extractor::for_profile`] takes any other, including the `GENERIC` profile
+//! for a jurisdiction nobody has written one for yet.
 //!
 //! ## Why this crate is the foundation
 //!
@@ -42,7 +47,7 @@
 
 pub mod series;
 
-use molao_core::court;
+use molao_core::region::{self, RegionProfile};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
@@ -172,33 +177,82 @@ pub struct CitationRef {
     pub known_court: bool,
 }
 
-static NEUTRAL: LazyLock<Regex> = LazyLock::new(|| {
-    // [2026] ZACC 26 — the bracketed year is what distinguishes a neutral
-    // citation from ordinary prose containing a year.
-    Regex::new(r"\[(\d{4})\]\s+([A-Z][A-Za-z]{1,11})\s+(\d{1,5})").expect("neutral pattern")
-});
+/// The jurisdiction-neutral patterns. `NEUTRAL` and `CASE_NUMBER` are shared by
+/// every profile because their grammar does not vary between jurisdictions —
+/// only the court codes inside them do, and those are checked against the
+/// profile after the match.
+const NEUTRAL_PATTERN: &str = r"\[(\d{4})\]\s+([A-Z][A-Za-z]{1,11})\s+(\d{1,5})";
+// CCT 306/24, A 1234/2019. Requires a letter prefix: a bare `1234/2019`
+// matches dates, statute references, and page ranges far too often.
+const CASE_NUMBER_PATTERN: &str = r"\b([A-Z]{1,5})\s?(\d{1,6}/\d{2,4})\b";
 
-static REPORTED: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
-        r"(\d{{4}})\s*\((\d{{1,3}})\)\s*({})\s+(\d{{1,4}})(?:\s*\(([A-Za-z]{{1,8}})\))?",
-        series::alternation(false)
-    ))
-    .expect("reported pattern")
-});
+/// The compiled parser for one region profile.
+///
+/// Regex compilation is the expensive part of extraction, and the patterns
+/// depend on the profile's series list, so they are built once here and reused.
+/// Hold one of these if you parse a jurisdiction other than the default; the
+/// free [`extract`] function is a wrapper over a lazily-built extractor for
+/// [`region::default_profile`].
+#[derive(Debug)]
+pub struct Extractor {
+    profile: &'static RegionProfile,
+    neutral: Regex,
+    /// `None` when the profile enumerates no volume-numbered series. An empty
+    /// alternation would compile to a pattern matching the empty string
+    /// everywhere, so the honest behaviour is to run no reported pattern at all
+    /// and find no reported citations — see the `GENERIC` profile.
+    reported: Option<Regex>,
+    /// `None` for the same reason, for the historical (no-volume) series.
+    reported_old: Option<Regex>,
+    case_number: Regex,
+}
 
-static REPORTED_OLD: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(&format!(
-        r"(\d{{4}})\s+({})\s+(\d{{1,4}})(?:\s*\(([A-Za-z]{{1,8}})\))?",
-        series::alternation(true)
-    ))
-    .expect("historical reported pattern")
-});
+impl Extractor {
+    /// Build an extractor for `profile`.
+    ///
+    /// Cannot fail for any profile obtained from [`region::builtin`],
+    /// [`region::default_profile`] or [`RegionProfile::from_toml`]: the constant
+    /// patterns are tested, and `from_toml` refuses a profile whose series do
+    /// not compile, precisely so that this constructor has nothing left to fail
+    /// on and callers are not forced to handle an impossible error.
+    pub fn for_profile(profile: &'static RegionProfile) -> Self {
+        let reported_alt = profile.series_alternation(false);
+        let old_alt = profile.series_alternation(true);
+        Extractor {
+            profile,
+            neutral: Regex::new(NEUTRAL_PATTERN).expect("constant neutral pattern"),
+            reported: compile_optional(
+                &format!(
+                    r"(\d{{4}})\s*\((\d{{1,3}})\)\s*({reported_alt})\s+(\d{{1,4}})(?:\s*\(([A-Za-z]{{1,8}})\))?"
+                ),
+                &reported_alt,
+            ),
+            reported_old: compile_optional(
+                &format!(r"(\d{{4}})\s+({old_alt})\s+(\d{{1,4}})(?:\s*\(([A-Za-z]{{1,8}})\))?"),
+                &old_alt,
+            ),
+            case_number: Regex::new(CASE_NUMBER_PATTERN).expect("constant case-number pattern"),
+        }
+    }
 
-static CASE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
-    // CCT 306/24, A 1234/2019. Requires a letter prefix: a bare `1234/2019`
-    // matches dates, statute references, and page ranges far too often.
-    Regex::new(r"\b([A-Z]{1,5})\s?(\d{1,6}/\d{2,4})\b").expect("case number pattern")
-});
+    /// The profile this extractor was built for.
+    pub fn profile(&self) -> &'static RegionProfile {
+        self.profile
+    }
+}
+
+/// Compile a series-driven pattern, or return `None` if the profile has no
+/// series in that group. Compilation failure is also `None` rather than a panic:
+/// `RegionProfile::from_toml` has already rejected uncompilable series, so this
+/// is unreachable in practice, and degrading to "finds no reported citations" is
+/// the one safe way to be wrong — it can only ever omit edges, never invent
+/// them.
+fn compile_optional(pattern: &str, alternation: &str) -> Option<Regex> {
+    if alternation.is_empty() {
+        return None;
+    }
+    Regex::new(pattern).ok()
+}
 
 static PIN_PARA: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[\s,]*(?:at\s+)?paras?(?:graphs?)?\.?\s*\[?(\d{1,4})\]?(?:\s*(?:-|–|—|to)\s*\[?(\d{1,4})\]?)?")
@@ -210,104 +264,125 @@ static PIN_PAGE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("page pinpoint pattern")
 });
 
-/// Extract every citation in `text`, ordered by position.
+/// The extractor for the default profile, built once.
+static DEFAULT_EXTRACTOR: LazyLock<Extractor> =
+    LazyLock::new(|| Extractor::for_profile(region::default_profile()));
+
+/// Extract every citation in `text` using the default region profile.
 ///
-/// Overlapping matches are resolved by preferring the earliest, then the
-/// longest — so `2020 (3) SA 123 (SCA)` is one reported citation rather than a
-/// reported citation plus a stray fragment.
+/// Behaviourally identical to [`Extractor::extract`] on
+/// [`region::default_profile`]; this is the convenience form for the common case
+/// of a node serving one jurisdiction.
 pub fn extract(text: &str) -> Vec<CitationRef> {
-    let mut found: Vec<CitationRef> = Vec::new();
+    DEFAULT_EXTRACTOR.extract(text)
+}
 
-    for caps in NEUTRAL.captures_iter(text) {
-        let m = caps.get(0).expect("group 0 always present");
-        let court_code = &caps[2];
-        // A bracketed year followed by any capitalised token is a common shape
-        // in prose. Requiring a registry hit (or at least a plausible all-caps
-        // court-like code) is what keeps precision high.
-        let known = court::is_known_code(court_code);
-        if !known && !looks_like_court_code(court_code) {
-            continue;
+impl Extractor {
+    /// Extract every citation in `text`, ordered by position.
+    ///
+    /// Overlapping matches are resolved by preferring the earliest, then the
+    /// longest — so `2020 (3) SA 123 (SCA)` is one reported citation rather than
+    /// a reported citation plus a stray fragment.
+    pub fn extract(&self, text: &str) -> Vec<CitationRef> {
+        let mut found: Vec<CitationRef> = Vec::new();
+
+        for caps in self.neutral.captures_iter(text) {
+            let m = caps.get(0).expect("group 0 always present");
+            let court_code = &caps[2];
+            // A bracketed year followed by any capitalised token is a common shape
+            // in prose. Requiring a registry hit (or at least a plausible all-caps
+            // court-like code) is what keeps precision high. Under a profile with no
+            // court registry the shape rule is the only test, which is exactly what
+            // makes an unprofiled jurisdiction usable.
+            let known = self.profile.is_known_code(court_code);
+            if !known && !looks_like_court_code(court_code) {
+                continue;
+            }
+            found.push(CitationRef {
+                citation: Citation::Neutral {
+                    year: caps[1].parse().unwrap_or(0),
+                    court: court_code.to_uppercase(),
+                    number: caps[3].parse().unwrap_or(0),
+                },
+                as_written: m.as_str().to_string(),
+                span: m.range(),
+                pinpoint: pinpoint_after(text, m.end()),
+                known_court: known,
+            });
         }
-        found.push(CitationRef {
-            citation: Citation::Neutral {
-                year: caps[1].parse().unwrap_or(0),
-                court: court_code.to_uppercase(),
-                number: caps[3].parse().unwrap_or(0),
-            },
-            as_written: m.as_str().to_string(),
-            span: m.range(),
-            pinpoint: pinpoint_after(text, m.end()),
-            known_court: known,
-        });
-    }
 
-    for caps in REPORTED.captures_iter(text) {
-        let m = caps.get(0).expect("group 0 always present");
-        found.push(CitationRef {
-            citation: Citation::Reported {
-                year: caps[1].parse().unwrap_or(0),
-                volume: caps[2].parse().ok(),
-                series: caps[3].to_string(),
-                page: caps[4].parse().unwrap_or(0),
-                court: caps.get(5).map(|c| c.as_str().to_uppercase()),
-            },
-            as_written: m.as_str().to_string(),
-            span: m.range(),
-            pinpoint: pinpoint_after(text, m.end()),
-            known_court: true,
-        });
-    }
-
-    for caps in REPORTED_OLD.captures_iter(text) {
-        let m = caps.get(0).expect("group 0 always present");
-        found.push(CitationRef {
-            citation: Citation::Reported {
-                year: caps[1].parse().unwrap_or(0),
-                volume: None,
-                series: caps[2].to_string(),
-                page: caps[3].parse().unwrap_or(0),
-                court: caps.get(4).map(|c| c.as_str().to_uppercase()),
-            },
-            as_written: m.as_str().to_string(),
-            span: m.range(),
-            pinpoint: pinpoint_after(text, m.end()),
-            known_court: true,
-        });
-    }
-
-    for caps in CASE_NUMBER.captures_iter(text) {
-        let m = caps.get(0).expect("group 0 always present");
-        found.push(CitationRef {
-            citation: Citation::CaseNumber {
-                prefix: caps[1].to_string(),
-                number: caps[2].to_string(),
-            },
-            as_written: m.as_str().to_string(),
-            span: m.range(),
-            pinpoint: None,
-            known_court: true,
-        });
-    }
-
-    // Deterministic order: by start, then longest first, then by canonical form
-    // so that even a pathological exact-overlap is ordered reproducibly.
-    found.sort_by(|a, b| {
-        a.span
-            .start
-            .cmp(&b.span.start)
-            .then(b.span.len().cmp(&a.span.len()))
-            .then(a.citation.canonical().cmp(&b.citation.canonical()))
-    });
-
-    // Drop anything contained in an already-accepted span.
-    let mut out: Vec<CitationRef> = Vec::with_capacity(found.len());
-    for candidate in found {
-        if out.iter().any(|kept| overlaps(&kept.span, &candidate.span)) {
-            continue;
+        for caps in self.reported.iter().flat_map(|re| re.captures_iter(text)) {
+            let m = caps.get(0).expect("group 0 always present");
+            found.push(CitationRef {
+                citation: Citation::Reported {
+                    year: caps[1].parse().unwrap_or(0),
+                    volume: caps[2].parse().ok(),
+                    series: caps[3].to_string(),
+                    page: caps[4].parse().unwrap_or(0),
+                    court: caps.get(5).map(|c| c.as_str().to_uppercase()),
+                },
+                as_written: m.as_str().to_string(),
+                span: m.range(),
+                pinpoint: pinpoint_after(text, m.end()),
+                known_court: true,
+            });
         }
-        out.push(candidate);
+
+        for caps in self
+            .reported_old
+            .iter()
+            .flat_map(|re| re.captures_iter(text))
+        {
+            let m = caps.get(0).expect("group 0 always present");
+            found.push(CitationRef {
+                citation: Citation::Reported {
+                    year: caps[1].parse().unwrap_or(0),
+                    volume: None,
+                    series: caps[2].to_string(),
+                    page: caps[3].parse().unwrap_or(0),
+                    court: caps.get(4).map(|c| c.as_str().to_uppercase()),
+                },
+                as_written: m.as_str().to_string(),
+                span: m.range(),
+                pinpoint: pinpoint_after(text, m.end()),
+                known_court: true,
+            });
+        }
+
+        for caps in self.case_number.captures_iter(text) {
+            let m = caps.get(0).expect("group 0 always present");
+            found.push(CitationRef {
+                citation: Citation::CaseNumber {
+                    prefix: caps[1].to_string(),
+                    number: caps[2].to_string(),
+                },
+                as_written: m.as_str().to_string(),
+                span: m.range(),
+                pinpoint: None,
+                known_court: true,
+            });
+        }
+
+        // Deterministic order: by start, then longest first, then by canonical form
+        // so that even a pathological exact-overlap is ordered reproducibly.
+        found.sort_by(|a, b| {
+            a.span
+                .start
+                .cmp(&b.span.start)
+                .then(b.span.len().cmp(&a.span.len()))
+                .then(a.citation.canonical().cmp(&b.citation.canonical()))
+        });
+
+        // Drop anything contained in an already-accepted span.
+        let mut out: Vec<CitationRef> = Vec::with_capacity(found.len());
+        for candidate in found {
+            if out.iter().any(|kept| overlaps(&kept.span, &candidate.span)) {
+                continue;
+            }
+            out.push(candidate);
+        }
+        out
     }
-    out
 }
 
 fn overlaps(a: &Range<usize>, b: &Range<usize>) -> bool {
@@ -556,6 +631,101 @@ mod tests {
     #[test]
     fn extractor_version_is_pinned() {
         assert!(EXTRACTOR_VERSION.starts_with("molao-cite@"));
+    }
+
+    // ---- region profiles --------------------------------------------------
+
+    fn generic() -> Extractor {
+        Extractor::for_profile(&region::GENERIC)
+    }
+
+    #[test]
+    fn the_default_extractor_is_the_default_profile() {
+        assert_eq!(DEFAULT_EXTRACTOR.profile().code, "ZA");
+    }
+
+    #[test]
+    fn the_free_function_matches_an_explicit_default_profile_extractor() {
+        // `extract` is the pinned public entry point. If it ever diverges from
+        // the profile-driven path, EXTRACTOR_VERSION stops meaning anything.
+        let explicit = Extractor::for_profile(region::default_profile());
+        let text = "S v Makwanyane [1995] ZACC 3 at para 87; 1995 (3) SA 391 (CC), \
+                    and 1941 AD 43 at 47B-D, in CCT 306/24.";
+        assert_eq!(extract(text), explicit.extract(text));
+    }
+
+    #[test]
+    fn the_generic_profile_finds_neutral_citations_by_shape_alone() {
+        // The whole point of the generic profile: a jurisdiction with no
+        // registry is still graphable on the day somebody starts.
+        let refs = generic().extract("see [2020] UKSC 1 and [1995] ZACC 3");
+        let keys: Vec<String> = refs.iter().map(|r| r.citation.key()).collect();
+        assert_eq!(keys, vec!["neutral:2020:UKSC:1", "neutral:1995:ZACC:3"]);
+        // Every code is unknown under a profile with no courts — including ZACC,
+        // which proves nothing about South Africa is special-cased in the parser.
+        assert!(refs.iter().all(|r| !r.known_court));
+    }
+
+    #[test]
+    fn the_generic_profile_finds_case_numbers() {
+        let refs = generic().extract("Case CCT 306/24 was heard in May");
+        assert!(refs.iter().any(|r| r.citation
+            == Citation::CaseNumber {
+                prefix: "CCT".into(),
+                number: "306/24".into()
+            }));
+    }
+
+    #[test]
+    fn the_generic_profile_finds_no_reported_citations() {
+        // An honest limitation, not a bug. With no series enumerated there is
+        // nothing to match, and guessing would readmit every `section 3 (1) of
+        // the Companies Act 71 of 2008` in the corpus.
+        for text in [
+            "2020 (3) SA 123 (SCA)",
+            "1941 AD 43",
+            "2015 (1) SACR 1 (CC)",
+        ] {
+            let refs = generic().extract(text);
+            assert!(
+                !refs
+                    .iter()
+                    .any(|r| matches!(r.citation, Citation::Reported { .. })),
+                "generic profile invented a reported citation from {text:?}: {refs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_generic_profile_still_rejects_prose() {
+        assert!(generic().extract("[2019] Act 5 of that year").is_empty());
+        assert!(generic()
+            .extract("in terms of section 3 (1) of the Companies Act 71 of 2008")
+            .is_empty());
+    }
+
+    #[test]
+    fn a_profile_loaded_from_toml_drives_extraction() {
+        // The end-to-end claim: a jurisdiction added as data, with no code
+        // change, changes what the parser recognises.
+        let profile = region::RegionProfile::from_toml(
+            "code = \"XX\"\nname = \"Example\"\n\
+             [[courts]]\ncode = \"XXSC\"\nname = \"Supreme Court\"\ntier = \"apex\"\n\
+             [[series]]\nabbr = \"XR\"\nname = \"Example Reports\"\n",
+        )
+        .expect("profile must load");
+        let ex = Extractor::for_profile(profile);
+
+        let refs = ex.extract("[2020] XXSC 7 and 2019 (2) XR 88");
+        let keys: Vec<String> = refs.iter().map(|r| r.citation.key()).collect();
+        assert_eq!(keys, vec!["neutral:2020:XXSC:7", "reported:2019:2:XR:88"]);
+        assert!(refs[0].known_court, "XXSC is in the loaded registry");
+
+        // And the ZA series are not recognised under it.
+        assert!(!ex
+            .extract("2020 (3) SA 123")
+            .iter()
+            .any(|r| matches!(r.citation, Citation::Reported { .. })));
     }
 
     #[test]

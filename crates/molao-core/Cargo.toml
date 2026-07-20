@@ -13,5 +13,7 @@ ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+regex.workspace = true
 thiserror.workspace = true
 time.workspace = true
+toml.workspace = true

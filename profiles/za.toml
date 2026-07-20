@@ -1,0 +1,320 @@
+# South Africa — the reference region profile.
+#
+# This file is the ZA profile as data. A test in molao-core parses it and
+# asserts it equals the built-in `region::ZA` constant: if the two can drift,
+# the "data" claim is decoration. Edit both together, or neither.
+#
+# Court codes follow the LII convention used by SAFLII and AfricanLII.
+#
+# Changing anything here changes what the citation parser accepts, which changes
+# extraction output, which requires an EXTRACTOR_VERSION bump. See
+# docs/CITATIONS.md.
+
+code = "ZA"
+name = "South Africa"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "ZACC"
+name = "Constitutional Court of South Africa"
+tier = "apex"
+seat = "Johannesburg"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "ZASCA"
+name = "Supreme Court of Appeal of South Africa"
+tier = "appellate"
+seat = "Bloemfontein"
+
+# ---- specialist_appellate ----------------------------------------
+
+[[courts]]
+code = "ZALAC"
+name = "Labour Appeal Court of South Africa"
+tier = "specialist_appellate"
+
+[[courts]]
+code = "ZACAC"
+name = "Competition Appeal Court of South Africa"
+tier = "specialist_appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "ZAGPPHC"
+name = "High Court of South Africa, Gauteng Division"
+tier = "high_court"
+seat = "Pretoria"
+
+[[courts]]
+code = "ZAGPJHC"
+name = "High Court of South Africa, Gauteng Local Division"
+tier = "high_court"
+seat = "Johannesburg"
+
+[[courts]]
+code = "ZAWCHC"
+name = "High Court of South Africa, Western Cape Division"
+tier = "high_court"
+seat = "Cape Town"
+
+[[courts]]
+code = "ZAKZDHC"
+name = "High Court of South Africa, KwaZulu-Natal Local Division"
+tier = "high_court"
+seat = "Durban"
+
+[[courts]]
+code = "ZAKZPHC"
+name = "High Court of South Africa, KwaZulu-Natal Division"
+tier = "high_court"
+seat = "Pietermaritzburg"
+
+[[courts]]
+code = "ZAECGHC"
+name = "High Court of South Africa, Eastern Cape Division"
+tier = "high_court"
+seat = "Grahamstown"
+
+[[courts]]
+code = "ZAECPEHC"
+name = "High Court of South Africa, Eastern Cape Local Division"
+tier = "high_court"
+seat = "Gqeberha"
+
+[[courts]]
+code = "ZAECBHC"
+name = "High Court of South Africa, Eastern Cape Local Division"
+tier = "high_court"
+seat = "Bhisho"
+
+[[courts]]
+code = "ZAECMHC"
+name = "High Court of South Africa, Eastern Cape Local Division"
+tier = "high_court"
+seat = "Mthatha"
+
+[[courts]]
+code = "ZAFSHC"
+name = "High Court of South Africa, Free State Division"
+tier = "high_court"
+seat = "Bloemfontein"
+
+[[courts]]
+code = "ZANWHC"
+name = "High Court of South Africa, North West Division"
+tier = "high_court"
+seat = "Mahikeng"
+
+[[courts]]
+code = "ZANCHC"
+name = "High Court of South Africa, Northern Cape Division"
+tier = "high_court"
+seat = "Kimberley"
+
+[[courts]]
+code = "ZALMPPHC"
+name = "High Court of South Africa, Limpopo Division"
+tier = "high_court"
+seat = "Polokwane"
+
+[[courts]]
+code = "ZALMPTHC"
+name = "High Court of South Africa, Limpopo Local Division"
+tier = "high_court"
+seat = "Thohoyandou"
+
+[[courts]]
+code = "ZAMPMBHC"
+name = "High Court of South Africa, Mpumalanga Division"
+tier = "high_court"
+seat = "Mbombela"
+
+[[courts]]
+code = "ZAMPMHC"
+name = "High Court of South Africa, Mpumalanga Local Division"
+tier = "high_court"
+seat = "Middelburg"
+
+# ---- specialist_high ---------------------------------------------
+
+[[courts]]
+code = "ZALC"
+name = "Labour Court of South Africa"
+tier = "specialist_high"
+
+[[courts]]
+code = "ZALCJHB"
+name = "Labour Court of South Africa"
+tier = "specialist_high"
+seat = "Johannesburg"
+
+[[courts]]
+code = "ZALCCT"
+name = "Labour Court of South Africa"
+tier = "specialist_high"
+seat = "Cape Town"
+
+[[courts]]
+code = "ZALCD"
+name = "Labour Court of South Africa"
+tier = "specialist_high"
+seat = "Durban"
+
+[[courts]]
+code = "ZALCPE"
+name = "Labour Court of South Africa"
+tier = "specialist_high"
+seat = "Gqeberha"
+
+[[courts]]
+code = "ZALCC"
+name = "Land Claims Court of South Africa"
+tier = "specialist_high"
+
+[[courts]]
+code = "ZATC"
+name = "Tax Court of South Africa"
+tier = "specialist_high"
+
+[[courts]]
+code = "ZAEC"
+name = "Electoral Court of South Africa"
+tier = "specialist_high"
+
+# ---- tribunal ----------------------------------------------------
+
+[[courts]]
+code = "ZACT"
+name = "Competition Tribunal of South Africa"
+tier = "tribunal"
+
+[[courts]]
+code = "ZAWT"
+name = "Water Tribunal of South Africa"
+tier = "tribunal"
+
+[[courts]]
+code = "ZACGSO"
+name = "Companies Tribunal of South Africa"
+tier = "tribunal"
+
+[[courts]]
+code = "ZAICT"
+name = "Information Regulator of South Africa"
+tier = "tribunal"
+
+# ---- Law-report series ----------------------------------------
+
+# Modern volume-numbered series
+
+[[series]]
+abbr = "All SA"
+name = "All South African Law Reports"
+
+[[series]]
+abbr = "SACR"
+name = "South African Criminal Law Reports"
+
+[[series]]
+abbr = "SATC"
+name = "South African Tax Cases"
+
+[[series]]
+abbr = "SALLR"
+name = "South African Labour Law Reports"
+
+[[series]]
+abbr = "SA"
+name = "South African Law Reports"
+
+[[series]]
+abbr = "BCLR"
+name = "Butterworths Constitutional Law Reports"
+
+[[series]]
+abbr = "BLLR"
+name = "Butterworths Labour Law Reports"
+
+[[series]]
+abbr = "BPIR"
+name = "Butterworths Personal Injury Reports"
+
+[[series]]
+abbr = "ILJ"
+name = "Industrial Law Journal"
+
+[[series]]
+abbr = "JOL"
+name = "Judgments Online"
+
+[[series]]
+abbr = "JDR"
+name = "Juta's Daily Reports"
+
+[[series]]
+abbr = "NR"
+name = "Namibian Law Reports"
+
+[[series]]
+abbr = "BLR"
+name = "Botswana Law Reports"
+
+[[series]]
+abbr = "LLR"
+name = "Lesotho Law Reports"
+
+# Historical series, cited without a volume number
+
+[[series]]
+abbr = "AD"
+name = "Appellate Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "CPD"
+name = "Cape Provincial Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "TPD"
+name = "Transvaal Provincial Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "WLD"
+name = "Witwatersrand Local Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "NPD"
+name = "Natal Provincial Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "OPD"
+name = "Orange Free State Provincial Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "EDL"
+name = "Eastern Districts Local Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "GWL"
+name = "Griqualand West Local Division Reports"
+no_volume = true
+
+[[series]]
+abbr = "SR"
+name = "Southern Rhodesia Reports"
+no_volume = true
+
+[[series]]
+abbr = "PH"
+name = "Prentice Hall Weekly Legal Service"
+no_volume = true

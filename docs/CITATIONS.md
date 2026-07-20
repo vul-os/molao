@@ -19,10 +19,13 @@ A **generic** profile still parses neutral citations, using the shape rule
 alone, and flags every court code as unknown. South Africa (`ZA`) is the first
 fully-populated profile and supplies most of the worked examples here.
 
-> **Status: the region-profile refactor is in progress.** Today the court and
-> series registries are ZA-populated constants; the grammar, the determinism
-> contract, the pinpoint handling and the key rules described below are all
-> accurate to the code as it stands.
+> **Status: implemented.** The court and series registries are region-profile
+> data ([COURTS.md](COURTS.md)). `Extractor::for_profile(profile)` builds a
+> parser for any profile and `Extractor::extract` runs it; the free
+> `extract(&str)` function is a wrapper over an extractor for the default
+> profile, and is unchanged in behaviour. Under the `GENERIC` profile, neutral
+> citations and case numbers are extracted and reported citations are not — see
+> [Series registry](#series-registry) below.
 
 ## The contract
 

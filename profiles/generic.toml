@@ -1,0 +1,20 @@
+# The generic region profile: no courts, no series.
+#
+# This is what makes Molao usable in a jurisdiction nobody has written a profile
+# for yet. Under it:
+#
+#   - Neutral citations ARE found, by shape alone (`[2020] XXXX 1`), and every
+#     court code is flagged `known_court: false` rather than dropped. A graph
+#     built this way is complete; it just cannot rank authority, because it has
+#     no hierarchy to rank against — every code takes the `Lower` floor.
+#   - Case numbers ARE found. Their grammar is jurisdiction-neutral.
+#   - Reported citations are NOT found. There is no series list to match, and a
+#     parser that guessed at "capitalised word between a volume and a page
+#     number" would match vast amounts of ordinary legal prose. Finding nothing
+#     is the correct behaviour here, not a missing feature.
+#
+# The fix is to write a profile for your jurisdiction — see README.md in this
+# directory. Nothing has to be re-ingested when you do.
+
+code = "GENERIC"
+name = "Generic (no court or series registry)"
