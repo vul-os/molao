@@ -53,16 +53,22 @@ export function Case({ id, tab, para }: Props): JSX.Element {
         </a>
       </nav>
 
-      {tab === 'judgment' && <Body judgment={c.judgment} cites={cites} highlight={para} />}
-      {tab === 'citations' && (
-        <Citations
-          data={citations.data}
-          loading={citations.loading}
-          error={citations.error}
-          title={c.judgment.title}
-        />
-      )}
-      {tab === 'graph' && <CitationGraph id={id} />}
+      <div class="case-body" data-tab={tab}>
+        <div class="case-main">
+          {tab === 'judgment' && <Body judgment={c.judgment} cites={cites} highlight={para} />}
+          {tab === 'citations' && (
+            <Citations
+              data={citations.data}
+              loading={citations.loading}
+              error={citations.error}
+              title={c.judgment.title}
+            />
+          )}
+          {tab === 'graph' && <CitationGraph id={id} />}
+        </div>
+
+        <Aside detail={c} tab={tab} />
+      </div>
     </>
   );
 }
@@ -70,60 +76,104 @@ export function Case({ id, tab, para }: Props): JSX.Element {
 function Header({ detail }: { detail: CaseResponse }): JSX.Element {
   const j = detail.judgment;
   return (
-    <header class="panel jhead">
+    <header class="case-head">
       <h1>{j.title}</h1>
-      <div class="citeline mono">
+      <div class="citeline">
         {j.neutral_citation && (
           <>
             <span class="neutral">{j.neutral_citation}</span>
             <Sep />
           </>
         )}
-        <span>{detail.court_name}</span>
+        <span class="court">{detail.court_name}</span>
         <Sep />
-        <span title={j.date ?? ''}>{formatDate(j.date)}</span>
+        <span class="date" title={j.date ?? ''}>
+          {formatDate(j.date)}
+        </span>
       </div>
 
-      <div class="badges">
-        <RegionChip region={j.region} />
+      <div class="chips">
         <CourtBadge code={j.court} />
+        <RegionChip region={j.region} />
         <ProvenanceBadge value={detail.provenance_class} />
-        <span class="badge" title="Authority: how much this judgment is relied on, weighted by the standing of the courts relying on it.">
-          authority
+        <span
+          class="chip"
+          title="Authority: how much this judgment is relied on, weighted by the standing of the courts relying on it."
+        >
+          <span class="chip__k">authority</span>
           <Authority value={detail.authority} />
         </span>
-        <span class="badge" title="BLAKE3 of the canonical text. This is the judgment's identity on every node.">
-          id <span style="color:var(--ink-2)">{j.id.slice(0, 12)}</span>
-        </span>
       </div>
-
-      <dl class="facts">
-        <Fact label="Case number">
-          <span class="value">{j.case_numbers.length ? j.case_numbers.join(', ') : '—'}</span>
-        </Fact>
-        <Fact label="Coram">
-          <span class="value sans">{j.judges.length ? j.judges.join(', ') : '—'}</span>
-        </Fact>
-        <Fact label="Reported at">
-          <span class="value">
-            {detail.reported_citations.length ? detail.reported_citations.join('; ') : 'Not reported'}
-          </span>
-        </Fact>
-        <Fact label="Citations">
-          <span class="value">
-            {detail.cites_count} out · {detail.cited_by_count} in
-          </span>
-        </Fact>
-      </dl>
     </header>
   );
 }
 
-function Fact({ label, children }: { label: string; children: ComponentChildren }): JSX.Element {
+/**
+ * The instrument panel beside the judgment: the metadata a reader glances back
+ * at without losing their place, plus the two ways out of this judgment. It is
+ * sticky on desktop and becomes a strip below the content on narrow screens.
+ */
+function Aside({ detail, tab }: { detail: CaseResponse; tab: Props['tab'] }): JSX.Element {
+  const j = detail.judgment;
+  return (
+    <aside class="case-aside" aria-label="Judgment details">
+      <section class="panel aside-card">
+        <h2>Record</h2>
+        <dl class="facts">
+          <Fact label="Case number">{j.case_numbers.length ? j.case_numbers.join(', ') : '—'}</Fact>
+          <Fact label="Coram">{j.judges.length ? j.judges.join(', ') : '—'}</Fact>
+          <Fact label="Reported at">
+            {detail.reported_citations.length ? detail.reported_citations.join('; ') : 'Not reported'}
+          </Fact>
+          <Fact label="Identity" hint="BLAKE3 of the canonical text — this judgment's identity on every node.">
+            {j.id.slice(0, 16)}
+          </Fact>
+        </dl>
+      </section>
+
+      {tab !== 'citations' && (
+        <section class="panel aside-card">
+          <h2>Citations</h2>
+          <div class="ledger">
+            <a href={href(`case/${j.id}/citations`)}>
+              <span class="n">{detail.cites_count}</span>
+              <span class="k">cited out</span>
+            </a>
+            <a href={href(`case/${j.id}/citations`)}>
+              <span class="n">{detail.cited_by_count}</span>
+              <span class="k">cited in</span>
+            </a>
+          </div>
+        </section>
+      )}
+
+      {tab !== 'graph' && (
+        <a class="aside-link" href={href(`case/${j.id}/graph`)}>
+          View citation graph
+          <span class="arrow" aria-hidden="true">
+            →
+          </span>
+        </a>
+      )}
+    </aside>
+  );
+}
+
+function Fact({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ComponentChildren;
+}): JSX.Element {
   return (
     <div class="fact">
       <dt class="label">{label}</dt>
-      <dd style="margin:0">{children}</dd>
+      <dd class="value" title={hint}>
+        {children}
+      </dd>
     </div>
   );
 }
@@ -157,9 +207,8 @@ function Body({
     <div class="paras">
       {judgment.paragraphs.map((p) => (
         <div
-          class={`para${p.number === null ? ' coram' : ''}`}
+          class={`para${p.number === null ? ' coram' : ''}${highlight === p.index ? ' is-target' : ''}`}
           id={`para-${p.index}`}
-          style={highlight === p.index ? 'background:var(--mark-bg);border-radius:4px' : undefined}
         >
           <div class="num" aria-hidden={p.number === null}>
             {p.number ?? ''}
@@ -252,48 +301,46 @@ function Citations({
 
   return (
     <>
-      <div class="cols">
-        <section class="col">
-          <h2>
-            Cites
-            <span class="mono dim">{data.cites.length}</span>
-            <span class="label" style="margin-left:auto">judgments this one relies on</span>
-          </h2>
-          <ul class="citelist">
-            {data.cites.length === 0 && <li class="empty">This judgment cites nothing in the corpus.</li>}
-            {data.cites.map((cite) => (
-              <li>
-                <CiteOutRow cite={cite} />
-              </li>
-            ))}
-          </ul>
-          {unresolved > 0 && (
-            <p class="mono dim" style="margin:9px 2px 0">
-              {unresolved} of {data.cites.length} could not be resolved to a judgment in this corpus.
-            </p>
+      <section class="citegroup">
+        <h2>
+          Cites
+          <span class="mono dim">{data.cites.length}</span>
+          <span class="label">judgments this one relies on</span>
+        </h2>
+        <ul class="citelist">
+          {data.cites.length === 0 && <li class="empty">This judgment cites nothing in the corpus.</li>}
+          {data.cites.map((cite) => (
+            <li>
+              <CiteOutRow cite={cite} />
+            </li>
+          ))}
+        </ul>
+        {unresolved > 0 && (
+          <p class="mono dim hint">
+            {unresolved} of {data.cites.length} could not be resolved to a judgment in this corpus.
+          </p>
+        )}
+      </section>
+
+      <section class="citegroup">
+        <h2>
+          Cited by
+          <span class="mono dim">{data.cited_by.length}</span>
+          <span class="label">judgments relying on this one</span>
+        </h2>
+        <ul class="citelist">
+          {data.cited_by.length === 0 && (
+            <li class="empty">Nothing in this corpus cites this judgment yet.</li>
           )}
-        </section>
+          {data.cited_by.map((cite) => (
+            <li>
+              <CiteInRow cite={cite} />
+            </li>
+          ))}
+        </ul>
+      </section>
 
-        <section class="col">
-          <h2>
-            Cited by
-            <span class="mono dim">{data.cited_by.length}</span>
-            <span class="label" style="margin-left:auto">judgments relying on this one</span>
-          </h2>
-          <ul class="citelist">
-            {data.cited_by.length === 0 && (
-              <li class="empty">Nothing in this corpus cites this judgment yet.</li>
-            )}
-            {data.cited_by.map((cite) => (
-              <li>
-                <CiteInRow cite={cite} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
-      <div style="margin-top:18px">
+      <div style="margin-top:22px">
         <Note>
           <span>
             <b>Treatment signals are not yet available.</b> This panel shows that a later judgment cited{' '}

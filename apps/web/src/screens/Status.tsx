@@ -226,15 +226,13 @@ function ProvRow({
   return (
     <div class="prov-row">
       <div>
-        <div style="font-size:12.5px;font-weight:550">{label}</div>
-        <div class="dim" style="font-size:11px">
-          {hint}
-        </div>
+        <div class="prov-name">{label}</div>
+        <div class="prov-hint">{hint}</div>
       </div>
       <div class="prov-track" role="img" aria-label={`${label}: ${n} of ${total} judgments, ${pct} percent`}>
         <div class={`prov-fill ${kind}`} style={`width:${Math.max(n > 0 ? 2 : 0, pct)}%`} />
       </div>
-      <div class="mono" style="text-align:right">
+      <div class="mono prov-n">
         {n} <span class="dim">{pct}%</span>
       </div>
     </div>

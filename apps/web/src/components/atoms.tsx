@@ -82,12 +82,47 @@ const PROVENANCE_TITLE: Record<ProvenanceClass, string> = {
   manual: 'No online source; entered by hand and reviewed by a named person.',
 };
 
+/**
+ * The one chip. Everything pill-shaped in this UI is this component: a sans
+ * micro-caps key and a mono data value, in one of four tones. Variants change
+ * colour and nothing else, so five chips in a row read as one system.
+ */
+export function Chip({
+  k,
+  note,
+  children,
+  tone = 'plain',
+  dot = false,
+  title,
+}: {
+  k?: string;
+  note?: string;
+  children: ComponentChildren;
+  tone?: 'plain' | 'accent' | 'good' | 'quiet';
+  dot?: boolean;
+  title?: string;
+}): JSX.Element {
+  return (
+    <span class={`chip${tone === 'plain' ? '' : ` chip--${tone}`}`} title={title}>
+      {dot && <span class="chip__dot" aria-hidden="true" />}
+      {k && <span class="chip__k">{k}</span>}
+      <span class="chip__v">{children}</span>
+      {note && <span class="chip__k">{note}</span>}
+    </span>
+  );
+}
+
+const PROVENANCE_TONE: Record<ProvenanceClass, 'good' | 'accent' | 'plain'> = {
+  corroborated: 'good',
+  single: 'accent',
+  manual: 'plain',
+};
+
 export function ProvenanceBadge({ value }: { value: ProvenanceClass }): JSX.Element {
   return (
-    <span class={`badge prov-${value}`} title={PROVENANCE_TITLE[value]}>
-      <span class="dot" aria-hidden="true" />
+    <Chip tone={PROVENANCE_TONE[value]} dot title={PROVENANCE_TITLE[value]}>
       {PROVENANCE_LABEL[value]}
-    </span>
+    </Chip>
   );
 }
 
@@ -99,13 +134,13 @@ export function ProvenanceBadge({ value }: { value: ProvenanceClass }): JSX.Elem
 export function CourtBadge({ code }: { code: string }): JSX.Element {
   const court = useCourts().get(code);
   return (
-    <span
-      class={`badge${court?.tier === 'apex' ? ' apex' : ''}`}
+    <Chip
+      tone={court?.tier === 'apex' ? 'accent' : 'plain'}
+      note={court ? TIER_LABEL[court.tier] : undefined}
       title={court?.name ?? 'This node did not report metadata for this court code.'}
     >
       {code}
-      {court && <span class="dim">{TIER_LABEL[court.tier]}</span>}
-    </span>
+    </Chip>
   );
 }
 
@@ -117,10 +152,12 @@ export function CourtBadge({ code }: { code: string }): JSX.Element {
 export function RegionChip({ region }: { region: string | null | undefined }): JSX.Element | null {
   if (!region) return null;
   return (
-    <span class="badge" title={`Region profile ${regionLabel(region)}. Molao is region-agnostic; a corpus declares the profile its judgments belong to.`}>
-      <span class="dim">region</span>
+    <Chip
+      k="region"
+      title={`Region profile ${regionLabel(region)}. Molao is region-agnostic; a corpus declares the profile its judgments belong to.`}
+    >
       {regionLabel(region)}
-    </span>
+    </Chip>
   );
 }
 

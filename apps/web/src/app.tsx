@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import { isDemo } from './api';
-import { ErrorState, Mark, Sep } from './components/atoms';
+import { Chip, ErrorState, Mark, Sep } from './components/atoms';
 import { href, useRoute, useScrollReset } from './router';
 import { Case } from './screens/Case';
 import { Search } from './screens/Search';
@@ -16,34 +16,36 @@ export function App(): JSX.Element {
   return (
     <>
       <header class="topbar">
-        <a class="brand" href={href('')} aria-label="Molao — home">
-          <Mark />
-          <span>
-            m<span class="o">o</span>lao
-          </span>
-        </a>
-        <nav class="nav" aria-label="Primary">
-          <a href={href('')} aria-current={route.name === 'search' ? 'page' : undefined}>
-            Search
-          </a>
-          <a href={href('status')} aria-current={route.name === 'status' ? 'page' : undefined}>
-            Status
-          </a>
-        </nav>
-        <span class="spacer" />
-        <div class="meta">
-          {demo && (
-            <span
-              class="badge apex"
-              title="Fictional judgments, bundled with the UI. Nothing here is real law and no node is running."
-            >
-              <span class="dot" aria-hidden="true" />
-              demo corpus
+        <div class="topbar-in">
+          <a class="brand" href={href('')} aria-label="Molao — home">
+            <Mark />
+            <span>
+              m<span class="o">o</span>lao
             </span>
-          )}
-          <span class="mono dim hide-sm">
-            {version.data ? `${version.data.version}` : 'offline'}
-          </span>
+          </a>
+          <nav class="nav" aria-label="Primary">
+            <a href={href('')} aria-current={route.name === 'search' ? 'page' : undefined}>
+              Search
+            </a>
+            <a href={href('status')} aria-current={route.name === 'status' ? 'page' : undefined}>
+              Status
+            </a>
+          </nav>
+          <span class="spacer" />
+          <div class="meta">
+            {demo && (
+              <Chip
+                tone="accent"
+                dot
+                title="Fictional judgments, bundled with the UI. Nothing here is real law and no node is running."
+              >
+                demo corpus
+              </Chip>
+            )}
+            <span class="mono dim hide-sm">
+              {version.data ? `${version.data.version}` : 'offline'}
+            </span>
+          </div>
         </div>
       </header>
 

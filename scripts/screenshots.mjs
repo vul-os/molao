@@ -3,7 +3,8 @@
  * Capture the screenshots that go in the README.
  *
  * Builds the UI in demo mode, serves `apps/web/dist` from a tiny static server,
- * and drives Playwright Chromium over the five screens. No node, no network, no
+ * and drives Playwright Chromium over the five desktop screens and three mobile
+ * ones. No node, no network, no
  * backend — that is the point: if this script needs something running, the demo
  * mode it is exercising is not really standalone.
  *
@@ -21,19 +22,31 @@ const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 const DIST = join(ROOT, 'apps', 'web', 'dist');
 const OUT = join(ROOT, 'docs', 'screenshots');
 const PORT = Number(process.env.MOLAO_SHOT_PORT ?? 4319);
+const THEME = process.env.MOLAO_SHOT_THEME === 'light' ? 'light' : 'dark';
 
-const VIEWPORT = { width: 1440, height: 900 };
-const SCALE = 2;
+const DESKTOP = { viewport: { width: 1440, height: 900 }, scale: 2 };
+const MOBILE = { viewport: { width: 390, height: 844 }, scale: 3 };
 
 /** The featured judgment in the demo corpus: Nkosi v Minister of Police. */
 const FEATURED = '5941a989115f328d27731cd1c3e9b7eacae10638439bf862d3a9fb2d24f5c051';
 
-const SHOTS = [
-  { name: 'hero', hash: '#/?q=constitutional%20damages', wait: '.result' },
-  { name: 'judgment', hash: `#/case/${FEATURED}`, wait: '.para .text' },
-  { name: 'citations', hash: `#/case/${FEATURED}/citations`, wait: '.citelist .citerow' },
-  { name: 'graph', hash: `#/case/${FEATURED}/graph`, wait: '.graph-wrap svg .gnode' },
+const SEARCH = '#/?q=constitutional%20damages';
+const JUDGMENT = `#/case/${FEATURED}`;
+
+/** The five the README names, at 1440x900. Do not rename these. */
+const DESKTOP_SHOTS = [
+  { name: 'hero', hash: SEARCH, wait: '.result' },
+  { name: 'judgment', hash: JUDGMENT, wait: '.para .text' },
+  { name: 'citations', hash: `${JUDGMENT}/citations`, wait: '.citelist .citerow' },
+  { name: 'graph', hash: `${JUDGMENT}/graph`, wait: '.graph-wrap svg .gnode' },
   { name: 'status', hash: '#/status', wait: '.stats .stat' },
+];
+
+/** Mobile is a first-class target, so it is a first-class screenshot set. */
+const MOBILE_SHOTS = [
+  { name: 'mobile-search', hash: SEARCH, wait: '.result' },
+  { name: 'mobile-judgment', hash: JUDGMENT, wait: '.para .text' },
+  { name: 'mobile-graph', hash: `${JUDGMENT}/graph`, wait: '.graph-wrap svg .gnode' },
 ];
 
 const MIME = {
@@ -84,13 +97,19 @@ async function main() {
 
   const server = await serve(DIST, PORT);
   const browser = await chromium.launch();
+  let count = 0;
   try {
-    for (const theme of ['dark']) {
+    for (const set of [
+      { device: DESKTOP, shots: DESKTOP_SHOTS, mobile: false },
+      { device: MOBILE, shots: MOBILE_SHOTS, mobile: true },
+    ]) {
       const context = await browser.newContext({
-        viewport: VIEWPORT,
-        deviceScaleFactor: SCALE,
-        colorScheme: theme,
+        viewport: set.device.viewport,
+        deviceScaleFactor: set.device.scale,
+        colorScheme: THEME,
         reducedMotion: 'reduce',
+        isMobile: set.mobile,
+        hasTouch: set.mobile,
       });
       const page = await context.newPage();
 
@@ -101,17 +120,27 @@ async function main() {
         console.warn(`  ! request failed: ${req.url()}`);
       });
 
-      for (const shot of SHOTS) {
+      for (const shot of set.shots) {
         const url = `http://127.0.0.1:${PORT}/${shot.hash}`;
         await page.goto(url, { waitUntil: 'load' });
         await page.waitForSelector(shot.wait, { state: 'visible', timeout: 10_000 });
-        // Let the layout settle (fonts, the graph relaxation, tab paint).
+        // Let the layout settle (fonts, the graph layout, tab paint).
         await page.waitForTimeout(320);
+
+        // A page that scrolls sideways on a phone is a bug, not a screenshot.
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        if (overflow > 0) {
+          throw new Error(`${shot.name}: body scrolls horizontally by ${overflow}px`);
+        }
+
         const file = join(OUT, `${shot.name}.png`);
         await page.screenshot({ path: file, animations: 'disabled' });
         const size = (await stat(file)).size;
         if (size < 12_000) throw new Error(`${shot.name}.png looks blank (${size} bytes)`);
         console.log(`  ✓ docs/screenshots/${shot.name}.png  ${(size / 1024).toFixed(0)} kB`);
+        count += 1;
       }
       await context.close();
     }
@@ -120,7 +149,7 @@ async function main() {
     server.close();
   }
 
-  console.log(`› done — ${SHOTS.length} screenshots at ${VIEWPORT.width}×${VIEWPORT.height} @${SCALE}x`);
+  console.log(`› done — ${count} screenshots (desktop 1440×900 @2x, mobile 390×844 @3x)`);
 }
 
 main().catch((err) => {

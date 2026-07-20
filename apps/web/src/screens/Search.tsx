@@ -69,7 +69,7 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
         <div class="filters">
           <span class="label">Filter</span>
           <label class="filter">
-            <span class="mono dim">court</span>
+            <span class="chip__k">court</span>
             <select
               aria-label="Filter by court"
               value={court}
@@ -85,7 +85,7 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
           </label>
           {multiRegion && (
             <label class="filter">
-              <span class="mono dim">region</span>
+              <span class="chip__k">region</span>
               <select
                 aria-label="Filter by region profile"
                 value={region}
@@ -99,7 +99,7 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
             </label>
           )}
           <label class="filter">
-            <span class="mono dim">from</span>
+            <span class="chip__k">from</span>
             <input
               type="number"
               inputMode="numeric"
@@ -112,7 +112,7 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
             />
           </label>
           <label class="filter">
-            <span class="mono dim">to</span>
+            <span class="chip__k">to</span>
             <input
               type="number"
               inputMode="numeric"
@@ -145,7 +145,7 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
             <span class="mono dim">
               {results.data ? `${results.data.total} judgment${results.data.total === 1 ? '' : 's'}` : '—'}
             </span>
-            <span class="spacer" style="flex:1" />
+            <span class="spacer" />
             <span class="mono dim" title="Search is full text (SQLite FTS5) over canonical judgment text.">
               fts5 · rank by relevance × authority
             </span>
@@ -193,13 +193,11 @@ export function Search({ q, court, region, yearFrom, yearTo }: Props): JSX.Eleme
 function Result({ hit }: { hit: SearchHit }): JSX.Element {
   return (
     <a class="result" href={href(`case/${hit.id}`)}>
-      <div class="result-top">
-        <span class="result-title">{hit.title}</span>
-        <span class="result-cited">
-          <span class="mono dim">cited by </span>
-          <span class="mono">{hit.cited_by_count}</span>
-        </span>
-      </div>
+      <span class="result-title">{hit.title}</span>
+      <span class="result-cited">
+        <span class="mono dim">cited by </span>
+        <span class="mono">{hit.cited_by_count}</span>
+      </span>
       <div class="result-meta mono">
         {hit.neutral_citation && (
           <>
