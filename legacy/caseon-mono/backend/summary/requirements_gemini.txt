@@ -1,9 +1,0 @@
-# Dependencies for Gemini-based document summarizer
-tomli>=2.0.0
-psycopg2-binary>=2.9.0
-tqdm>=4.64.0
-striprtf>=0.0.29
-python-docx>=0.8.11
-PyMuPDF>=1.23.0
-httpx>=0.27.0
-google-generativeai>=0.3.0 

@@ -1,6 +1,0 @@
-fastapi
-uvicorn
-transformers
-torch
-google-cloud-storage
-supabase
