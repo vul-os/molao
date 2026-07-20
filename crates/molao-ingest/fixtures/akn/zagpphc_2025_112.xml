@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Invented fixture, not a reproduction of any real judgment. A second, purely
+  structural variation on zacc_2026_26.xml: a different court (derived from a
+  different FRBRuri path segment), a single case number, no explicit
+  akn:neutralCitation element (exercising the URI-derived fallback in
+  neutral_citation_from_uri), and a body with no <introduction> section.
+-->
+<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0"
+            xmlns:akn="https://laws.africa/akn">
+  <judgment name="judgment" contains="originalVersion">
+    <meta>
+      <identification source="#laws-africa">
+        <FRBRWork>
+          <FRBRthis value="/akn/za/judgment/zagpphc/2025/112/main"/>
+          <FRBRuri value="/akn/za/judgment/zagpphc/2025/112"/>
+          <FRBRalias value="Nkosi v Nkosi" name="title"/>
+          <FRBRdate date="2025-11-03" name="Judgment"/>
+          <FRBRauthor href="#zagpphc"/>
+          <FRBRcountry value="za"/>
+        </FRBRWork>
+        <FRBRExpression>
+          <FRBRthis value="/akn/za/judgment/zagpphc/2025/112/eng@/main"/>
+          <FRBRuri value="/akn/za/judgment/zagpphc/2025/112/eng@"/>
+          <FRBRdate date="2025-11-03" name="Judgment"/>
+          <FRBRauthor href="#zagpphc"/>
+          <FRBRlanguage language="eng"/>
+        </FRBRExpression>
+        <FRBRManifestation>
+          <FRBRthis value="/akn/za/judgment/zagpphc/2025/112/eng@/main.xml"/>
+          <FRBRuri value="/akn/za/judgment/zagpphc/2025/112/eng@/main.xml"/>
+          <FRBRdate date="2025-11-10" name="XML generation"/>
+          <FRBRauthor href="#laws-africa"/>
+        </FRBRManifestation>
+      </identification>
+      <references source="#this">
+        <TLCOrganization eId="zagpphc" href="/ontology/organization/za/zagpphc" showAs="High Court of South Africa, Gauteng Division, Pretoria"/>
+        <TLCPerson eId="party-applicant" href="/ontology/person" showAs="Nkosi"/>
+        <TLCPerson eId="party-respondent" href="/ontology/person" showAs="Nkosi"/>
+      </references>
+      <proprietary source="#laws-africa">
+        <akn:case number="12345/2025"/>
+      </proprietary>
+    </meta>
+    <judgmentBody>
+      <decision>
+        <p eId="dec__p_1"><num>1</num> This matter concerns a dispute over the division of a joint estate.</p>
+        <p eId="dec__p_2"><num>2</num> The parties are agreed on the facts, and the only issue is one of valuation.</p>
+        <p eId="dec__p_3"><num>3</num> The order that follows disposes of the application in full.</p>
+      </decision>
+    </judgmentBody>
+  </judgment>
+</akomaNtoso>

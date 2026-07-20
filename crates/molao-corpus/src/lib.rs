@@ -110,6 +110,27 @@ pub struct ResolvedEdge {
     pub paragraph_count: u32,
 }
 
+/// One paragraph of one judgment, as a flat row.
+///
+/// The feeding hook for `molao-index`: the index builds its chunks and vectors
+/// from these. It lives here, rather than the index reaching into the schema,
+/// so that the store stays the single writer of its own tables and the index
+/// depends only on this crate's public surface — never the reverse. Chunking,
+/// embedding, and everything model-specific are the index's concern; this is
+/// just the verified text, in a stable order, with the pinpoint that makes a
+/// retrieved passage citable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParagraphRow {
+    /// Hex `DocId` of the judgment this paragraph belongs to.
+    pub doc_id: String,
+    /// Zero-based position within the judgment. Dense and monotonic.
+    pub index: u32,
+    /// Printed paragraph number, e.g. `"12"`, if the judgment had one.
+    pub number: Option<String>,
+    /// The paragraph text, exactly as stored (already canonicalised on ingest).
+    pub text: String,
+}
+
 /// Enough of a judgment to build a graph node without loading its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeRow {
@@ -668,6 +689,34 @@ impl Corpus {
         Ok(n.max(0) as u64)
     }
 
+    /// Every paragraph of every judgment, ordered by `(doc_id, index)`.
+    ///
+    /// The deterministic order is not cosmetic: it is what lets an index built
+    /// on one node be compared against one rebuilt on another. Two nodes holding
+    /// the same corpus feed their index the same rows in the same order, so any
+    /// difference in the resulting vectors is attributable to the embedder
+    /// alone — which is the whole point of the rebuild-and-check verification.
+    ///
+    /// The text is already canonical (it was canonicalised at ingest), so an
+    /// index built from it is built over exactly the bytes that were hashed into
+    /// each `DocId`.
+    pub fn paragraphs(&self) -> Result<Vec<ParagraphRow>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT doc_id, idx, number, text FROM paragraphs ORDER BY doc_id, idx")?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(ParagraphRow {
+                    doc_id: r.get(0)?,
+                    index: r.get(1)?,
+                    number: r.get(2)?,
+                    text: r.get(3)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
     /// Every judgment as a graph node, ordered by id.
     ///
     /// The ordering is not cosmetic: `molao-graph` requires a deterministic node
@@ -1162,6 +1211,40 @@ mod tests {
         // Junk input must be a miss, not an error, and must not execute.
         assert_eq!(c.resolve("'; DROP TABLE judgments; --").unwrap(), None);
         assert_eq!(c.stats().unwrap().docs, 0);
+    }
+
+    #[test]
+    fn paragraphs_are_returned_in_a_stable_order_for_the_index() {
+        let mut c = Corpus::open_in_memory().unwrap();
+        // Insert out of id order; the output must still be grouped and ordered.
+        c.insert_judgment(
+            &judgment(
+                "ZASCA",
+                "[2026] ZASCA 2",
+                "C v D",
+                &["beta one", "beta two"],
+            ),
+            &[],
+        )
+        .unwrap();
+        c.insert_judgment(
+            &judgment("ZACC", "[2026] ZACC 1", "A v B", &["alpha only"]),
+            &[],
+        )
+        .unwrap();
+
+        let rows = c.paragraphs().unwrap();
+        assert_eq!(rows.len(), 3);
+        // Grouped by doc_id, and within a doc by paragraph index ascending.
+        let mut sorted = rows.clone();
+        sorted.sort_by(|a, b| a.doc_id.cmp(&b.doc_id).then(a.index.cmp(&b.index)));
+        assert_eq!(
+            rows, sorted,
+            "paragraphs must come back in (doc_id, index) order"
+        );
+        // Each row is pinpoint-able and carries the verified text.
+        assert!(rows.iter().all(|r| !r.text.is_empty()));
+        assert!(rows.iter().any(|r| r.text == "alpha only"));
     }
 
     #[test]

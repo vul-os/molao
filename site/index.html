@@ -137,6 +137,7 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
     <a href="#regions">Any jurisdiction</a>
     <a href="#verify">Verifiable</a>
     <a href="#quorum">Quorum</a>
+    <a href="#distribute">Distribution</a>
     <a href="#honest">Honest status</a>
     <a href="./docs.html">Docs</a>
     <a href="https://github.com/vul-os/molao">GitHub</a>
@@ -164,9 +165,9 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
   </div>
 
   <div class="status">
-    <div class="label">Honest status · 0.1.0</div>
-    <p>All five crates are written and tested — core types, the citation parser, the corpus store, the citation graph, and the node itself. Court and law-report registries are <strong>loadable region profiles</strong>: <code>ZA</code> ships populated, <code>GENERIC</code> works anywhere, and <a href="https://github.com/vul-os/molao/tree/main/profiles" class="accent">adding a jurisdiction</a> means writing a TOML file, not changing code.</p>
-    <p><strong>There is no bundled corpus.</strong> A node starts empty; <code>molao demo</code> seeds a synthetic corpus so you can see the software work. Treatment attestations and P2P distribution are <strong>designed, not built</strong>. Semantic search is <strong>deliberately excluded</strong> — <a href="./docs.html#threat-model" class="accent">here is why</a>.</p>
+    <div class="label">Honest status · 0.1.0 — decentralisation-ready, not decentralisation-running</div>
+    <p>The trust model is real, built and tested today: hash-identified judgments, threshold-signed releases, a citation graph verifiable by recomputation, and a node that runs standalone and fully offline. Court and law-report registries are <strong>loadable region profiles</strong>: <code>ZA</code> ships populated, <code>GENERIC</code> works anywhere, and <a href="https://github.com/vul-os/molao/tree/main/profiles" class="accent">adding a jurisdiction</a> means writing a TOML file, not changing code.</p>
+    <p><strong>There is no bundled corpus and no live peer-to-peer network yet.</strong> A node starts empty; <code>molao demo</code> seeds a synthetic corpus so you can see the software work, and releases still move as plain files today. Three crates are landing this session to close that: <strong>molao-ingest</strong> (a robots-respecting, collectively-witnessed corpus), <strong>molao-dist</strong> (content-addressed releases over iroh, torrent export and HTTP mirror), and <strong>molao-index</strong> (a local, rebuildable, unsigned search cache). None has run against real data yet. Treatment attestations remain <strong>designed, not built</strong>. Semantic search over a release is <strong>deliberately excluded</strong> — <a href="./docs.html#threat-model" class="accent">here is why</a> — a local rebuildable cache is a different thing and does not reopen that question.</p>
   </div>
 </div>
 
@@ -235,9 +236,10 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
         <p>So a graph can be contributed by anyone and checked by everyone, with no trust in the contributor at all.</p>
       </div>
       <div class="card">
-        <h3>Embeddings are excluded on purpose</h3>
+        <h3>Embeddings are excluded from releases</h3>
         <p>Float inference is not reproducible across hardware, so a contributed vector index could never be verified — only trusted.</p>
         <p>And a poisoned index is worse than a poisoned document: a tampered judgment fails its hash check immediately, while a tampered index leaves every judgment byte-perfect and simply never returns the case that would have lost you the argument. The text stays correct while retrieval quietly steers.</p>
+        <p>That doesn't rule out semantic search — a node may build its own local index and share it as an <strong>unsigned, rebuildable cache</strong>, never inside a release. The corpus stays the only signed truth. <code>molao-index</code> is landing this session.</p>
       </div>
       <div class="card">
         <h3>Provenance is plural</h3>
@@ -304,7 +306,7 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
     <div class="grid g3">
       <div class="card">
         <h3>Courts and gazettes, directly</h3>
-        <p>The court that handed down the judgment is the canonical source, in any jurisdiction. Going direct means the provenance record points where it should.</p>
+        <p>The court that handed down the judgment is the canonical source, in any jurisdiction. Going direct means the provenance record points where it should. Where a court only self-publishes, the way in is a <strong>polite, identified crawl</strong> — a named agent, <code>robots.txt</code> honoured without exception, a fetch rate like a careful clerk, not a data hoover.</p>
       </div>
       <div class="card">
         <h3>Licensed bulk, where it exists</h3>
@@ -314,6 +316,44 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
         <h3>SAFLII is not a scrape target</h3>
         <p>Where an LII declines bulk supply, that settles it. SAFLII made South African case law publicly accessible for two decades, largely unfunded, and says plainly that it is not a bulk re-supplier — so Molao treats it as a <strong>citation-resolution target</strong>, somewhere to send a reader. A bulk SAFLII scraper will not be accepted into the repository.</p>
       </div>
+    </div>
+
+    <div style="height:26px"></div>
+
+    <div class="callout">
+      <p>None of this depends on trusting whoever submits a document. The corpus is built <strong>collectively</strong>: independent witnesses fetch from these sources and sign the raw bytes they saw, and a document is <strong>corroborated</strong> only once k-of-n independent witnesses agree. One person's upload is never evidence on its own.</p>
+      <p><strong>Status:</strong> the sourcing rules are settled policy. The software that enacts them — a robots-respecting crawler, a licensed-bulk importer, and the witness-signing daemon — is <code>molao-ingest</code>, being written this session. It has not ingested a real document yet.</p>
+    </div>
+  </div>
+</section>
+
+<section id="distribute">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Content-addressed, so the transport doesn't have to be trusted</h2>
+      <p>A release is a content-addressed file set plus a signed manifest. What it <em>is</em> doesn't depend on how it travels — so it can travel over anything, including a channel nobody has a reason to trust.</p>
+    </div>
+    <div class="grid g3">
+      <div class="card">
+        <h3>iroh — primary transport</h3>
+        <p>Direct node-to-node, content-addressed by design: asking a peer for a release is just asking for known hashes, which is the vocabulary Molao already speaks.</p>
+      </div>
+      <div class="card">
+        <h3>Torrent export — archival</h3>
+        <p>A release exported as a <code>.torrent</code> plus its files, so libraries and universities can seed it with tools they already run. The corpus can outlive this project whether or not the software does.</p>
+      </div>
+      <div class="card">
+        <h3>Plain HTTP mirror — fallback</h3>
+        <p>The simplest option, and the only one moving real bytes today: a directory of content-addressed files on any static host.</p>
+      </div>
+    </div>
+
+    <div style="height:26px"></div>
+
+    <div class="callout">
+      <p>None of these transports has to be trusted, because verification isn't asking where the bytes came from — it's recomputing hashes from what actually arrived and checking a quorum's signatures over the manifest naming them. A torrent seeder or a stray iroh peer can waste your time by refusing to serve; it cannot make your node accept altered content.</p>
+      <p>Content addressing does not, on its own, catch <strong>split view</strong> — a transport showing two peers two different valid releases. That is what release chaining and a public append-only log are for, and the log is still designed, not built.</p>
+      <p><strong>Status:</strong> the model is settled. iroh and the torrent export are landing this session as <code>molao-dist</code>. Neither has carried a real release yet, because there is no public release yet — today a release is still a directory of files on a plain host, mirrored by hand. <a href="./docs.html#distribution" class="accent">Full story</a>.</p>
     </div>
   </div>
 </section>
@@ -358,7 +398,7 @@ cargo run -p molao-node</code></pre>
       <li><strong>Molao attests to what the source served, not to what the court meant.</strong> If a court publishes the wrong file, witnesses will faithfully corroborate the wrong file.</li>
       <li><strong>The node verifies bytes and signatures — never legal correctness.</strong> Nothing here will ever be presented as "verified law".</li>
       <li><strong>Reader privacy has a limit.</strong> A node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node — it is free and works offline.</li>
-      <li><strong>P2P distribution is designed, not built.</strong> Releases are plain files today, and mirroring is manual. It will never be required to read the law.</li>
+      <li><strong>Decentralisation-ready, not decentralisation-running.</strong> The trust model — hashes, quorums, a recomputable graph — is built and tested. Peer-to-peer distribution (<code>molao-dist</code>: iroh plus a torrent export) is landing this session, but there is no public corpus yet for it to carry, and releases are still plain files mirrored by hand. P2P will never be <em>required</em> to read the law — a node with a corpus on disk needs no peers at all.</li>
     </ul>
   </div>
 </section>

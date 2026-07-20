@@ -1,0 +1,41 @@
+[package]
+name = "molao-ingest"
+description = "Sourcing layer for Molao: a robots-respecting fetcher, Akoma Ntoso and HTML/PDF ingest, witness corroboration, and jurisdiction adapters."
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/vul-os/molao"
+authors = ["Molao contributors"]
+
+# NOTE for integration: this crate is built as a standalone workspace so it
+# compiles and tests on its own while it is under review. When it is folded
+# into the parent workspace, remove the `[workspace]` stanza above and switch
+# the path dependencies below to `{ workspace = true }` per the sibling
+# crates' Cargo.toml files.
+
+[features]
+default = []
+# PDF text extraction pulls in a non-trivial dependency tree for a fallback
+# path that most deployments will not need (most self-publishing courts serve
+# HTML, not PDF). Feature-gated so a plain `cargo build` stays light; see
+# src/html.rs for why the PDF path is optional rather than absent.
+pdf = ["dep:pdf-extract"]
+
+[dependencies]
+molao-core = { path = "../molao-core" }
+molao-cite = { path = "../molao-cite" }
+
+blake3 = "1.5"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = "0.4"
+quick-xml = "0.36"
+regex = "1.11"
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+url = "2.5"
+ureq = "2.10"
+
+pdf-extract = { version = "0.7", optional = true }
+
+[dev-dependencies]

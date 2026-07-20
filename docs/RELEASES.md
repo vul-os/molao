@@ -3,8 +3,12 @@
 A release is the unit everyone agrees on: *as of release 42, these are the
 judgments and this is the citation graph derived from them.*
 
-It is published as a manifest plus signatures. **No single party can publish
-one, including the project that wrote this code.**
+It is published as a **content-addressed set of files** — the documents and
+the citation graph, each named by its own hash — plus a **signed manifest**
+naming the roots computed over them. **No single party can publish one,
+including the project that wrote this code.** What a release *is* does not
+depend on how it travels; see [Packaging and transport](#packaging-and-transport)
+below for how it moves once it exists.
 
 ## What a manifest asserts
 
@@ -96,6 +100,42 @@ undetected by every monitor, rather than compromising one server.
 
 The append-only log is **designed, not built**. Chaining and quorum
 verification are implemented and tested; log-based monitoring is not yet.
+
+## Packaging and transport
+
+A release's identity — content-addressed files, a manifest naming their
+roots, a quorum's signatures over it — is independent of any transport. That
+is deliberate: it means the manifest and the files can move over **any**
+channel, including one nobody has a reason to trust, without weakening what
+"verified" means. Verification recomputes the roots from the files it
+actually received and checks the signatures over the manifest; it never asks
+where the bytes came from.
+
+Three transports carry the same content-addressed release:
+
+- **iroh** — the primary peer-to-peer transport. Direct node-to-node,
+  content-addressed by design, so asking a peer for a release is just asking
+  for known hashes.
+- **A torrent export** — a release exported as a `.torrent` plus the file
+  set, so any node, library or university that wants to can seed it with
+  tools that already exist, and the corpus can outlive this project whether
+  or not it is still maintained. This is an **export you generate from a
+  release**, not a mechanism the node itself runs.
+- **A plain HTTP mirror** — the simplest option, and the only one in actual
+  use today: a directory of content-addressed files and a manifest, served
+  by any static host.
+
+None of the three is privileged. A node fetches from whichever it has
+access to, and the verification in the next section is identical either way.
+See [DISTRIBUTION.md](DISTRIBUTION.md) for the full story, including why an
+untrusted transport cannot smuggle in altered bytes, and what content
+addressing does *not* solve on its own (split view — see
+[THREAT-MODEL.md](THREAT-MODEL.md#distribution-content-addressed-release-over-an-untrusted-transport)).
+
+**Status:** the packaging model is settled. iroh and the torrent export are
+**landing this session** as `molao-dist`. Neither has carried a real release
+yet, because there is no public release yet — today a release is a directory
+of files on a plain host, mirrored by hand.
 
 ## Verifying a release yourself
 

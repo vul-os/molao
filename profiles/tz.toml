@@ -1,0 +1,45 @@
+# Tanzania — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators TanzLII (the Judiciary of
+# Tanzania) publishes, e.g. `[2022] TZCA 348`. A test in molao-core parses this
+# file and asserts it equals the built-in `region::TZ` constant.
+#
+# Status: complete for the principal courts. Tanzania's apex is the Court of
+# Appeal (TZCA); there is no separate supreme or constitutional court above it.
+# The High Court sits under `TZHC` and, for its specialist registries, under the
+# division codes below.
+#
+# Sources: https://tanzlii.org/judgments/TZCA/ , /TZHC/ , /TZHCLandD/ ,
+#          /TZHCComD/ , /TZHCLD/
+
+code = "TZ"
+name = "Tanzania"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "TZCA"
+name = "Court of Appeal of Tanzania"
+tier = "apex"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "TZHC"
+name = "High Court of Tanzania"
+tier = "high_court"
+
+[[courts]]
+code = "TZHCLandD"
+name = "High Court of Tanzania (Land Division)"
+tier = "high_court"
+
+[[courts]]
+code = "TZHCComD"
+name = "High Court of Tanzania (Commercial Division)"
+tier = "high_court"
+
+[[courts]]
+code = "TZHCLD"
+name = "High Court of Tanzania (Labour Division)"
+tier = "high_court"

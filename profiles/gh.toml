@@ -1,0 +1,37 @@
+# Ghana — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators GhaLII (the Ghana Legal
+# Information Institute) publishes, e.g. `[2022] GHASC 15`. A test in molao-core
+# parses this file and asserts it equals the built-in `region::GH` constant.
+#
+# Status: complete for the superior courts of record. No report series are
+# enumerated: Ghana's reported citations are not standardised on GhaLII, and
+# guessing a series abbreviation would readmit exactly the prose false positives
+# the series registry exists to exclude.
+#
+# Sources: https://liieditors.docs.laws.africa/judgments/judgments-guide/citation/court-designators-for-courts-in-the-ghalii-network
+#          https://ghalii.org/judgments/GHASC/
+
+code = "GH"
+name = "Ghana"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "GHASC"
+name = "Supreme Court of Ghana"
+tier = "apex"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "GHACA"
+name = "Court of Appeal of Ghana"
+tier = "appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "GHAHC"
+name = "High Court of Ghana"
+tier = "high_court"

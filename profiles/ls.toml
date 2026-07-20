@@ -1,0 +1,41 @@
+# Lesotho — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators LesLII publishes, e.g.
+# `[2023] LSHC 252`. A test in molao-core parses this file and asserts it equals
+# the built-in `region::LS` constant.
+#
+# Status: complete for the principal courts. Lesotho's apex is the Court of
+# Appeal (LSCA); the Labour Appeal Court (LSLAC) is a specialist appellate court;
+# the High Court publishes under `LSHC`.
+#
+# Sources: https://lesotholii.org/judgments/LSCA/ , /LSHC/ , /LSLAC/
+
+code = "LS"
+name = "Lesotho"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "LSCA"
+name = "Court of Appeal of Lesotho"
+tier = "apex"
+
+# ---- specialist_appellate ----------------------------------------
+
+[[courts]]
+code = "LSLAC"
+name = "Labour Appeal Court of Lesotho"
+tier = "specialist_appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "LSHC"
+name = "High Court of Lesotho"
+tier = "high_court"
+
+# ---- Law-report series -------------------------------------------
+
+[[series]]
+abbr = "LLR"
+name = "Lesotho Law Reports"

@@ -8,10 +8,11 @@
 
 use molao_node::{api, demo, verify};
 
-use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use anyhow::{anyhow, Context, Result};
+use clap::{Parser, Subcommand, ValueEnum};
 use molao_corpus::Corpus;
 use molao_graph::Graph;
+use molao_index::{FakeEmbedder, HttpConfig, HttpEmbedder, Index};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,6 +53,14 @@ enum Command {
         /// The signer set to verify `--release` against.
         #[arg(long, requires = "release")]
         signers: Option<PathBuf>,
+        /// OpenAI-compatible embeddings endpoint for `/api/rag/search`, used to
+        /// embed queries against an index built with the HTTP embedder. Not
+        /// needed for a fake-embedder index, which needs no configuration.
+        #[arg(long, requires = "rag_model")]
+        rag_endpoint: Option<String>,
+        /// Model name to request from `--rag-endpoint`.
+        #[arg(long, requires = "rag_endpoint")]
+        rag_model: Option<String>,
     },
 
     /// Ingest judgments from a file or directory.
@@ -101,6 +110,62 @@ enum Command {
         #[arg(long, default_value = "molao.db")]
         db: PathBuf,
     },
+
+    /// Build and inspect the local search index.
+    ///
+    /// The index is an **unsigned, rebuildable cache** — never part of a
+    /// release, and never something another node has to trust. It powers
+    /// `/api/rag/search`. See `docs/RAG.md`.
+    Index {
+        #[command(subcommand)]
+        command: IndexCommand,
+    },
+}
+
+/// Which embedder to build an index with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum EmbedderKind {
+    /// Deterministic, offline, model-free. No semantics, but reproducible
+    /// everywhere — the default, and what the demo uses.
+    Fake,
+    /// An OpenAI-compatible `/v1/embeddings` endpoint you supply. This is how a
+    /// real node gets semantic search: point it at your own local model.
+    Http,
+}
+
+#[derive(Debug, Subcommand)]
+enum IndexCommand {
+    /// (Re)build the index for the current corpus with a chosen embedder.
+    ///
+    /// Writes a sidecar file next to the corpus database (`<db>.index`) tagged
+    /// with a descriptor recording the model, dimension, chunker, and the
+    /// corpus it was built from. Rebuilding replaces the index for that model in
+    /// place; building with a different model adds a second, coexisting index.
+    Build {
+        /// Corpus database file.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+        /// Embedder to use.
+        #[arg(long, value_enum, default_value = "fake")]
+        embedder: EmbedderKind,
+        /// `--embedder http` only: the embeddings endpoint, e.g.
+        /// `http://127.0.0.1:11434/v1/embeddings`.
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// `--embedder http` only: the model name to request.
+        #[arg(long)]
+        model: Option<String>,
+        /// `--embedder fake` only: vector dimension.
+        #[arg(long)]
+        dim: Option<usize>,
+    },
+
+    /// Show the descriptors present in the index and whether each is stale.
+    Info {
+        /// Corpus database file.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -120,6 +185,8 @@ fn main() -> Result<()> {
             db,
             release,
             signers,
+            rag_endpoint,
+            rag_model,
         } => {
             let corpus = open(&db)?;
             let mut state = api::AppState::new(corpus).context("building the citation graph")?;
@@ -132,6 +199,29 @@ fn main() -> Result<()> {
                     serde_json::from_str(&release_text).context("parsing the release")?,
                     serde_json::from_str(&signers_text).context("parsing the signer set")?,
                 );
+            }
+            // Attach the sidecar index if one has been built. Its absence is not
+            // an error: the node serves keyword search regardless, and
+            // `/api/rag/search` reports plainly when no index is present.
+            let index_path = Index::sidecar_path(&db);
+            if index_path.exists() {
+                match Index::open(&index_path) {
+                    Ok(index) => {
+                        let http =
+                            rag_endpoint
+                                .zip(rag_model)
+                                .map(|(endpoint, model)| HttpConfig {
+                                    endpoint,
+                                    model,
+                                    api_key: std::env::var("MOLAO_EMBED_API_KEY").ok(),
+                                });
+                        println!("attached search index {}", index_path.display());
+                        state = state.with_index(index, http);
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "could not open the index; serving without it")
+                    }
+                }
             }
             run_server(addr, state)
         }
@@ -189,7 +279,13 @@ fn main() -> Result<()> {
             if no_serve {
                 return Ok(());
             }
-            run_server(addr, api::AppState::new(corpus)?)
+            // Build a fake-embedder index so `/api/rag/search` works out of the
+            // box with no model and no network. It is a demo of the pipeline,
+            // not semantic search — see `docs/RAG.md`.
+            let index = demo::build_fake_index(&corpus).context("building the demo index")?;
+            println!("built a demo search index (fake embedder — not semantic; see docs/RAG.md)");
+            let state = api::AppState::new(corpus)?.with_index(index, None);
+            run_server(addr, state)
         }
 
         Command::Verify { release, signers } => {
@@ -234,6 +330,121 @@ fn main() -> Result<()> {
                     println!("  {code:<16} {count}");
                 }
             }
+            Ok(())
+        }
+
+        Command::Index { command } => run_index(command),
+    }
+}
+
+/// Handle `molao index build` and `molao index info`.
+fn run_index(command: IndexCommand) -> Result<()> {
+    match command {
+        IndexCommand::Build {
+            db,
+            embedder,
+            endpoint,
+            model,
+            dim,
+        } => {
+            let corpus = open(&db)?;
+            let index_path = Index::sidecar_path(&db);
+            let mut index = Index::open(&index_path)
+                .with_context(|| format!("opening {}", index_path.display()))?;
+
+            let descriptor = match embedder {
+                EmbedderKind::Fake => {
+                    let dim = dim.unwrap_or(FakeEmbedder::DEFAULT_DIM);
+                    index
+                        .build_from_corpus(&corpus, &FakeEmbedder::new(dim))
+                        .context("building the index")?
+                }
+                EmbedderKind::Http => {
+                    let endpoint = endpoint.ok_or_else(|| {
+                        anyhow!("--embedder http requires --endpoint (an OpenAI-compatible /v1/embeddings URL)")
+                    })?;
+                    let model = model.ok_or_else(|| {
+                        anyhow!("--embedder http requires --model (the model name)")
+                    })?;
+                    let http = HttpEmbedder::new(HttpConfig {
+                        endpoint,
+                        model,
+                        api_key: std::env::var("MOLAO_EMBED_API_KEY").ok(),
+                    });
+                    index
+                        .build_from_corpus(&corpus, &http)
+                        .context("building the index (is the embeddings endpoint reachable?)")?
+                }
+            };
+
+            let stored = index
+                .descriptor(&descriptor.descriptor_id())
+                .context("reading back the descriptor")?
+                .ok_or_else(|| anyhow!("the index was built but its descriptor is missing"))?;
+
+            println!("built index {}", index_path.display());
+            println!("  descriptor      {}", descriptor.descriptor_id());
+            println!(
+                "  embedder        {} ({})",
+                descriptor.embedder_id, descriptor.model_version
+            );
+            println!("  dimension       {}", descriptor.dim);
+            println!("  chunker         {}", descriptor.chunker_id);
+            println!("  chunks          {}", stored.chunk_count);
+            println!("  corpus root     {}", descriptor.corpus_root);
+            println!();
+            println!("this index is an UNSIGNED, rebuildable cache — never part of a release");
+            if descriptor.embedder_id == FakeEmbedder::ID {
+                println!("the fake embedder is not semantic search; supply a model for real RAG (docs/RAG.md)");
+            }
+            Ok(())
+        }
+
+        IndexCommand::Info { db } => {
+            let index_path = Index::sidecar_path(&db);
+            if !index_path.exists() {
+                println!("no index at {}", index_path.display());
+                println!("run `molao index build --db {}` to build one", db.display());
+                return Ok(());
+            }
+            let index = Index::open(&index_path)?;
+            let descriptors = index.descriptors().context("reading descriptors")?;
+            // The corpus is optional here — info should work even if the corpus
+            // file has moved — but if it is present, report staleness against it.
+            let current_root = Corpus::open(&db).ok().and_then(|c| c.corpus_root().ok());
+
+            println!("index {}", index_path.display());
+            if let Some(root) = &current_root {
+                println!("corpus root now {root}");
+            }
+            println!();
+            if descriptors.is_empty() {
+                println!("(no descriptors — the index is empty)");
+            }
+            for d in &descriptors {
+                let stale = current_root
+                    .as_deref()
+                    .map(|r| d.descriptor.is_stale_against(r));
+                println!("descriptor {}", d.descriptor_id);
+                println!(
+                    "  embedder      {} ({})",
+                    d.descriptor.embedder_id, d.descriptor.model_version
+                );
+                println!("  dimension     {}", d.descriptor.dim);
+                println!("  chunker       {}", d.descriptor.chunker_id);
+                println!("  chunks        {}", d.chunk_count);
+                println!("  built at      {}", d.built_at);
+                println!("  built from    {}", d.descriptor.corpus_root);
+                match stale {
+                    Some(true) => {
+                        println!("  status        STALE — rebuild before relying on results")
+                    }
+                    Some(false) => println!("  status        current"),
+                    None => println!("  status        unknown (corpus not found)"),
+                }
+                println!();
+            }
+            println!("indexes are unsigned rebuildable caches, never part of a release");
             Ok(())
         }
     }
@@ -322,7 +533,7 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec!["serve", "ingest", "demo", "verify", "stats"],
+            vec!["serve", "ingest", "demo", "verify", "stats", "index"],
             "a subcommand was added or renamed without updating the docs"
         );
         for name in &names {

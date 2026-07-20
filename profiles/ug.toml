@@ -1,0 +1,46 @@
+# Uganda — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators the Uganda Legal Information
+# Institute (ULII) publishes, e.g. `[2020] UGSC 4`. A test in molao-core parses
+# this file and asserts it equals the built-in `region::UG` constant.
+#
+# Status: complete for the principal courts. The High Court sits both under the
+# bare `UGHC` code and, for its two largest divisions, under `UGHCCD` (Civil) and
+# `UGHCCRD` (Criminal); further divisions exist and can be added when their codes
+# are confirmed against ULII.
+#
+# Sources: https://ulii.org/judgments/UGSC/ , /UGCA/ , /UGHCCD/ , /UGHCCRD/
+
+code = "UG"
+name = "Uganda"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "UGSC"
+name = "Supreme Court of Uganda"
+tier = "apex"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "UGCA"
+name = "Court of Appeal of Uganda"
+tier = "appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "UGHC"
+name = "High Court of Uganda"
+tier = "high_court"
+
+[[courts]]
+code = "UGHCCD"
+name = "High Court of Uganda (Civil Division)"
+tier = "high_court"
+
+[[courts]]
+code = "UGHCCRD"
+name = "High Court of Uganda (Criminal Division)"
+tier = "high_court"

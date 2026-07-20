@@ -36,6 +36,7 @@ use axum::{Json, Router};
 use molao_core::{DocId, ProvenanceClass, SignedRelease, SignerSet};
 use molao_corpus::{Corpus, SearchFilters};
 use molao_graph::Graph;
+use molao_index::{HttpConfig, Index, IndexError};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
@@ -57,6 +58,19 @@ pub struct AppState {
     /// Whether the loaded release met its signer set's threshold. `false` when
     /// no release is loaded — absence of a claim, not a passed check.
     verified: bool,
+    /// The optional RAG index. `None` when no index has been built — the node
+    /// still serves keyword search and everything else, and `/api/rag/search`
+    /// says plainly that no index is present rather than pretending to one.
+    ///
+    /// Behind a `Mutex` for the same reason as the corpus: a `rusqlite`
+    /// connection is not `Sync`, and a query against a local file is quick
+    /// enough that holding the lock across one is free.
+    index: Option<Mutex<Index>>,
+    /// Serve-time configuration for an OpenAI-compatible embedding endpoint,
+    /// used to embed queries against an index built with the HTTP embedder. The
+    /// node ships no model; this is how an operator points it at one. Absent for
+    /// a fake-embedder index, which needs no configuration at all.
+    http_embedder: Option<HttpConfig>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -65,6 +79,7 @@ impl std::fmt::Debug for AppState {
             .field("nodes", &self.graph.nodes().len())
             .field("edges", &self.graph.edges().len())
             .field("verified", &self.verified)
+            .field("has_index", &self.index.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -86,7 +101,24 @@ impl AppState {
             release: None,
             signers: None,
             verified: false,
+            index: None,
+            http_embedder: None,
         })
+    }
+
+    /// Attach a RAG index, and optionally the endpoint used to embed queries
+    /// against it.
+    ///
+    /// The index is the unsigned, rebuildable cache described in `docs/RAG.md`.
+    /// It is optional in every sense: the node runs and serves without one, and
+    /// attaching one changes nothing about verification or the corpus. The
+    /// `http` config is needed only when the index was built with a remote model
+    /// — a fake-embedder index reconstructs its query embedder from the
+    /// descriptor and needs no configuration.
+    pub fn with_index(mut self, index: Index, http: Option<HttpConfig>) -> Self {
+        self.index = Some(Mutex::new(index));
+        self.http_embedder = http;
+        self
     }
 
     /// Attach a release and its signer set, recording whether it verifies.
@@ -160,6 +192,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/status", get(status))
         .route("/api/courts", get(courts))
         .route("/api/search", get(search))
+        .route("/api/rag/search", get(rag_search))
         .route("/api/case/{id}", get(case))
         .route("/api/case/{id}/citations", get(case_citations))
         .route("/api/case/{id}/graph", get(case_graph))
@@ -201,7 +234,54 @@ async fn status(State(state): State<Arc<AppState>>) -> ApiResult {
             .map(|(code, count)| json!({ "code": code, "doc_count": count }))
             .collect::<Vec<_>>(),
         "verified": state.verified,
+        // The RAG index state. Reported honestly: which model-tagged descriptors
+        // are present, how many chunks each holds, and — the load-bearing field —
+        // whether each is stale against the corpus the node actually serves. A
+        // stale index is one built from a different corpus_root; it must be
+        // rebuilt before its results can be relied on. The index is never signed
+        // and never part of a release; this block describes a local cache.
+        "index": index_status(&state),
     })))
+}
+
+/// Build the `index` block of `/api/status`.
+fn index_status(state: &AppState) -> Value {
+    let Some(index) = &state.index else {
+        return json!({
+            "present": false,
+            "descriptors": [],
+            "note": "no local search index; run `molao index build` (or `molao demo`) to build one",
+        });
+    };
+    let descriptors = match index
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .descriptors()
+    {
+        Ok(d) => d,
+        // A failure reading the index must not take down the whole status page;
+        // the corpus is what matters and it is fine.
+        Err(e) => {
+            tracing::error!(error = %e, "reading index descriptors for status");
+            return json!({ "present": false, "descriptors": [], "note": "index present but unreadable" });
+        }
+    };
+    json!({
+        "present": true,
+        "corpus_root": state.corpus_root,
+        "descriptors": descriptors.iter().map(|d| json!({
+            "descriptor_id": d.descriptor_id,
+            "embedder_id": d.descriptor.embedder_id,
+            "model_version": d.descriptor.model_version,
+            "dim": d.descriptor.dim,
+            "metric": d.descriptor.metric,
+            "chunker_id": d.descriptor.chunker_id,
+            "chunk_count": d.chunk_count,
+            "built_at": d.built_at,
+            "corpus_root": d.descriptor.corpus_root,
+            "stale": d.descriptor.is_stale_against(&state.corpus_root),
+        })).collect::<Vec<_>>(),
+    })
 }
 
 /// `GET /api/courts`
@@ -275,6 +355,141 @@ async fn search(State(state): State<Arc<AppState>>, Query(params): Query<Params>
             "cited_by_count": h.cited_by_count,
         })).collect::<Vec<_>>(),
     })))
+}
+
+/// `GET /api/rag/search`
+///
+/// Hybrid retrieval over the local index: FTS5 keywords fused with cosine
+/// vectors, returning chunks with the judgment id and paragraph index that make
+/// each passage citable, plus the index descriptor the results came from — so a
+/// client building a RAG prompt knows exactly which model's space it is reading.
+///
+/// `model` selects the descriptor (for a node holding several models at once);
+/// omitted, it uses the most recently built. When no query embedder is available
+/// for the chosen descriptor — a remote-model index on a node started without
+/// the endpoint — retrieval falls back to keywords and says so in `retrieval`,
+/// rather than returning results from the wrong space.
+async fn rag_search(State(state): State<Arc<AppState>>, Query(params): Query<Params>) -> ApiResult {
+    let query = param(&params, "q").unwrap_or_default().to_string();
+    let k = number::<u32>(&params, "k").unwrap_or(5).clamp(1, 100) as usize;
+    let requested_model = param(&params, "model");
+
+    let Some(index_mutex) = &state.index else {
+        // No index at all: not an error, but say plainly what is missing.
+        return Ok(Json(json!({
+            "query": query,
+            "k": k,
+            "hits": [],
+            "descriptor": Value::Null,
+            "retrieval": "none",
+            "note": "no local search index; run `molao index build` (or `molao demo`)",
+        })));
+    };
+
+    let index = index_mutex.lock().unwrap_or_else(|e| e.into_inner());
+
+    // Choose the descriptor: the requested one, else the most recent.
+    let stored = match requested_model {
+        Some(id) => index
+            .descriptor(id)
+            .map_err(index_error)?
+            .ok_or_else(|| ApiError::not_found("index descriptor"))?,
+        None => index
+            .descriptors()
+            .map_err(index_error)?
+            .pop()
+            .ok_or_else(|| ApiError::not_found("index descriptor"))?,
+    };
+
+    // Embed the query in the descriptor's own space. A missing or failing
+    // embedder is not a 500: it degrades to keyword-only, honestly labelled.
+    let embedder = molao_index::query_embedder(
+        &stored.descriptor.embedder_id,
+        stored.descriptor.dim,
+        state.http_embedder.as_ref(),
+    );
+    let query_vec: Option<Vec<f32>> =
+        embedder.and_then(|e| match e.embed(std::slice::from_ref(&query)) {
+            Ok(mut v) => v.pop(),
+            Err(err) => {
+                tracing::warn!(error = %err, "query embedding failed; serving keyword-only");
+                None
+            }
+        });
+
+    let result = index
+        .search(&stored.descriptor_id, &query, query_vec.as_deref(), k)
+        .map_err(index_error)?;
+    drop(index);
+
+    // Enrich each hit with just enough judgment metadata to render a result
+    // without a second request; the full case is one hop away at /api/case/:id.
+    let corpus = state.corpus();
+    let meta: std::collections::HashMap<String, molao_corpus::NodeRow> = corpus
+        .nodes()
+        .map_err(ApiError::internal)?
+        .into_iter()
+        .map(|n| (n.id.clone(), n))
+        .collect();
+
+    let hits = result
+        .hits
+        .iter()
+        .map(|h| {
+            let m = meta.get(&h.doc_id);
+            let court = m.map(|m| m.court.clone()).unwrap_or_default();
+            json!({
+                "doc_id": h.doc_id,
+                "para_index": h.para_index,
+                "para_number": h.para_number,
+                "title": m.map(|m| m.title.clone()),
+                "court": court,
+                "court_name": molao_core::court::lookup(&court).map(|c| c.name.to_string()),
+                "region": m.map(|m| m.region.clone()),
+                "date": m.and_then(|m| m.date.clone()),
+                "text": h.text,
+                "score": h.score,
+                "vector_score": h.vector_score,
+                "keyword_rank": h.keyword_rank,
+                "vector_rank": h.vector_rank,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(Json(json!({
+        "query": query,
+        "k": k,
+        "retrieval": result.mode.as_str(),
+        // The descriptor the results came from — the "which model" answer.
+        "descriptor": {
+            "descriptor_id": result.descriptor_id,
+            "embedder_id": result.descriptor.embedder_id,
+            "model_version": result.descriptor.model_version,
+            "dim": result.descriptor.dim,
+            "metric": result.descriptor.metric,
+            "quantization": result.descriptor.quantization,
+            "normalization": result.descriptor.normalization,
+            "chunker_id": result.descriptor.chunker_id,
+            "chunker_params": result.descriptor.chunker_params,
+            "corpus_root": result.descriptor.corpus_root,
+            "stale": result.descriptor.is_stale_against(&state.corpus_root),
+        },
+        "hits": hits,
+    })))
+}
+
+/// Map an index failure onto an API error, distinguishing bad input from an
+/// internal fault — a query for an absent descriptor is a 404, a wrong-space
+/// vector or a broken embedder endpoint is a 400, and only a storage fault is a
+/// 500 with no detail leaked.
+fn index_error(e: IndexError) -> ApiError {
+    match e {
+        IndexError::NoSuchDescriptor(_) => ApiError::not_found("index descriptor"),
+        IndexError::DimMismatch { .. } | IndexError::Http(_) | IndexError::Embed(_) => {
+            ApiError(StatusCode::BAD_REQUEST, e.to_string())
+        }
+        IndexError::Db(_) | IndexError::Json(_) | IndexError::Corpus(_) => ApiError::internal(e),
+    }
 }
 
 /// Parse a path id, treating anything malformed as "not found".

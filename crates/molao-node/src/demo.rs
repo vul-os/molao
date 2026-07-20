@@ -436,6 +436,23 @@ pub fn seed(corpus: &mut Corpus) -> Result<usize> {
     Ok(judgments.len())
 }
 
+/// Build an in-memory RAG index over `corpus` with the deterministic fake
+/// embedder.
+///
+/// This is what makes `molao demo` show a working `/api/rag/search` with **no
+/// setup, no model, and no network**: the fake embedder needs none of those and
+/// is bit-reproducible everywhere. It is not semantic search — real RAG needs an
+/// operator-supplied model (see `docs/RAG.md`) — but it exercises the whole
+/// hybrid pipeline so the endpoint and the UI have something real to show.
+pub fn build_fake_index(corpus: &Corpus) -> molao_index::Result<molao_index::Index> {
+    let mut index = molao_index::Index::open_in_memory()?;
+    index.build_from_corpus(
+        corpus,
+        &molao_index::FakeEmbedder::new(molao_index::FakeEmbedder::DEFAULT_DIM),
+    )?;
+    Ok(index)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

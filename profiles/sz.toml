@@ -1,0 +1,42 @@
+# Eswatini — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators EswatiniLII (the Judiciary of
+# eSwatini) publishes, e.g. `[2018] SZSC 105`. A test in molao-core parses this
+# file and asserts it equals the built-in `region::SZ` constant. The country was
+# formerly Swaziland; the ISO code `SZ` and the `SZ` court prefixes are unchanged.
+#
+# Status: complete for the principal courts. The Industrial Court of Appeal
+# (SZICA) is a specialist appellate court above the Industrial Court (SZIC).
+#
+# Sources: https://eswatinilii.org/judgments/SZSC/ , /SZICA/ , /SZHC/ , /SZIC/
+
+code = "SZ"
+name = "Eswatini"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "SZSC"
+name = "Supreme Court of eSwatini"
+tier = "apex"
+
+# ---- specialist_appellate ----------------------------------------
+
+[[courts]]
+code = "SZICA"
+name = "Industrial Court of Appeal of eSwatini"
+tier = "specialist_appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "SZHC"
+name = "High Court of eSwatini"
+tier = "high_court"
+
+# ---- specialist_high ---------------------------------------------
+
+[[courts]]
+code = "SZIC"
+name = "Industrial Court of eSwatini"
+tier = "specialist_high"

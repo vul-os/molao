@@ -5,7 +5,10 @@ members = [
     "crates/molao-cite",
     "crates/molao-corpus",
     "crates/molao-graph",
+    "crates/molao-index",
     "crates/molao-node",
+    "crates/molao-ingest",
+    "crates/molao-dist",
 ]
 
 [workspace.package]
@@ -21,6 +24,7 @@ molao-core = { path = "crates/molao-core", version = "0.1.0" }
 molao-cite = { path = "crates/molao-cite", version = "0.1.0" }
 molao-graph = { path = "crates/molao-graph", version = "0.1.0" }
 molao-corpus = { path = "crates/molao-corpus", version = "0.1.0" }
+molao-index = { path = "crates/molao-index", version = "0.1.0" }
 
 anyhow = "1"
 blake3 = "1.5"

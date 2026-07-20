@@ -22,7 +22,13 @@ So the rule generalises to every jurisdiction:
 **1. Take from courts and gazettes directly wherever possible.** The court that
 handed down the judgment is the canonical source. Going direct means the
 provenance record points where it should, avoids loading volunteer
-infrastructure, and does not depend on anyone's goodwill continuing.
+infrastructure, and does not depend on anyone's goodwill continuing. Where a
+court or gazette only self-publishes — no LII covers it, no bulk licence
+exists — the way in is a **polite, identified crawl**: a named user agent,
+`robots.txt` honoured without exception, and a fetch rate that looks like a
+careful clerk working through a filing room, not a script draining a server.
+An ingester that ignores `robots.txt` or hides what it is is not a Molao
+ingester regardless of what it fetches.
 
 **2. Licence bulk data where a licensed bulk supplier exists.** For everything
 not available directly, the correct route is an organisation that publishes
@@ -41,6 +47,34 @@ The rest of this document is the **South African worked example** — the first
 region profile, and the pattern to follow for BAILII in the UK, AustLII in
 Australia, CanLII in Canada, NZLII in New Zealand, the AfricanLII members, and
 national gazettes anywhere.
+
+## A collective corpus, not a bulk upload
+
+No single node, and no single person, is trusted to say what is in the corpus.
+Nodes **collectively build it**: any node can run the sourcing steps above and
+contribute what it fetched, and what makes a contribution count is not who
+sent it but whether independent others agree on the bytes.
+
+That is the corroboration model in full, and it is what makes rule 4 above
+enforceable rather than aspirational: a witness fetches from a canonical
+source — direct, licensed bulk, or a polite crawl — hashes exactly what it
+received, and signs the tuple. A document becomes trustworthy when **k-of-n
+independent witnesses** sign the same raw bytes, not when one uploader
+vouches for it. See [PROVENANCE.md](PROVENANCE.md) for the record format and
+the corroboration classes.
+
+This is why the sourcing rules and the provenance model are one design, not
+two. Sourcing decides *where* a witness is allowed to look. Corroboration
+decides *how much a fetch is worth* once it has looked. Neither one alone
+would be enough: sourcing rules with no corroboration would still trust a
+single uploader; corroboration with no sourcing rules would happily corroborate
+a bulk SAFLII scrape by running it three times.
+
+**Status:** the software that enacts this — a robots-respecting crawler for
+self-publishing courts, a licensed-bulk importer for Akoma Ntoso, and the
+witness-signing daemon, all producing the same `Provenance` record — is
+`molao-ingest`, being written this session. It has not ingested a real
+document yet. There is no public corpus.
 
 ## The organisations (ZA)
 

@@ -154,6 +154,72 @@ profile follows.
 | `ZACGSO` | Companies Tribunal of South Africa |
 | `ZAICT` | Information Regulator of South Africa |
 
+## Pan-African profiles
+
+Twelve further profiles ship built in, covering AfricanLII / Free Access to Law
+member jurisdictions. Each uses the neutral-citation designators the relevant LII
+already publishes — inventing codes would fragment the graph against every
+citation already in the literature — and each ships both as a
+`molao_core::region` constant and as `profiles/<cc>.toml`, kept byte-equal by a
+test. None is the default; a node serving one selects it with
+`region::builtin("KE")` and holds an `Extractor::for_profile`, and because they
+are never read by the default extractor, adding them changes no existing
+extraction output and is **not** an `EXTRACTOR_VERSION` bump.
+
+The honesty rule for these is strict: a court code is exactly the thing a legal
+tool must get right, because a wrong code silently drops every citation carrying
+it. So a code that could not be verified against a published judgment was
+omitted, and a jurisdiction whose citation practice is genuinely thin is marked
+**partial** rather than padded to look complete. A partial-but-correct profile is
+useful; a complete-but-wrong one is a liability.
+
+| Code | Jurisdiction | Apex | Status | Report series |
+|---|---|---|---|---|
+| `KE` | Kenya | `KESC` (Supreme Court) | complete — superior courts | `KLR` |
+| `UG` | Uganda | `UGSC` (Supreme Court) | complete — principal courts | — |
+| `TZ` | Tanzania | `TZCA` (Court of Appeal) | complete — principal courts | — |
+| `ZW` | Zimbabwe | `ZWCC` + `ZWSC` | complete — principal courts | `ZLR` |
+| `NA` | Namibia | `NASC` (Supreme Court) | complete — principal courts | `NR` |
+| `BW` | Botswana | `BWCA` (Court of Appeal) | complete — principal courts | `BLR` |
+| `GH` | Ghana | `GHASC` (Supreme Court) | complete — superior courts | — |
+| `NG` | Nigeria | `NGSC` (Supreme Court) | **partial / seed** | — |
+| `MW` | Malawi | `MWSC` (Supreme Court of Appeal) | complete — principal courts | — |
+| `ZM` | Zambia | `ZMSC` + `ZMCC` | complete — principal courts | — |
+| `LS` | Lesotho | `LSCA` (Court of Appeal) | complete — principal courts | `LLR` |
+| `SZ` | Eswatini | `SZSC` (Supreme Court) | complete — principal courts | — |
+
+A few points these profiles surface about the model:
+
+- **Not every jurisdiction has a supreme court above its court of appeal.**
+  Tanzania, Botswana and Lesotho are apex *at* the Court of Appeal, and Malawi's
+  apex is styled the Supreme Court of Appeal. The `Apex` tier is defined by
+  finality, not by name, so each maps cleanly.
+- **Some jurisdictions have two apex courts.** Zimbabwe (`ZWCC`/`ZWSC`) and
+  Zambia (`ZMSC`/`ZMCC`) each have a constitutional court that is final on
+  constitutional questions and a general court final on everything else. Both sit
+  at `Apex`; the tier model allows more than one, and the "no court outranks the
+  apex" invariant still holds because apex does not outrank apex.
+- **A superior court can carry High-Court status without being the High Court.**
+  Kenya's Employment and Labour Relations Court and Environment and Land Court
+  have, by the Constitution, the status of the High Court; they map to
+  `SpecialistHigh`, exactly as South Africa's Labour Court does.
+- **Most enumerate few or no report series.** These LIIs cite mainly by neutral
+  citation, so an empty series list is the correct, precise answer — the same
+  stance the generic profile takes — not a missing feature. Series were added
+  only where a jurisdiction's local report is verifiable and cited in the
+  `year (volume) ABBR page` form the parser models (`KLR`, `ZLR`, `NR`, `BLR`,
+  `LLR`).
+
+**Nigeria is a deliberate seed, not an authority.** Only `NGSC` was confirmed
+against a published judgment in this pass; `NGCA` and `NGHC` follow the
+laws.africa country-plus-court convention but were not each verified. More
+fundamentally, Nigerian citation runs overwhelmingly on the reported series
+(chiefly the Nigerian Weekly Law Reports, `NWLR`), cited in forms this extractor
+does not model, so a Nigerian corpus is under-covered by neutral-citation
+extraction whatever the profile holds. `profiles/ng.toml` states this in full.
+Treat it as a starting point to be completed by someone who works in the
+jurisdiction, not as a checked reference.
+
 ## Unknown codes
 
 No profile is exhaustive of every tribunal in its jurisdiction, and no

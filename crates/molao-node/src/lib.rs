@@ -25,10 +25,16 @@
 //! - **Treatment attestations** (followed / distinguished / overruled) are
 //!   designed and **not built**.
 //! - **P2P distribution** is designed and **not built**. Releases are files.
-//! - **Semantic search is deliberately out of scope**: embeddings are not
-//!   reproducible, so they cannot be verified by recomputation, and an
-//!   unverifiable index that quietly steers retrieval is worse than an
-//!   unverifiable document.
+//! - **Semantic search is never part of a release.** Embeddings are not
+//!   reproducible across hardware, so they cannot be verified by recomputation,
+//!   and an unverifiable index that quietly steers retrieval is worse than an
+//!   unverifiable document. What a node *may* do is build its **own** local
+//!   index over already-verified text — an unsigned, model-tagged,
+//!   rebuildable cache, never signed and never something a peer must trust. That
+//!   is [`molao_index`], surfaced at `/api/rag/search`. The node ships **no
+//!   embedding model**: `molao demo` uses a deterministic fake embedder so the
+//!   pipeline works offline, and real semantic search needs an
+//!   operator-supplied model. See `docs/RAG.md` and `docs/THREAT-MODEL.md`.
 
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]

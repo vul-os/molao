@@ -59,7 +59,17 @@ Concretely:
 [2020] UKSC 1      United Kingdom  (BAILII)
 [2020] HCA 1       Australia       (AustLII)
 [2020] NZSC 1      New Zealand     (NZLII)
+[2020] UGSC 4      Uganda          (ULII)
+[2022] TZCA 348    Tanzania        (TanzLII)
+[2020] ZWCC 20     Zimbabwe        (ZimLII)
+[2025] KEHC 7957   Kenya           (Kenya Law)
 ```
+
+Twelve pan-African profiles ship built in (`KE`, `UG`, `TZ`, `ZW`, `NA`, `BW`,
+`GH`, `NG`, `MW`, `ZM`, `LS`, `SZ`), each using the codes its LII already
+publishes — see [COURTS.md](COURTS.md#pan-african-profiles) for the registries
+and which are complete versus a partial seed. They are additional profiles a node
+may select, not the default, so they change no existing extraction output.
 
 Pattern: a four-digit year in square brackets, a court code, a number. This is
 the LII neutral-citation convention, and it is shared across jurisdictions —

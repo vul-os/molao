@@ -236,6 +236,92 @@ fn ingest_reports_bad_records_and_exits_non_zero() {
 }
 
 #[test]
+fn index_builds_a_cache_and_info_reports_it() {
+    // Build a corpus, build a fake index over it, and read it back — the two
+    // commands a node operator runs to get local search working with no model.
+    let dir = workdir("index");
+    let db = dir.join("c.db");
+
+    let demo = Command::new(MOLAO)
+        .args(["demo", "--no-serve", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao demo");
+    assert!(
+        demo.status.success(),
+        "{}",
+        String::from_utf8_lossy(&demo.stderr)
+    );
+
+    let build = Command::new(MOLAO)
+        .args(["index", "build", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao index build");
+    assert!(
+        build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let out = String::from_utf8_lossy(&build.stdout);
+    assert!(out.contains("built index"), "{out}");
+    assert!(out.contains("fake-hash"), "{out}");
+    assert!(
+        out.contains("UNSIGNED"),
+        "the honesty line about an unsigned cache is missing: {out}"
+    );
+    // The sidecar file must actually exist next to the corpus.
+    assert!(
+        db.with_file_name("c.db.index").exists(),
+        "no sidecar index file was written"
+    );
+
+    let info = Command::new(MOLAO)
+        .args(["index", "info", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao index info");
+    assert!(info.status.success());
+    let info = String::from_utf8_lossy(&info.stdout);
+    assert!(info.contains("descriptor"), "{info}");
+    // Built from the corpus it is being checked against, so it is current.
+    assert!(
+        info.contains("current"),
+        "a fresh index should read as current: {info}"
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn index_build_with_http_requires_an_endpoint() {
+    // The HTTP embedder is optional and needs an operator-supplied model; asking
+    // for it without an endpoint must fail clearly, not silently.
+    let dir = workdir("index-http");
+    let db = dir.join("c.db");
+    let demo = Command::new(MOLAO)
+        .args(["demo", "--no-serve", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao demo");
+    assert!(demo.status.success());
+
+    let out = Command::new(MOLAO)
+        .args(["index", "build", "--embedder", "http", "--db"])
+        .arg(&db)
+        .output()
+        .expect("running molao index build --embedder http");
+    assert!(
+        !out.status.success(),
+        "http build without an endpoint must fail"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("endpoint"), "{stderr}");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn every_documented_command_has_working_help() {
     // "Documented commands must execute" starts with --help not erroring.
     for args in [
@@ -245,6 +331,9 @@ fn every_documented_command_has_working_help() {
         vec!["demo", "--help"],
         vec!["verify", "--help"],
         vec!["stats", "--help"],
+        vec!["index", "--help"],
+        vec!["index", "build", "--help"],
+        vec!["index", "info", "--help"],
     ] {
         let out = Command::new(MOLAO)
             .args(&args)

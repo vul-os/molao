@@ -10,8 +10,43 @@ like the ones here and nothing else.
 | `za.toml` | South Africa. The reference profile — 32 courts, 24 series. Kept byte-equal to the built-in `molao_core::region::ZA` by a test. |
 | `generic.toml` | No courts, no series. Usable in any jurisdiction on day one; see its comments for exactly what it does and does not find. |
 
+Every file below ships alongside a built-in constant in `molao_core::region`, and
+a test asserts the two are byte-for-byte the same profile, so the "data, not
+code" claim holds for each — a hand-edit to either side fails the build.
+
 See [docs/COURTS.md](../docs/COURTS.md) for the model and
 [docs/CITATIONS.md](../docs/CITATIONS.md) for what the parser does with it.
+
+## Pan-African profiles
+
+Twelve jurisdictions of the AfricanLII / Free Access to Law network, using the
+neutral-citation designators the relevant LII already publishes. Each file's
+header names the source URLs the codes were taken from. Court codes are the one
+thing a legal tool cannot afford to get wrong — a wrong code silently drops every
+citation carrying it out of the graph — so where a code could not be verified it
+was **omitted**, and where a jurisdiction's practice is genuinely thin the whole
+profile is marked **partial** rather than padded with plausible guesses.
+
+| File | Jurisdiction | Status | Notes |
+|---|---|---|---|
+| `ke.toml` | Kenya | complete (superior courts) | Apex `KESC`; `KEELRC`/`KEELC` have High-Court status. Series: `KLR`. |
+| `ug.toml` | Uganda | complete (principal courts) | Apex `UGSC`; High Court under `UGHC`, `UGHCCD`, `UGHCCRD`. |
+| `tz.toml` | Tanzania | complete (principal courts) | Apex is the Court of Appeal `TZCA`; High Court divisions included. |
+| `zw.toml` | Zimbabwe | complete (principal courts) | Two apex courts (`ZWCC`, `ZWSC`); per-seat High Court. Series: `ZLR`. |
+| `na.toml` | Namibia | complete (principal courts) | Apex `NASC`; per-division High/Labour Court. Series: `NR`. |
+| `bw.toml` | Botswana | complete (principal courts) | Apex is the Court of Appeal `BWCA`. Series: `BLR`. |
+| `gh.toml` | Ghana | complete (superior courts) | `GHASC` / `GHACA` / `GHAHC`. No verifiable series. |
+| `ng.toml` | Nigeria | **partial / seed** | Only `NGSC` verified; practice runs on reported series (`NWLR`) this extractor does not model. |
+| `mw.toml` | Malawi | complete (principal courts) | Apex is the Supreme Court of Appeal `MWSC`. |
+| `zm.toml` | Zambia | complete (principal courts) | Two apex courts (`ZMSC`, `ZMCC`); `ZMCA` below them. |
+| `ls.toml` | Lesotho | complete (principal courts) | Apex is the Court of Appeal `LSCA`. Series: `LLR`. |
+| `sz.toml` | Eswatini | complete (principal courts) | Apex `SZSC`; `SZICA` / `SZIC` for labour. |
+
+"Complete" here means the apex, appellate and principal superior courts — what a
+citation graph needs to rank authority — not an exhaustive roll of every registry
+and tribunal. Adding a further division later is a data edit, not a code change.
+Most of these enumerate few or no report series, because their LIIs cite mainly
+by neutral citation; that is honest (see `generic.toml`), not a stub.
 
 ## Format
 

@@ -18,7 +18,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-/// A router over the demo corpus — the same data a first-time user sees.
+/// A router over the demo corpus — the same data a first-time user sees,
+/// including the fake-embedder RAG index `molao demo` builds.
 fn app() -> axum::Router {
     let mut corpus = Corpus::open_in_memory().expect("in-memory corpus");
     molao_node::demo::seed(&mut corpus).expect("seeding the demo corpus");
@@ -26,12 +27,24 @@ fn app() -> axum::Router {
         .expect("graph")
         .write_authority(&corpus)
         .expect("authority");
+    let index = molao_node::demo::build_fake_index(&corpus).expect("demo index");
+    let state = api::AppState::new(corpus)
+        .expect("state")
+        .with_index(index, None);
+    api::router(Arc::new(state))
+}
+
+/// A router over the demo corpus with **no** index attached — to prove the node
+/// still serves, and reports the absence honestly.
+fn app_without_index() -> axum::Router {
+    let mut corpus = Corpus::open_in_memory().expect("in-memory corpus");
+    molao_node::demo::seed(&mut corpus).expect("seeding the demo corpus");
     api::router(Arc::new(api::AppState::new(corpus).expect("state")))
 }
 
-/// Issue a GET and return `(status, parsed JSON)`.
-async fn get(uri: &str) -> (StatusCode, Value) {
-    let response = app()
+/// Issue a GET against a given router and return `(status, parsed JSON)`.
+async fn get_with(router: axum::Router, uri: &str) -> (StatusCode, Value) {
+    let response = router
         .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
         .await
         .expect("router responded");
@@ -44,6 +57,11 @@ async fn get(uri: &str) -> (StatusCode, Value) {
         )
     });
     (status, json)
+}
+
+/// Issue a GET against the standard demo router.
+async fn get(uri: &str) -> (StatusCode, Value) {
+    get_with(app(), uri).await
 }
 
 /// The id of a judgment known to be well cited in the demo corpus.
@@ -110,6 +128,145 @@ async fn status_reports_which_region_profiles_the_corpus_holds() {
     assert_eq!(regions.len(), 1);
     assert_eq!(regions[0]["code"], "ZA");
     assert!(regions[0]["doc_count"].as_u64().unwrap() >= 10);
+}
+
+#[tokio::test]
+async fn status_reports_the_index_descriptor_and_that_it_is_current() {
+    let (_, body) = get("/api/status").await;
+    let index = &body["index"];
+    assert_eq!(
+        index["present"], true,
+        "the demo attaches an index: {index}"
+    );
+    let descriptors = index["descriptors"].as_array().expect("descriptors array");
+    assert_eq!(descriptors.len(), 1, "one fake-embedder descriptor");
+    let d = &descriptors[0];
+    assert_eq!(d["embedder_id"], "fake-hash");
+    assert!(d["descriptor_id"].as_str().unwrap().len() == 64);
+    assert!(d["chunk_count"].as_u64().unwrap() > 10);
+    // Built from the corpus the node serves, so it must not be stale.
+    assert_eq!(d["stale"], false, "a freshly built index must not be stale");
+}
+
+#[tokio::test]
+async fn status_index_block_is_present_and_honest_when_no_index_is_built() {
+    let (status, body) = get_with(app_without_index(), "/api/status").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["index"]["present"], false);
+    assert!(body["index"]["descriptors"].as_array().unwrap().is_empty());
+    // The rest of status still works — the index is optional.
+    assert!(body["docs"].as_u64().unwrap() >= 10);
+}
+
+// ---- /api/rag/search -----------------------------------------------------
+
+#[tokio::test]
+async fn rag_search_returns_hybrid_hits_with_pinpoints_and_a_descriptor() {
+    let (status, body) = get("/api/rag/search?q=eviction%20of%20occupiers&k=5").await;
+    assert_eq!(status, StatusCode::OK);
+
+    // The endpoint reports which model produced the results.
+    let d = &body["descriptor"];
+    assert_eq!(d["embedder_id"], "fake-hash");
+    assert!(d["descriptor_id"].is_string());
+    assert_eq!(d["stale"], false);
+    // Fake embedder is present, so the query is embedded: retrieval is hybrid.
+    assert_eq!(body["retrieval"], "hybrid", "body: {body}");
+
+    let hits = body["hits"].as_array().expect("hits array");
+    assert!(!hits.is_empty(), "eviction query should retrieve something");
+    let hit = &hits[0];
+    for key in ["doc_id", "para_index", "text", "score", "title", "court"] {
+        assert!(!hit[key].is_null(), "hit missing {key}: {hit}");
+    }
+    // The pinpoint must be a real paragraph index and the doc a real judgment.
+    assert!(hit["para_index"].as_u64().is_some());
+    assert_eq!(hit["doc_id"].as_str().unwrap().len(), 64);
+    // A hybrid hit carries both a keyword and a vector signal at the top.
+    assert!(hit["vector_score"].is_number());
+}
+
+#[tokio::test]
+async fn rag_search_top_hit_carries_the_distinctive_term() {
+    // The fake embedder is not semantic (by design); topicality comes from
+    // shared vocabulary. A query on a distinctive term must surface the passage
+    // that actually uses it — "unitary" appears in exactly one paragraph of the
+    // demo corpus, the interpretation case.
+    let (_, body) = get("/api/rag/search?q=unitary%20interpretation%20exercise").await;
+    let hits = body["hits"].as_array().unwrap();
+    assert!(!hits.is_empty());
+    let text = hits[0]["text"].as_str().unwrap().to_lowercase();
+    assert!(
+        text.contains("unitary") || text.contains("interpret"),
+        "top hit did not carry the query's distinctive term: {}",
+        hits[0]["text"]
+    );
+}
+
+#[tokio::test]
+async fn rag_search_selects_a_named_descriptor_and_404s_on_an_unknown_one() {
+    // Discover the real descriptor id from status, then request it explicitly.
+    let (_, status_body) = get("/api/status").await;
+    let id = status_body["index"]["descriptors"][0]["descriptor_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (ok, body) = get(&format!("/api/rag/search?q=arrest&model={id}")).await;
+    assert_eq!(ok, StatusCode::OK);
+    assert_eq!(body["descriptor"]["descriptor_id"], id);
+
+    // A descriptor that is not present is a 404 with an error body, never a
+    // silent search of the wrong space.
+    let (nf, err) = get(&format!(
+        "/api/rag/search?q=arrest&model={}",
+        "00".repeat(32)
+    ))
+    .await;
+    assert_eq!(nf, StatusCode::NOT_FOUND);
+    assert!(err["error"].is_string());
+}
+
+#[tokio::test]
+async fn rag_search_is_a_polite_empty_when_no_index_is_built() {
+    let (status, body) = get_with(app_without_index(), "/api/rag/search?q=eviction").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["hits"].as_array().unwrap().is_empty());
+    assert_eq!(body["retrieval"], "none");
+    assert!(
+        body["note"].is_string(),
+        "must explain that no index is present"
+    );
+}
+
+#[tokio::test]
+async fn hostile_rag_input_never_produces_a_500() {
+    // The same class of attacks the keyword endpoint must survive, now on the
+    // RAG query. Injection and pathological FTS syntax must be safe.
+    let attacks = [
+        "%27%3B%20DROP%20TABLE%20chunks%3B%20--",
+        "NEAR%28a%20b%2C%2099999%29",
+        "%28%28%28%28%28",
+        "title%3A*",
+        "%22unterminated",
+    ];
+    for attack in attacks {
+        let (status, body) = get(&format!("/api/rag/search?q={attack}")).await;
+        assert_eq!(status, StatusCode::OK, "q={attack} gave {body}");
+        assert!(body["hits"].is_array(), "q={attack} gave {body}");
+    }
+}
+
+#[tokio::test]
+async fn rag_pagination_k_is_clamped() {
+    for uri in [
+        "/api/rag/search?q=public%20power&k=0",
+        "/api/rag/search?q=public%20power&k=999999",
+        "/api/rag/search?q=public%20power&k=abc",
+    ] {
+        let (status, body) = get(uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        assert!(body["hits"].as_array().unwrap().len() <= 100, "{uri}");
+    }
 }
 
 // ---- /api/courts ---------------------------------------------------------

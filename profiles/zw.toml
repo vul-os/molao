@@ -1,0 +1,74 @@
+# Zimbabwe — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators ZimLII (the Zimbabwe Legal
+# Information Institute) publishes, e.g. `[2020] ZWCC 20`. A test in molao-core
+# parses this file and asserts it equals the built-in `region::ZW` constant.
+#
+# Status: complete for the principal courts. Zimbabwe has two courts of final
+# resort in their own spheres: the Constitutional Court (ZWCC) on constitutional
+# matters and the Supreme Court (ZWSC) on all others, so both sit at `apex`. The
+# High Court publishes under a per-seat code (Harare, Bulawayo, Masvingo,
+# Chinhoyi, Mutare).
+#
+# Sources: https://zimlii.org/judgments/ZWCC/ , /ZWSC/ , /ZWHHC/ , /ZWBHC/ ,
+#          /ZWMSVHC/ , /ZWCHHC/ , /ZWMTHC/ , /ZWLC/
+
+code = "ZW"
+name = "Zimbabwe"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "ZWCC"
+name = "Constitutional Court of Zimbabwe"
+tier = "apex"
+
+[[courts]]
+code = "ZWSC"
+name = "Supreme Court of Zimbabwe"
+tier = "apex"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "ZWHHC"
+name = "High Court of Zimbabwe"
+tier = "high_court"
+seat = "Harare"
+
+[[courts]]
+code = "ZWBHC"
+name = "High Court of Zimbabwe"
+tier = "high_court"
+seat = "Bulawayo"
+
+[[courts]]
+code = "ZWMSVHC"
+name = "High Court of Zimbabwe"
+tier = "high_court"
+seat = "Masvingo"
+
+[[courts]]
+code = "ZWCHHC"
+name = "High Court of Zimbabwe"
+tier = "high_court"
+seat = "Chinhoyi"
+
+[[courts]]
+code = "ZWMTHC"
+name = "High Court of Zimbabwe"
+tier = "high_court"
+seat = "Mutare"
+
+# ---- specialist_high ---------------------------------------------
+
+[[courts]]
+code = "ZWLC"
+name = "Labour Court of Zimbabwe"
+tier = "specialist_high"
+
+# ---- Law-report series -------------------------------------------
+
+[[series]]
+abbr = "ZLR"
+name = "Zimbabwe Law Reports"

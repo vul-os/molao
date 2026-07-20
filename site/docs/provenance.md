@@ -2,7 +2,11 @@
 
 Where a judgment came from, who says so, and how much that is worth.
 
-The rule the model encodes: **one person's upload is not evidence.**
+The rule the model encodes: **one person's upload is not evidence.** This is
+what makes it possible for the corpus to be built **collectively** — by any
+node, in any jurisdiction, sourced any of the ways
+[SOURCES.md](SOURCES.md) allows — without having to trust whoever happened to
+submit a document first.
 
 ## The witness record
 
@@ -96,5 +100,11 @@ The `Provenance` type, `ProvenanceClass`, and the corroboration rule are
 implemented and tested in `molao-core`.
 
 The witness fetching daemon, the signature-collection path, and the
-disagreement-resolution workflow are **designed, not built**. What exists today
-is the data model and the classification rule the rest will be built against.
+disagreement-resolution workflow are **landing this session** as
+`molao-ingest` — the crate that turns "independent witnesses corroborate raw
+bytes" from a data model into a running process, across all three sourcing
+routes in [SOURCES.md](SOURCES.md): direct fetch, licensed bulk import, and
+polite robots-respecting crawl. It is new, has not run against a real
+jurisdiction yet, and there is no public corpus behind it. What exists today,
+tested, is the data model and the classification rule the rest is being built
+against.

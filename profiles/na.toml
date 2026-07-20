@@ -1,0 +1,51 @@
+# Namibia — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators NamibLII (the Namibia Legal
+# Information Institute) publishes, e.g. `[2020] NAHCMD 495`. A test in
+# molao-core parses this file and asserts it equals the built-in `region::NA`
+# constant.
+#
+# Status: complete for the principal courts. The High Court publishes under a
+# per-division code (Main Division at Windhoek, Northern Local Division at
+# Oshakati), as does the Labour Court.
+#
+# Sources: https://namiblii.org/judgments/ (NASC, NAHCMD, NAHCNLD, NALCMD)
+
+code = "NA"
+name = "Namibia"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "NASC"
+name = "Supreme Court of Namibia"
+tier = "apex"
+seat = "Windhoek"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "NAHCMD"
+name = "High Court of Namibia, Main Division"
+tier = "high_court"
+seat = "Windhoek"
+
+[[courts]]
+code = "NAHCNLD"
+name = "High Court of Namibia, Northern Local Division"
+tier = "high_court"
+seat = "Oshakati"
+
+# ---- specialist_high ---------------------------------------------
+
+[[courts]]
+code = "NALCMD"
+name = "Labour Court of Namibia, Main Division"
+tier = "specialist_high"
+seat = "Windhoek"
+
+# ---- Law-report series -------------------------------------------
+
+[[series]]
+abbr = "NR"
+name = "Namibian Law Reports"

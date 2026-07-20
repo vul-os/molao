@@ -1,0 +1,43 @@
+# Botswana — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators used for Botswana on SAFLII
+# (Botswana e-Laws is the official government portal), e.g. `[2019] BWCA 12`. A
+# test in molao-core parses this file and asserts it equals the built-in
+# `region::BW` constant.
+#
+# Status: complete for the principal courts. Botswana's apex is the Court of
+# Appeal (BWCA); there is no separate supreme or constitutional court above it.
+# The High Court publishes under `BWHC` (its per-seat sub-codes for Lobatse,
+# Gaborone and Francistown are not included here because they were not verified).
+#
+# Sources: https://www.saflii.org/bw/cases/BWCA/ , /BWHC/ , /BWIC/
+
+code = "BW"
+name = "Botswana"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "BWCA"
+name = "Court of Appeal of Botswana"
+tier = "apex"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "BWHC"
+name = "High Court of Botswana"
+tier = "high_court"
+
+# ---- specialist_high ---------------------------------------------
+
+[[courts]]
+code = "BWIC"
+name = "Industrial Court of Botswana"
+tier = "specialist_high"
+
+# ---- Law-report series -------------------------------------------
+
+[[series]]
+abbr = "BLR"
+name = "Botswana Law Reports"

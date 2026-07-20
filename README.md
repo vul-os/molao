@@ -82,19 +82,35 @@ citation convention:
 Same grammar, different court codes — which is exactly why the codes belong in
 data. Adding a jurisdiction means supplying a profile (court registry, tiers,
 weights, report series, applicable citation styles) and touching no core logic:
-[docs/COURTS.md](docs/COURTS.md#adding-a-jurisdiction).
+[docs/COURTS.md](docs/COURTS.md#adding-a-jurisdiction). Nothing about that
+changes for Kenya, Nigeria, or any of the roughly sixteen AfricanLII member
+jurisdictions — the citation grammar is already shared continent-wide; only
+the court registry differs, and that is data, not code.
 
 > [!NOTE]
-> **Status: 0.1.0, early.** All five crates are written and tested, and the
-> node runs: search, judgments, citations and the graph. Region profiles load
-> from TOML — `ZA` populated, `GENERIC` anywhere, though `GENERIC` finds only
-> neutral citations and case numbers because reported citations need an
-> enumerated report-series list. **There is no bundled corpus — a node starts
-> empty**, and `molao demo` seeds a synthetic one. No public signed release
-> exists yet. Treatment attestations and P2P distribution are **designed, not
-> built**. Semantic search is **deliberately excluded**
-> ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)).
-> Full status in [ROADMAP.md](ROADMAP.md).
+> **Status: 0.1.0, early — decentralisation-ready, not decentralisation-running.**
+> The trust model is real, and it is built and tested today: hash-identified
+> judgments, threshold-signed releases, a citation graph verifiable by
+> recomputation, and a node that runs standalone and fully offline. Region
+> profiles load from TOML — `ZA` populated, `GENERIC` anywhere, though
+> `GENERIC` finds only neutral citations and case numbers because reported
+> citations need an enumerated report-series list.
+>
+> What is **not** live yet: peer-to-peer distribution and a public corpus.
+> **There is no bundled corpus — a node starts empty**, and `molao demo` seeds
+> a synthetic one. No public signed release exists yet, and releases still
+> move as plain files, mirrored by hand. Three crates are landing this
+> session to close that gap: **`molao-ingest`** (a robots-respecting,
+> collectively-built corpus — witnesses fetch and sign independently;
+> corroboration, not upload trust), **`molao-dist`** (content-addressed
+> releases over iroh, with a torrent export and HTTP mirror as fallback
+> transports), and **`molao-index`** (a local vector+keyword search cache,
+> rebuildable and unsigned, never part of a release). None has run against
+> real data yet. Treatment attestations remain **designed, not built**.
+> Semantic search over a release is **deliberately excluded**
+> ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)) —
+> a local rebuildable cache is not the same thing and does not reopen that
+> question. Full status in [ROADMAP.md](ROADMAP.md).
 
 ## Part of VulOS
 
@@ -173,10 +189,21 @@ depends on no VulOS service and works with no network at all.
   zero-maintenance single binary with no external database and nothing to
   rotate, plus network health exposed publicly on `/api/status`.
   [docs/RUNNING-A-NODE.md](docs/RUNNING-A-NODE.md)
-- **Sourcing is an ethical position, not a technical one.** Courts and gazettes
-  directly, licensed bulk data from Laws.Africa / AfricanLII, and SAFLII treated
-  as a citation-resolution target rather than a scrape target.
+- **Sourcing is an ethical position, not a technical one.** Courts and
+  gazettes directly, a polite robots-respecting crawl where that is all a
+  court publishes, licensed bulk data from Laws.Africa / AfricanLII, and
+  SAFLII treated as a citation-resolution target rather than a scrape target.
+  No single upload is trusted either way: the corpus is built **collectively**,
+  and a document counts only once independent witnesses corroborate it.
   [docs/SOURCES.md](docs/SOURCES.md)
+- **Decentralised in trust; not yet in distribution.** The parts that are
+  built are the parts that matter most: content-addressed identity,
+  threshold signatures, a recomputable graph, offline nodes. The part that
+  is not yet live is moving a release peer-to-peer and having a public
+  corpus to move. `molao-dist` (content-addressed releases over iroh, a
+  torrent export, an HTTP mirror) is landing this session and closes the
+  distribution half; it does not by itself create a public corpus.
+  [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)
 
 ## Screenshots
 
@@ -313,9 +340,15 @@ reproducible across hardware — so a contributed index could never be verified 
 and a poisoned index is worse than a poisoned document, since the text stays
 correct while retrieval quietly steers.
 
-Between nodes there is no hub. Every node holds a full copy; releases are plain
-files today, mirrored however you like. P2P distribution is **designed, not
-built**, and it will never be required to read the law.
+Between nodes there is no hub. Every node holds a full copy. A release is a
+content-addressed file set plus a signed manifest, so it can travel over
+iroh, as a torrent export, or as a plain HTTP mirror — verified identically
+regardless of which one carried it. iroh and the torrent export are
+**landing this session** as `molao-dist`
+([docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)); today a plain file host,
+mirrored by hand, is still the only transport actually moving bytes, because
+there is no public corpus yet to move. P2P will never be *required* to read
+the law — a node with a corpus on disk needs no peers at all.
 
 ## Configuration
 
@@ -340,10 +373,11 @@ Node roles, what each costs to run, and the practical guidance are in
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | The binding contract: layers, identity, canonicalisation, storage, non-negotiables |
 | [CITATIONS.md](docs/CITATIONS.md) | The citation grammar the parser implements — neutral, reported, historical, case numbers, pinpoints, keys; and which parts are profile-driven |
 | [COURTS.md](docs/COURTS.md) | The region-profile contract, the shared tier model, and how to add a jurisdiction |
-| [RELEASES.md](docs/RELEASES.md) | Threshold signing, manifest chaining, and how to verify a release yourself |
-| [PROVENANCE.md](docs/PROVENANCE.md) | Witnesses, corroboration, and the Corroborated / Single / Manual classes |
-| [THREAT-MODEL.md](docs/THREAT-MODEL.md) | Poisoning, split view, why embeddings are excluded, and what is **not** protected |
-| [SOURCES.md](docs/SOURCES.md) | How to source responsibly in a jurisdiction: direct, licensed bulk, and why an LII that declines bulk supply is not scraped |
+| [RELEASES.md](docs/RELEASES.md) | Threshold signing, manifest chaining, content-addressed packaging, and how to verify a release yourself |
+| [DISTRIBUTION.md](docs/DISTRIBUTION.md) | How a release travels: content-addressed packaging, iroh, torrent export, HTTP mirror, and verification on receipt (landing this session) |
+| [PROVENANCE.md](docs/PROVENANCE.md) | Witnesses, corroboration, and the Corroborated / Single / Manual classes — the model that lets a corpus be built collectively |
+| [THREAT-MODEL.md](docs/THREAT-MODEL.md) | Poisoning, split view, why embeddings are excluded, why a rebuildable RAG cache doesn't reopen that, distribution over untrusted transports, and what is **not** protected |
+| [SOURCES.md](docs/SOURCES.md) | How to source responsibly in any jurisdiction: direct, robots-respecting crawl, licensed bulk, and why an LII that declines bulk supply is not scraped |
 | [RUNNING-A-NODE.md](docs/RUNNING-A-NODE.md) | The four roles — Mirror, Witness, Builder, Attestor — and what each costs |
 | [API.md](docs/API.md) | The node's read-only HTTP API, endpoint by endpoint |
 | [SCREENSHOTS.md](docs/SCREENSHOTS.md) | The screenshot set and how to regenerate it |

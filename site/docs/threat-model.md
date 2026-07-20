@@ -132,6 +132,83 @@ local, optional, and never something anyone else has to trust.
 Search in v1 is lexical, over SQLite FTS5. That is a real limitation and it is
 the chosen one.
 
+## Why a rebuildable-cache RAG index does not reopen this hole
+
+The argument above rules out shipping a vector index **as part of a release**.
+It does not rule out semantic search entirely — it rules out *trusting one on
+anyone else's say-so*. Those are different problems, and the difference is
+where the index is allowed to carry authority.
+
+Each node may build its **own** local vector-plus-keyword index, over
+already-verified corpus text, with an embedded engine and no server. That
+index may optionally be **shared** with other nodes as a cache — but only as
+an artifact with three properties that a release artifact is not allowed to
+have:
+
+- **Unsigned.** Nothing in the signer set attests to it. It carries no
+  authority a manifest confers.
+- **Model-tagged, not release-tagged.** It names the embedding model and
+  version that produced it, so a receiving node knows exactly what it would
+  need to recompute to check it — and knows to throw it away once that model
+  is superseded.
+- **Rebuildable, not merely re-fetchable.** Anyone holding the same
+  already-verified corpus text and the named model can regenerate the index
+  from scratch and diff it against the one they were handed. Disagreement is
+  visible, even though the two builds may not be byte-identical the way the
+  citation graph is.
+
+This preserves the property the whole design rests on: **the corpus stays the
+only signed truth.** A poisoned index cannot be laundered into authority,
+because authority was never on offer — it isn't signed, so no node trusts it
+by provenance rather than by checking it, and it can be independently rebuilt
+and compared rather than merely believed. And because the index only ever
+*ranks candidates*, never *serves text*, a node always reads the actual
+verified judgment once it opens one; a poisoned index can make you miss a
+case, exactly as reasoned above, but it cannot make you misread one you do
+open.
+
+**Status:** this local, rebuildable, unsigned index is `molao-index`, being
+written this session. It does not exist yet, has not been shared between two
+nodes, and the sharing path described above is the design it is being built
+to. The embeddings-exclusion argument above is unaffected by its existence —
+if anything, `molao-index` is the proof that the exclusion was the right call:
+semantic search was never blocked, only its promotion to something a release
+would need to trust.
+
+## Distribution: content-addressed release over an untrusted transport
+
+**Threat:** a release is fetched over a transport nobody has reason to trust —
+a stranger's iroh peer, a decade-old torrent, a mirror run by someone unknown
+to the fetching node.
+
+**Defence:** none of that matters, because verification does not trust the
+transport in the first place. A release is a **content-addressed** file set:
+every document's id is the hash of its own text, `corpus_root` and
+`graph_root` are recomputed from the files actually received rather than
+taken on the sender's word, and the manifest naming those roots is only
+trusted once `threshold` independent signatures verify over it
+([RELEASES.md](RELEASES.md)). A transport that hands over altered or
+substituted bytes hands over a file that fails its own hash check, no matter
+how it was carried. This is exactly why the transport can be anything —
+iroh directly, a torrent export seeded by whoever still has the files, or a
+plain HTTP mirror — without weakening what "verified" means.
+
+**Residual:** an untrusted transport can still refuse to serve, or waste your
+time — denial, not corruption — and mirroring across transports is the
+answer to that, not a cryptographic one. And content addressing on its own
+does not stop **split view**: a transport could in principle show two peers
+two different, both internally-valid, releases. That is the same split-view
+threat described above, and the same defence applies — chaining plus a public
+append-only log, not the transport layer. Content addressing makes bad bytes
+detectable; chaining and the log are what make a fork visible. See
+[DISTRIBUTION.md](DISTRIBUTION.md) for the full transport story.
+
+**Status:** the model is settled. `molao-dist` — iroh as the primary
+transport, and a torrent export for archival mirroring — is being written
+this session. It has not carried a real release yet, because there is no
+public release yet; today the only transport in actual use is a plain file
+host, mirrored by hand.
+
 ## What this does not protect against
 
 Stated plainly, because a threat model that only lists wins is marketing.
@@ -162,8 +239,11 @@ Stated plainly, because a threat model that only lists wins is marketing.
   Molao does not defend a machine against its own administrator.
 - **Denial of service and censorship of distribution.** Today releases are
   plain files on ordinary hosts, which can be taken down. Mirroring is the
-  defence and it is entirely manual. P2P distribution is **designed, not
-  built**.
+  defence and it is entirely manual. Content-addressed packaging over iroh
+  plus a torrent export — so any host that has ever fetched a release can go
+  on serving it without asking anyone, this project included — is **landing
+  this session** as `molao-dist` ([DISTRIBUTION.md](DISTRIBUTION.md)). It is
+  not deployed yet, and there is no public corpus for it to carry.
 - **Reader anonymity.** A node's operator can see what its users search for.
   Molao makes no anonymity claim. If your query is sensitive, run your own node
   — which is free, offline, and the reason the offline guarantee exists.

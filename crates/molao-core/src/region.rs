@@ -661,7 +661,487 @@ pub const ZA_SERIES: &[Series] = &[
     },
 ];
 
-static BUILTIN: &[&RegionProfile] = &[&ZA, &GENERIC];
+// ---------------------------------------------------------------------------
+// Pan-African profiles
+// ---------------------------------------------------------------------------
+//
+// Each of these ships both as a built-in constant here and as `profiles/<cc>.toml`,
+// and a test asserts the two are byte-for-byte the same profile so they cannot
+// drift. Court codes are the neutral-citation designators the relevant AfricanLII
+// member publishes; the source URLs are in each TOML file's header.
+//
+// These profiles are *not* the default and are not read by the free `extract`
+// function — adding them changes no existing extraction output, so it is not an
+// `EXTRACTOR_VERSION` bump. A node serving one of these jurisdictions selects it
+// with `region::builtin("KE")` (etc.) and holds an `Extractor::for_profile`.
+//
+// Completeness is stated honestly, per profile: most cover the apex, appellate
+// and principal superior courts, which is what a citation graph needs to rank
+// authority. `NG` (Nigeria) is a deliberate *seed* — see its note.
+
+/// Kenya. Complete for the superior courts.
+pub static KE: RegionProfile = RegionProfile {
+    code: "KE",
+    name: "Kenya",
+    courts: KE_COURTS,
+    series: KE_SERIES,
+};
+
+const KE_COURTS: &[Court] = &[
+    Court {
+        code: "KESC",
+        name: "Supreme Court of Kenya",
+        tier: Tier::Apex,
+        seat: Some("Nairobi"),
+    },
+    Court {
+        code: "KECA",
+        name: "Court of Appeal of Kenya",
+        tier: Tier::Appellate,
+        seat: None,
+    },
+    Court {
+        code: "KEHC",
+        name: "High Court of Kenya",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "KEELRC",
+        name: "Employment and Labour Relations Court of Kenya",
+        tier: Tier::SpecialistHigh,
+        seat: None,
+    },
+    Court {
+        code: "KEELC",
+        name: "Environment and Land Court of Kenya",
+        tier: Tier::SpecialistHigh,
+        seat: None,
+    },
+];
+
+const KE_SERIES: &[Series] = &[Series {
+    abbr: "KLR",
+    name: "Kenya Law Reports",
+    no_volume: false,
+}];
+
+/// Uganda. Complete for the principal courts.
+pub static UG: RegionProfile = RegionProfile {
+    code: "UG",
+    name: "Uganda",
+    courts: UG_COURTS,
+    series: &[],
+};
+
+const UG_COURTS: &[Court] = &[
+    Court {
+        code: "UGSC",
+        name: "Supreme Court of Uganda",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "UGCA",
+        name: "Court of Appeal of Uganda",
+        tier: Tier::Appellate,
+        seat: None,
+    },
+    Court {
+        code: "UGHC",
+        name: "High Court of Uganda",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "UGHCCD",
+        name: "High Court of Uganda (Civil Division)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "UGHCCRD",
+        name: "High Court of Uganda (Criminal Division)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Tanzania. Complete for the principal courts. Apex is the Court of Appeal.
+pub static TZ: RegionProfile = RegionProfile {
+    code: "TZ",
+    name: "Tanzania",
+    courts: TZ_COURTS,
+    series: &[],
+};
+
+const TZ_COURTS: &[Court] = &[
+    Court {
+        code: "TZCA",
+        name: "Court of Appeal of Tanzania",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "TZHC",
+        name: "High Court of Tanzania",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "TZHCLandD",
+        name: "High Court of Tanzania (Land Division)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "TZHCComD",
+        name: "High Court of Tanzania (Commercial Division)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "TZHCLD",
+        name: "High Court of Tanzania (Labour Division)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Zimbabwe. Complete for the principal courts. Two apex courts (constitutional
+/// and general), each final in its own sphere.
+pub static ZW: RegionProfile = RegionProfile {
+    code: "ZW",
+    name: "Zimbabwe",
+    courts: ZW_COURTS,
+    series: ZW_SERIES,
+};
+
+const ZW_COURTS: &[Court] = &[
+    Court {
+        code: "ZWCC",
+        name: "Constitutional Court of Zimbabwe",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "ZWSC",
+        name: "Supreme Court of Zimbabwe",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "ZWHHC",
+        name: "High Court of Zimbabwe",
+        tier: Tier::HighCourt,
+        seat: Some("Harare"),
+    },
+    Court {
+        code: "ZWBHC",
+        name: "High Court of Zimbabwe",
+        tier: Tier::HighCourt,
+        seat: Some("Bulawayo"),
+    },
+    Court {
+        code: "ZWMSVHC",
+        name: "High Court of Zimbabwe",
+        tier: Tier::HighCourt,
+        seat: Some("Masvingo"),
+    },
+    Court {
+        code: "ZWCHHC",
+        name: "High Court of Zimbabwe",
+        tier: Tier::HighCourt,
+        seat: Some("Chinhoyi"),
+    },
+    Court {
+        code: "ZWMTHC",
+        name: "High Court of Zimbabwe",
+        tier: Tier::HighCourt,
+        seat: Some("Mutare"),
+    },
+    Court {
+        code: "ZWLC",
+        name: "Labour Court of Zimbabwe",
+        tier: Tier::SpecialistHigh,
+        seat: None,
+    },
+];
+
+const ZW_SERIES: &[Series] = &[Series {
+    abbr: "ZLR",
+    name: "Zimbabwe Law Reports",
+    no_volume: false,
+}];
+
+/// Namibia. Complete for the principal courts.
+pub static NA: RegionProfile = RegionProfile {
+    code: "NA",
+    name: "Namibia",
+    courts: NA_COURTS,
+    series: NA_SERIES,
+};
+
+const NA_COURTS: &[Court] = &[
+    Court {
+        code: "NASC",
+        name: "Supreme Court of Namibia",
+        tier: Tier::Apex,
+        seat: Some("Windhoek"),
+    },
+    Court {
+        code: "NAHCMD",
+        name: "High Court of Namibia, Main Division",
+        tier: Tier::HighCourt,
+        seat: Some("Windhoek"),
+    },
+    Court {
+        code: "NAHCNLD",
+        name: "High Court of Namibia, Northern Local Division",
+        tier: Tier::HighCourt,
+        seat: Some("Oshakati"),
+    },
+    Court {
+        code: "NALCMD",
+        name: "Labour Court of Namibia, Main Division",
+        tier: Tier::SpecialistHigh,
+        seat: Some("Windhoek"),
+    },
+];
+
+const NA_SERIES: &[Series] = &[Series {
+    abbr: "NR",
+    name: "Namibian Law Reports",
+    no_volume: false,
+}];
+
+/// Botswana. Complete for the principal courts. Apex is the Court of Appeal.
+pub static BW: RegionProfile = RegionProfile {
+    code: "BW",
+    name: "Botswana",
+    courts: BW_COURTS,
+    series: BW_SERIES,
+};
+
+const BW_COURTS: &[Court] = &[
+    Court {
+        code: "BWCA",
+        name: "Court of Appeal of Botswana",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "BWHC",
+        name: "High Court of Botswana",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "BWIC",
+        name: "Industrial Court of Botswana",
+        tier: Tier::SpecialistHigh,
+        seat: None,
+    },
+];
+
+const BW_SERIES: &[Series] = &[Series {
+    abbr: "BLR",
+    name: "Botswana Law Reports",
+    no_volume: false,
+}];
+
+/// Ghana. Complete for the superior courts of record.
+pub static GH: RegionProfile = RegionProfile {
+    code: "GH",
+    name: "Ghana",
+    courts: GH_COURTS,
+    series: &[],
+};
+
+const GH_COURTS: &[Court] = &[
+    Court {
+        code: "GHASC",
+        name: "Supreme Court of Ghana",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "GHACA",
+        name: "Court of Appeal of Ghana",
+        tier: Tier::Appellate,
+        seat: None,
+    },
+    Court {
+        code: "GHAHC",
+        name: "High Court of Ghana",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Nigeria. PARTIAL / SEED — only `NGSC` was verified against a published
+/// judgment, and Nigerian citation practice runs mainly on reported series this
+/// extractor does not model. See `profiles/ng.toml` for the full caveat.
+pub static NG: RegionProfile = RegionProfile {
+    code: "NG",
+    name: "Nigeria",
+    courts: NG_COURTS,
+    series: &[],
+};
+
+const NG_COURTS: &[Court] = &[
+    Court {
+        code: "NGSC",
+        name: "Supreme Court of Nigeria",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "NGCA",
+        name: "Court of Appeal of Nigeria",
+        tier: Tier::Appellate,
+        seat: None,
+    },
+    Court {
+        code: "NGHC",
+        name: "High Court (Nigeria)",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Malawi. Complete for the principal courts. Apex is the Supreme Court of Appeal.
+pub static MW: RegionProfile = RegionProfile {
+    code: "MW",
+    name: "Malawi",
+    courts: MW_COURTS,
+    series: &[],
+};
+
+const MW_COURTS: &[Court] = &[
+    Court {
+        code: "MWSC",
+        name: "Malawi Supreme Court of Appeal",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "MWHC",
+        name: "High Court of Malawi",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Zambia. Complete for the principal courts. Two apex courts (general and
+/// constitutional), each final in its own sphere.
+pub static ZM: RegionProfile = RegionProfile {
+    code: "ZM",
+    name: "Zambia",
+    courts: ZM_COURTS,
+    series: &[],
+};
+
+const ZM_COURTS: &[Court] = &[
+    Court {
+        code: "ZMSC",
+        name: "Supreme Court of Zambia",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "ZMCC",
+        name: "Constitutional Court of Zambia",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "ZMCA",
+        name: "Court of Appeal of Zambia",
+        tier: Tier::Appellate,
+        seat: None,
+    },
+    Court {
+        code: "ZMHC",
+        name: "High Court of Zambia",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+/// Lesotho. Complete for the principal courts. Apex is the Court of Appeal.
+pub static LS: RegionProfile = RegionProfile {
+    code: "LS",
+    name: "Lesotho",
+    courts: LS_COURTS,
+    series: LS_SERIES,
+};
+
+const LS_COURTS: &[Court] = &[
+    Court {
+        code: "LSCA",
+        name: "Court of Appeal of Lesotho",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "LSLAC",
+        name: "Labour Appeal Court of Lesotho",
+        tier: Tier::SpecialistAppellate,
+        seat: None,
+    },
+    Court {
+        code: "LSHC",
+        name: "High Court of Lesotho",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+];
+
+const LS_SERIES: &[Series] = &[Series {
+    abbr: "LLR",
+    name: "Lesotho Law Reports",
+    no_volume: false,
+}];
+
+/// Eswatini (formerly Swaziland). Complete for the principal courts.
+pub static SZ: RegionProfile = RegionProfile {
+    code: "SZ",
+    name: "Eswatini",
+    courts: SZ_COURTS,
+    series: &[],
+};
+
+const SZ_COURTS: &[Court] = &[
+    Court {
+        code: "SZSC",
+        name: "Supreme Court of eSwatini",
+        tier: Tier::Apex,
+        seat: None,
+    },
+    Court {
+        code: "SZICA",
+        name: "Industrial Court of Appeal of eSwatini",
+        tier: Tier::SpecialistAppellate,
+        seat: None,
+    },
+    Court {
+        code: "SZHC",
+        name: "High Court of eSwatini",
+        tier: Tier::HighCourt,
+        seat: None,
+    },
+    Court {
+        code: "SZIC",
+        name: "Industrial Court of eSwatini",
+        tier: Tier::SpecialistHigh,
+        seat: None,
+    },
+];
+
+static BUILTIN: &[&RegionProfile] = &[
+    &ZA, &KE, &UG, &TZ, &ZW, &NA, &BW, &GH, &NG, &MW, &ZM, &LS, &SZ, &GENERIC,
+];
 
 /// Every profile compiled into this build.
 pub fn all_builtin() -> &'static [&'static RegionProfile] {
@@ -718,6 +1198,99 @@ mod tests {
     fn shipped_generic_toml_matches_the_builtin_profile() {
         let loaded = RegionProfile::from_toml(GENERIC_TOML).expect("generic.toml must parse");
         assert_eq!(*loaded, GENERIC);
+    }
+
+    /// Every pan-African profile ships as both a built-in constant and a TOML
+    /// file. This proves the two are the same profile — the same guarantee the
+    /// ZA test gives, extended to each jurisdiction so a hand-edit to either
+    /// side cannot pass unnoticed.
+    #[test]
+    fn every_shipped_toml_matches_its_builtin_profile() {
+        let pairs: &[(&RegionProfile, &str)] = &[
+            (&KE, include_str!("../../../profiles/ke.toml")),
+            (&UG, include_str!("../../../profiles/ug.toml")),
+            (&TZ, include_str!("../../../profiles/tz.toml")),
+            (&ZW, include_str!("../../../profiles/zw.toml")),
+            (&NA, include_str!("../../../profiles/na.toml")),
+            (&BW, include_str!("../../../profiles/bw.toml")),
+            (&GH, include_str!("../../../profiles/gh.toml")),
+            (&NG, include_str!("../../../profiles/ng.toml")),
+            (&MW, include_str!("../../../profiles/mw.toml")),
+            (&ZM, include_str!("../../../profiles/zm.toml")),
+            (&LS, include_str!("../../../profiles/ls.toml")),
+            (&SZ, include_str!("../../../profiles/sz.toml")),
+        ];
+        for (builtin, toml) in pairs {
+            let loaded = RegionProfile::from_toml(toml)
+                .unwrap_or_else(|e| panic!("{} profile TOML must parse: {e}", builtin.code));
+            assert_eq!(
+                loaded.courts,
+                builtin.courts,
+                "profiles/{}.toml courts have drifted from the built-in",
+                builtin.code.to_lowercase()
+            );
+            assert_eq!(
+                loaded.series,
+                builtin.series,
+                "profiles/{}.toml series have drifted from the built-in",
+                builtin.code.to_lowercase()
+            );
+            assert_eq!(
+                *loaded,
+                **builtin,
+                "profiles/{}.toml has drifted from the built-in",
+                builtin.code.to_lowercase()
+            );
+        }
+    }
+
+    /// Every pan-African profile is reachable by its ISO code, and the reference
+    /// codes the extractor tests lean on really do resolve to the tier we claim.
+    #[test]
+    fn pan_african_profiles_resolve_their_apex_codes() {
+        let cases: &[(&str, &str)] = &[
+            ("KE", "KESC"),
+            ("UG", "UGSC"),
+            ("TZ", "TZCA"),
+            ("ZW", "ZWCC"),
+            ("NA", "NASC"),
+            ("BW", "BWCA"),
+            ("GH", "GHASC"),
+            ("NG", "NGSC"),
+            ("MW", "MWSC"),
+            ("ZM", "ZMSC"),
+            ("LS", "LSCA"),
+            ("SZ", "SZSC"),
+        ];
+        for (cc, apex) in cases {
+            let profile = builtin(cc).unwrap_or_else(|| panic!("{cc} must be built in"));
+            assert!(
+                profile.is_known_code(apex),
+                "{apex} must be a known code under {cc}"
+            );
+            assert_eq!(
+                profile.court(apex).unwrap().tier,
+                Tier::Apex,
+                "{apex} must be the apex court of {cc}"
+            );
+            assert_eq!(
+                profile.authority_weight(apex),
+                Tier::Apex.authority_weight(),
+                "{apex} must carry apex authority weight under {cc}"
+            );
+        }
+    }
+
+    /// The specific case the brief calls out: `[2020] UGSC 4` must resolve under
+    /// the Uganda profile. `UGSC` is the apex code; an unknown code in the same
+    /// citation shape still gets the `Lower` floor rather than a guess.
+    #[test]
+    fn ug_profile_resolves_the_supreme_court_and_floors_the_unknown() {
+        let ug = builtin("UG").expect("UG is built in");
+        let ugsc = ug.court("UGSC").expect("[2020] UGSC 4 -> UGSC is known");
+        assert_eq!(ugsc.tier, Tier::Apex);
+        assert!(!ug.is_known_code("UGXX"));
+        assert_eq!(ug.authority_weight("UGXX"), Tier::Lower.authority_weight());
     }
 
     #[test]

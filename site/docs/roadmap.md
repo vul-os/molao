@@ -8,6 +8,18 @@ consistently across this repository:
 - **Designed, not built** — the model and the reasoning exist; the code does not
 - **Deliberately excluded** — not a gap; a decision, with reasons
 
+**This session (2026-07-20), three crates are landing in parallel:**
+`molao-ingest` (sourcing — the robots-respecting crawler, the licensed-bulk
+importer, and the witness-signing daemon behind [docs/SOURCES.md](sources.md)
+and [docs/PROVENANCE.md](provenance.md)), `molao-dist` (distribution — a
+release as content-addressed files over iroh, a torrent export, or a plain
+HTTP mirror; see [docs/DISTRIBUTION.md](distribution.md)), and
+`molao-index` (a local, rebuildable, unsigned RAG cache — never part of a
+release; see [docs/THREAT-MODEL.md](threat-model.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)).
+None of the three has run against real data yet. They move the phases below
+from designed to in-progress; they do not produce a public corpus, a live P2P
+network, or a shared index by themselves — that is still ahead.
+
 ## Phase 0 — Foundations · Done
 
 The layers everything else has to agree on exactly.
@@ -58,6 +70,20 @@ Making the corpus readable.
 **There is no bundled corpus.** A node starts empty. This remains true until
 Phase 3.
 
+### Local search (RAG index) · In progress
+
+Lexical search over FTS5 is real and shipped. Semantic search is not excluded
+outright — only excluded from ever being **trusted on say-so**. A node may
+build its own local vector-plus-keyword index over already-verified corpus
+text, embedded, no server, and may optionally share it with other nodes as an
+**unsigned, model-tagged cache anyone can rebuild and check** — never as part
+of a signed release. The corpus stays the only signed truth; see
+[docs/THREAT-MODEL.md](threat-model.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)
+for why that does not reopen the embeddings-exclusion argument below.
+
+This is `molao-index`, landing this session. It has not built a real index
+yet, and the cache-sharing path is design, not a running feature.
+
 ## Phase 2 — Verification end to end · Designed, not built
 
 Today `molao-core` can verify a quorum and a chain. It cannot yet check that the
@@ -69,22 +95,30 @@ corpus and graph are what the manifest says they are.
 - A single `molao verify` command performing all six verification steps
 - Reproducible-build tooling so two builders can prove they agree
 
-## Phase 3 — The corpus · Designed, not built
+## Phase 3 — The corpus · In progress
 
-The hardest phase, and mostly not a software problem.
+The hardest phase, and mostly not a software problem. Sourcing ethics are
+settled and are a floor, not a default: [docs/SOURCES.md](sources.md).
+
+**Landing this session, as `molao-ingest`:**
 
 - Direct ingest from courts and gazettes
+- A polite, robots-respecting crawl for courts and gazettes that only
+  self-publish, with no bulk licence and no LII in between
 - Akoma Ntoso ingest from licensed Laws.Africa / AfricanLII bulk data
 - The witness daemon: fetch, hash raw bytes, sign, publish
 - Corroboration collection and disagreement workflow
+
+None of the above has ingested a real document yet. Landing the software is
+not the same as having run it against a real jurisdiction.
+
+**Still designed, not built — and mostly institutional, not code:**
+
 - Per-document licensing metadata (today `Provenance` records a source URL,
   which is a proxy and not the same thing)
 - Assembling a genuinely independent signer set across institutions and
   jurisdictions — see [GOVERNANCE.md](GOVERNANCE.md)
-- The first signed release
-
-Sourcing ethics are settled and are a floor, not a default:
-[docs/SOURCES.md](sources.md).
+- The first signed release — blocked on the above, not on `molao-ingest`
 
 ## Phase 4 — The citator · Designed, not built
 
@@ -109,11 +143,30 @@ Until this exists, **check currency yourself**. It is the most important gap in
 the project, and the documentation says so everywhere rather than in one
 footnote.
 
-## Phase 5 — Distribution · Designed, not built
+## Phase 5 — Distribution · In progress
 
-- P2P release distribution over `iroh`
+A release is a content-addressed file set plus a signed manifest
+([docs/RELEASES.md](releases.md)), which is what makes the transport
+below safe to leave untrusted. Full story in
+[docs/DISTRIBUTION.md](distribution.md).
+
+**Landing this session, as `molao-dist`:**
+
+- Content-addressed release packaging
+- P2P release distribution over `iroh`, as the primary transport
+- A torrent export for archival and fallback mirroring — universities and
+  archives seed it with tools they already run, and the corpus can outlive
+  this project
+
+Neither transport has carried a real release yet, because there is no public
+release yet. Today the only transport actually in use is a plain HTTP mirror,
+fetched by hand.
+
+**Still designed, not built:**
+
 - Public append-only log of manifests, with independent monitors
-- Systematic split-view detection rather than manual head comparison
+- Systematic split-view detection rather than manual head comparison —
+  depends on the log above
 - Network health surfaced publicly: who mirrors what, which release, how
   corroborated
 
@@ -126,7 +179,7 @@ Not backlog. Decisions.
 
 | Excluded | Why |
 |---|---|
-| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one. [docs/THREAT-MODEL.md](threat-model.md#why-embeddings-are-excluded-from-releases) |
+| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one — that is exactly what `molao-index` (above, landing this session) is for: an unsigned, rebuildable cache, never a release artifact. [docs/THREAT-MODEL.md](threat-model.md#why-embeddings-are-excluded-from-releases) |
 | **Any hosted service** | No accounts, no telemetry, no billing, ever. There is nothing to be a customer of. |
 | **Bulk SAFLII scraping** | SAFLII declines to be a bulk re-supplier and has said so. [docs/SOURCES.md](sources.md) |
 | **Legislation** | A different grammar and corpus. Laws.Africa does it well. |

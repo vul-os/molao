@@ -1,0 +1,43 @@
+# Nigeria — a pan-African region profile. PARTIAL / SEED.
+#
+# Court codes are the neutral-citation designators NigeriaLII publishes, e.g.
+# `[2007] NGSC 197`. A test in molao-core parses this file and asserts it equals
+# the built-in `region::NG` constant.
+#
+# Status: PARTIAL. Only the Supreme Court code (NGSC) was verified against
+# NigeriaLII in this pass; `NGCA` and `NGHC` follow the laws.africa country-plus-
+# court designator convention and NigeriaLII's court hierarchy but were not each
+# confirmed against a published judgment here. More importantly, Nigerian
+# citation practice runs overwhelmingly on the reported series (chiefly the
+# Nigerian Weekly Law Reports, `NWLR`), not on neutral citations, so a Nigerian
+# corpus will be under-covered by neutral-citation extraction whatever this
+# profile contains. No report series are enumerated: `NWLR` and its siblings are
+# cited in forms this extractor does not model, and a half-right series list
+# would cost precision without buying recall. Treat this profile as a seed to be
+# completed, not as authoritative.
+#
+# Sources: https://nigerialii.org/judgments/NGSC/
+
+code = "NG"
+name = "Nigeria"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "NGSC"
+name = "Supreme Court of Nigeria"
+tier = "apex"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "NGCA"
+name = "Court of Appeal of Nigeria"
+tier = "appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "NGHC"
+name = "High Court (Nigeria)"
+tier = "high_court"

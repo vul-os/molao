@@ -1,0 +1,55 @@
+# Kenya — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators Kenya Law (the National
+# Council for Law Reporting) publishes, e.g. `[2025] KEHC 7957 (KLR)`. A test in
+# molao-core parses this file and asserts it equals the built-in `region::KE`
+# constant, so the two cannot drift.
+#
+# Status: complete for the superior courts. The Employment and Labour Relations
+# Court (KEELRC) and the Environment and Land Court (KEELC) have, by the
+# Constitution, the status of the High Court, so they sit at `specialist_high`.
+#
+# Sources: https://new.kenyalaw.org/judgments/
+
+code = "KE"
+name = "Kenya"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "KESC"
+name = "Supreme Court of Kenya"
+tier = "apex"
+seat = "Nairobi"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "KECA"
+name = "Court of Appeal of Kenya"
+tier = "appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "KEHC"
+name = "High Court of Kenya"
+tier = "high_court"
+
+# ---- specialist_high (High Court status) -------------------------
+
+[[courts]]
+code = "KEELRC"
+name = "Employment and Labour Relations Court of Kenya"
+tier = "specialist_high"
+
+[[courts]]
+code = "KEELC"
+name = "Environment and Land Court of Kenya"
+tier = "specialist_high"
+
+# ---- Law-report series -------------------------------------------
+
+[[series]]
+abbr = "KLR"
+name = "Kenya Law Reports"

@@ -1,0 +1,41 @@
+# Zambia — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators ZambiaLII publishes, e.g.
+# `[2019] ZMSC 21`. A test in molao-core parses this file and asserts it equals
+# the built-in `region::ZM` constant.
+#
+# Status: complete for the principal courts. Zambia has two courts of final
+# resort in their own spheres: the Supreme Court (ZMSC) and the Constitutional
+# Court (ZMCC), so both sit at `apex`. The Court of Appeal (ZMCA) sits below
+# them, above the High Court (ZMHC).
+#
+# Sources: https://zambialii.org/judgments/ (ZMSC, ZMCC, ZMCA, ZMHC)
+
+code = "ZM"
+name = "Zambia"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "ZMSC"
+name = "Supreme Court of Zambia"
+tier = "apex"
+
+[[courts]]
+code = "ZMCC"
+name = "Constitutional Court of Zambia"
+tier = "apex"
+
+# ---- appellate ---------------------------------------------------
+
+[[courts]]
+code = "ZMCA"
+name = "Court of Appeal of Zambia"
+tier = "appellate"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "ZMHC"
+name = "High Court of Zambia"
+tier = "high_court"

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Invented fixture, not a reproduction of any real judgment. Modelled on the
+  subset of Akoma Ntoso that Laws.Africa / AfricanLII actually emit for
+  judgments: FRBR identity, a references block, a proprietary block carrying
+  the neutral citation and case number(s), and a judgmentBody of numbered
+  paragraphs. See crates/molao-ingest/src/akn.rs module docs for the exact
+  subset this parser targets.
+-->
+<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0"
+            xmlns:akn="https://laws.africa/akn">
+  <judgment name="judgment" contains="originalVersion">
+    <meta>
+      <identification source="#laws-africa">
+        <FRBRWork>
+          <FRBRthis value="/akn/za/judgment/zacc/2026/26/main"/>
+          <FRBRuri value="/akn/za/judgment/zacc/2026/26"/>
+          <FRBRalias value="Minister of Police v Mboweni" name="title"/>
+          <FRBRdate date="2026-06-26" name="Judgment"/>
+          <FRBRauthor href="#zacc"/>
+          <FRBRcountry value="za"/>
+        </FRBRWork>
+        <FRBRExpression>
+          <FRBRthis value="/akn/za/judgment/zacc/2026/26/eng@/main"/>
+          <FRBRuri value="/akn/za/judgment/zacc/2026/26/eng@"/>
+          <FRBRdate date="2026-06-26" name="Judgment"/>
+          <FRBRauthor href="#zacc"/>
+          <FRBRlanguage language="eng"/>
+        </FRBRExpression>
+        <FRBRManifestation>
+          <FRBRthis value="/akn/za/judgment/zacc/2026/26/eng@/main.xml"/>
+          <FRBRuri value="/akn/za/judgment/zacc/2026/26/eng@/main.xml"/>
+          <FRBRdate date="2026-07-01" name="XML generation"/>
+          <FRBRauthor href="#laws-africa"/>
+        </FRBRManifestation>
+      </identification>
+      <references source="#this">
+        <TLCOrganization eId="zacc" href="/ontology/organization/za/zacc" showAs="Constitutional Court of South Africa"/>
+        <TLCOrganization eId="laws-africa" href="/ontology/organization/laws-africa" showAs="Laws.Africa"/>
+        <TLCPerson eId="judge-mboweni" href="/ontology/person/za/mboweni-j" showAs="Mboweni J"/>
+        <TLCPerson eId="party-minister" href="/ontology/person" showAs="Minister of Police"/>
+        <TLCPerson eId="party-mboweni" href="/ontology/person" showAs="Mboweni"/>
+      </references>
+      <proprietary source="#laws-africa">
+        <akn:case number="CCT 306/24"/>
+        <akn:neutralCitation>[2026] ZACC 26</akn:neutralCitation>
+      </proprietary>
+    </meta>
+    <judgmentBody>
+      <introduction>
+        <p eId="intro__p_1">MBOWENI J:</p>
+      </introduction>
+      <decision>
+        <p eId="dec__p_1"><num>1</num> This is an appeal against a decision of the High Court dismissing the applicant's claim.</p>
+        <p eId="dec__p_2"><num>2</num> The approach in <ref href="/akn/za/judgment/zacc/1995/3">S v Makwanyane [1995] ZACC 3</ref> remains binding and is dispositive of the question raised.</p>
+      </decision>
+    </judgmentBody>
+  </judgment>
+</akomaNtoso>

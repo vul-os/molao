@@ -1,0 +1,29 @@
+# Malawi — a pan-African region profile.
+#
+# Court codes are the neutral-citation designators MalawiLII publishes, e.g.
+# `[2024] MWSC 1`. A test in molao-core parses this file and asserts it equals
+# the built-in `region::MW` constant.
+#
+# Status: complete for the principal courts. Malawi's apex is the Malawi Supreme
+# Court of Appeal (MWSC); the High Court publishes under `MWHC`. Specialist
+# registries (Commercial, Industrial Relations) exist and can be added when their
+# codes are confirmed against MalawiLII.
+#
+# Sources: https://malawilii.org/judgments/MWSC/ , /MWHC/
+
+code = "MW"
+name = "Malawi"
+
+# ---- apex --------------------------------------------------------
+
+[[courts]]
+code = "MWSC"
+name = "Malawi Supreme Court of Appeal"
+tier = "apex"
+
+# ---- high_court --------------------------------------------------
+
+[[courts]]
+code = "MWHC"
+name = "High Court of Malawi"
+tier = "high_court"
