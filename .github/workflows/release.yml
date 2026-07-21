@@ -1,0 +1,192 @@
+# Release: build the `molao` node binary (web UI embedded) for macOS, Linux
+# and Windows on a v* tag, and attach them to a draft GitHub Release.
+#
+# What gets built, and what does not:
+#   molao is one binary — an axum HTTP server with the web UI baked in via
+#   rust-embed (crates/molao-node/src/assets.rs) — so a release is that binary,
+#   three times, once per OS. There is no Tauri app, no separate installer, and
+#   nothing else in the workspace (molao-core/-cite/-corpus/-graph/-index/-dist)
+#   ships as a standalone artifact; they are libraries the node depends on.
+#
+# A NOTE ON THE WORD "RELEASE" — this workflow and docs/RELEASES.md use the
+# same word for two different things:
+#   - here: a tagged build of the `molao` SOFTWARE (this workflow)
+#   - docs/RELEASES.md: a signed, content-addressed CORPUS release (release 42,
+#     a manifest over judgments + citation graph, published by a signer quorum)
+#   They are unrelated. Tagging v0.2.0 says nothing about corpus release
+#   numbers, and vice versa. Do not conflate them when reading either doc.
+#
+# Order of operations: the web UI must be built BEFORE `cargo build`, because
+# rust-embed reads apps/web/dist at compile time (crates/molao-node/build.rs
+# writes a placeholder page if it's missing, precisely so a Rust-only CI job
+# never fails for want of Node — but a release binary must embed the real UI,
+# so `build-web` runs first and every platform job downloads its output).
+#
+# Maintainer flow: bump VERSION + the workspace version in Cargo.toml +
+# package.json, push a matching tag (e.g. v0.1.0). A *draft* release appears
+# under GitHub → Releases with generated notes and all assets; review and
+# publish.
+#
+# ── Signing (not configured; binaries ship unsigned until then) ──────────────
+# macOS/Windows code-signing is not wired up. If added later: macOS needs
+# APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY /
+# APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID (notarization); Windows needs
+# WINDOWS_CERT / WINDOWS_CERT_PASSWORD. Neither is required to run a node —
+# these binaries make no outbound network calls of their own — but an
+# unsigned download does trip OS Gatekeeper/SmartScreen warnings.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Build the web UI once, share it with every platform job ────────────────
+  # apps/web is a Preact/Vite bundle, platform-independent. Building it once
+  # here (instead of once per OS matrix leg) guarantees every binary embeds
+  # byte-identical UI assets and avoids three redundant `npm ci`s.
+  build-web:
+    name: Build web UI
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-node@v4.2.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Verify the real UI built (not a placeholder)
+        # build.rs only writes a placeholder page when apps/web/dist/index.html
+        # is absent. A green `npm run build` means it isn't — this just makes
+        # that assumption an explicit, checkable step rather than a silent one.
+        run: test -s apps/web/dist/index.html
+
+      - uses: actions/upload-artifact@v4.6.0
+        with:
+          name: web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: build-web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            # arm64 runner; produces a universal (arm64 + x86_64) binary.
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: linux
+            os: ubuntu-22.04
+            rust-targets: ""
+          - platform: windows
+            os: windows-latest
+            rust-targets: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Check tag matches VERSION, Cargo.toml and package.json
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(tr -d '[:space:]' < VERSION)"
+          cargo_ver="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          pkg_ver="$(node -p "require('./package.json').version")"
+          base="${tag%%-*}"   # v0.1.0-rc1 dry-runs build against base version 0.1.0
+          echo "tag=$tag base=$base VERSION=$ver Cargo.toml=$cargo_ver package.json=$pkg_ver"
+          [ "$base" = "$ver" ] && [ "$base" = "$cargo_ver" ] && [ "$base" = "$pkg_ver" ] || {
+            echo "::error::Version mismatch — bump VERSION, Cargo.toml [workspace.package].version and package.json before tagging"
+            exit 1
+          }
+
+      - uses: actions/download-artifact@v4.1.8
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2.7.7
+        with:
+          workspaces: . -> target
+
+      - name: Build node binary (macOS universal)
+        if: matrix.platform == 'macos'
+        run: |
+          cargo build --release -p molao-node --target aarch64-apple-darwin
+          cargo build --release -p molao-node --target x86_64-apple-darwin
+          lipo -create \
+            target/aarch64-apple-darwin/release/molao \
+            target/x86_64-apple-darwin/release/molao \
+            -output target/release-molao-universal
+
+      - name: Build node binary
+        if: matrix.platform != 'macos'
+        run: cargo build --release -p molao-node
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          mkdir -p staging
+          case "${{ matrix.platform }}" in
+            macos)
+              cp target/release-molao-universal "staging/molao-${ver}-macos-universal"
+              ;;
+            linux)
+              cp target/release/molao "staging/molao-${ver}-linux-x86_64"
+              ;;
+            windows)
+              cp target/release/molao.exe "staging/molao-${ver}-windows-x86_64.exe"
+              ;;
+          esac
+          ls -la staging
+
+      - uses: actions/upload-artifact@v4.6.0
+        with:
+          name: bin-${{ matrix.platform }}
+          path: staging/*
+          if-no-files-found: error
+
+  release:
+    name: Draft GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4.1.8
+        with:
+          path: dist
+          pattern: bin-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum molao-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: List assets
+        run: ls -la dist
+
+      - uses: softprops/action-gh-release@v2.2.1
+        with:
+          draft: true
+          generate_release_notes: true
+          name: Molao ${{ github.ref_name }}
+          files: dist/*
