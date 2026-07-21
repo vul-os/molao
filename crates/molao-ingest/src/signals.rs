@@ -426,6 +426,9 @@ mod tests {
         let s = ContentSignal::parse("ai-input=no, search=yes");
         assert_eq!(s.to_string(), "ai-input=no, search=yes");
         assert_eq!(ContentSignal::none().to_string(), "none");
-        assert_eq!(ContentSignal::parse("use=reference").to_string(), "use=reference");
+        assert_eq!(
+            ContentSignal::parse("use=reference").to_string(),
+            "use=reference"
+        );
     }
 }

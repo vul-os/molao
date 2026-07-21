@@ -132,7 +132,7 @@ pub static SOURCES: &[SourceEntry] = &[
         name: "MalawiLII",
         host: "malawilii.org",
         platform: Platform::Peachjam,
-        signal: ContentSignal::none(),
+        signal: ContentSignal::new(Signal::No, Signal::No, Signal::Yes, false),
     },
     SourceEntry {
         region: "TZ",
@@ -160,28 +160,28 @@ pub static SOURCES: &[SourceEntry] = &[
         name: "LesothoLII",
         host: "lesotholii.org",
         platform: Platform::Peachjam,
-        signal: ContentSignal::none(),
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "NA",
         name: "NamibLII",
         host: "namiblii.org",
         platform: Platform::Peachjam,
-        signal: ContentSignal::none(),
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "SZ",
         name: "EswatiniLII",
         host: "eswatinilii.org",
         platform: Platform::Peachjam,
-        signal: ContentSignal::none(),
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "GH",
         name: "GhaLII",
         host: "ghalii.org",
         platform: Platform::Peachjam,
-        signal: ContentSignal::none(),
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "NG",
@@ -1317,7 +1317,13 @@ mod tests {
                 },
             );
         let client = client(transport);
-        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
+        let result = fetch_judgment(
+            &client,
+            page_url,
+            Duration::ZERO,
+            &NoSleeper,
+            SignalPolicy::Respect,
+        );
 
         #[cfg(not(feature = "pdf"))]
         assert!(matches!(result, Err(PeachjamError::PdfUnsupported)));
@@ -1346,7 +1352,13 @@ mod tests {
             "User-agent: *\nContent-Signal: ai-train=no, search=yes, ai-input=no\nAllow: /\n",
         );
         let client = client(transport);
-        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
+        let result = fetch_judgment(
+            &client,
+            page_url,
+            Duration::ZERO,
+            &NoSleeper,
+            SignalPolicy::Respect,
+        );
         match result {
             Err(PeachjamError::ContentSignalForbidsCorpus {
                 host, eligibility, ..
@@ -1373,9 +1385,18 @@ mod tests {
             )
             .with_body(page_url, AKN_PAGE);
         let client = client(transport);
-        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Ignore);
+        let result = fetch_judgment(
+            &client,
+            page_url,
+            Duration::ZERO,
+            &NoSleeper,
+            SignalPolicy::Ignore,
+        );
         assert!(
-            !matches!(result, Err(PeachjamError::ContentSignalForbidsCorpus { .. })),
+            !matches!(
+                result,
+                Err(PeachjamError::ContentSignalForbidsCorpus { .. })
+            ),
             "Ignore policy must not refuse on the signal, got {result:?}"
         );
     }
@@ -1391,7 +1412,13 @@ mod tests {
         let client = client(transport);
         assert!(
             matches!(
-                fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect),
+                fetch_judgment(
+                    &client,
+                    page_url,
+                    Duration::ZERO,
+                    &NoSleeper,
+                    SignalPolicy::Respect
+                ),
                 Err(PeachjamError::ContentSignalForbidsCorpus { .. })
             ),
             "a use=reference source must be refused for the corpus"
@@ -1409,9 +1436,18 @@ mod tests {
             .with_status("https://new.kenyalaw.org/robots.txt", 404)
             .with_body(page_url, PDF_PAGE);
         let client = client(transport);
-        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
+        let result = fetch_judgment(
+            &client,
+            page_url,
+            Duration::ZERO,
+            &NoSleeper,
+            SignalPolicy::Respect,
+        );
         assert!(
-            !matches!(result, Err(PeachjamError::ContentSignalForbidsCorpus { .. })),
+            !matches!(
+                result,
+                Err(PeachjamError::ContentSignalForbidsCorpus { .. })
+            ),
             "a no-signal host must pass the Content-Signal gate, got {result:?}"
         );
     }

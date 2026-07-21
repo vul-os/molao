@@ -188,6 +188,14 @@ enum Command {
         #[arg(long, default_value = "molao.db")]
         db: PathBuf,
     },
+
+    /// List the case-law sources the crawler knows, and what each permits.
+    ///
+    /// Shows the built-in AfricanLII/peachjam registry with each host's
+    /// recorded content-signal and the resulting corpus eligibility. The full
+    /// cross-jurisdiction picture — court-direct sources, licensed routes, and
+    /// what still needs an adapter or paperwork — is in docs/SOURCE-MAP.md.
+    Sources,
 }
 
 /// Which embedder to build an index with.
@@ -440,6 +448,11 @@ fn main() -> Result<()> {
             signal_policy(ignore_content_signals),
             &db,
         ),
+
+        Command::Sources => {
+            run_sources();
+            Ok(())
+        }
     }
 }
 
@@ -679,6 +692,33 @@ fn ingest_one(corpus: &mut Corpus, j: &molao_core::Judgment, region: &str) -> Re
 fn region_of(url: &str) -> String {
     molao_ingest::peachjam::country_from_url(url)
         .unwrap_or_else(|| molao_corpus::DEFAULT_REGION.to_string())
+}
+
+/// `molao sources` — the crawler's registry and what each host permits.
+fn run_sources() {
+    use molao_ingest::peachjam::{Platform, SOURCES};
+    println!("Case-law sources the crawler knows (see docs/SOURCE-MAP.md for the full map):\n");
+    println!(
+        "  {:<6} {:<26} {:<22} CORPUS ELIGIBILITY",
+        "REGION", "SOURCE", "HOST"
+    );
+    for s in SOURCES {
+        let platform = match s.platform {
+            Platform::Peachjam => "peachjam",
+            Platform::SafliiCitationOnly => "saflii",
+        };
+        let elig = s.eligibility();
+        let mark = if elig.permits_rag() { "ok" } else { "--" };
+        println!(
+            "  {:<6} {:<26} {:<22} {mark} {} ({platform})",
+            s.region, s.name, s.host, elig
+        );
+    }
+    println!(
+        "\nEligibility is the recorded hint; the live robots.txt is authoritative at fetch time.\n\
+         Most AfricanLII hosts signal ai-input=no and are not corpus sources by default —\n\
+         the corpus comes from court-direct and licensed routes. See docs/SOURCE-MAP.md."
+    );
 }
 
 /// Map the CLI flag to the ingest policy, and warn loudly when it is set — an
@@ -995,7 +1035,9 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec!["serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl"],
+            vec![
+                "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources"
+            ],
             "a subcommand was added or renamed without updating the docs"
         );
         for name in &names {

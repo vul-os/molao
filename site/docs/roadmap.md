@@ -106,11 +106,47 @@ settled and are a floor, not a default: [docs/SOURCES.md](sources.md).
 - A polite, robots-respecting crawl for courts and gazettes that only
   self-publish, with no bulk licence and no LII in between
 - Akoma Ntoso ingest from licensed Laws.Africa / AfricanLII bulk data
+- A live crawler for the AfricanLII peachjam network (`molao fetch` / `molao
+  crawl`), honouring `robots.txt`, crawl-delay, and `Content-Signal`
 - The witness daemon: fetch, hash raw bytes, sign, publish
 - Corroboration collection and disagreement workflow
 
-None of the above has ingested a real document yet. Landing the software is
+None of the above has assembled a real corpus yet. Landing the software is
 not the same as having run it against a real jurisdiction.
+
+### Where the corpus can come from · a live map
+
+A July 2026 sweep of the free-access-to-law world found the honest shape of the
+problem: **the LII aggregators mostly forbid AI use** (via `Content-Signal:
+ai-input=no`, or by blocking AI crawlers, or in their terms), so a RAG corpus
+has to come from **courts and official publishers directly, or under licence**.
+The full per-jurisdiction picture — what is usable now, what needs an adapter,
+and what needs a licence application — is [docs/SOURCE-MAP.md](source-map.md).
+`molao sources` prints the crawler's built-in registry and each host's live
+eligibility.
+
+Coverage in brief: **usable now** — New Zealand, Kenya, Ghana, Scotland,
+Northern Ireland, South Africa (Constitutional Court direct); **with a free
+paperwork step** — England & UK Supreme Court (National Archives), Ireland,
+Australia, federal Canada; **via a Laws.Africa licence** — most of Africa as
+bulk; **preliminary** — the EU (EUR-Lex/CJEU), France, the Netherlands,
+Germany. Off-limits by their own policy: BAILII, AustLII, NZLII, CanLII, SAFLII.
+
+### How the community can help
+
+This is where an OSS community moves the needle faster than any single team,
+and the work is deliberately laid out as pick-up tasks in
+[docs/SOURCE-MAP.md](source-map.md#how-the-community-can-help):
+
+- **Verify a court-direct host** with `molao crawl <host> --dry-run` and report.
+- **Write a court-direct adapter** (NZ courts, Ghana e-Judgment, SA
+  Constitutional Court, EUR-Lex) behind the same `SourceAdapter` trait the
+  peachjam adapter uses — the highest-leverage code contribution.
+- **Add a region profile** (court codes + report series) for a new jurisdiction:
+  a TOML file, no code — [docs/COURTS.md](courts.md#adding-a-jurisdiction).
+- **File the paperwork.** The licence and permission requests are drafted and
+  ready in [`paperwork/`](paperwork/) — filing them is a human action, and the
+  single biggest unlock.
 
 **Still designed, not built — and mostly institutional, not code:**
 

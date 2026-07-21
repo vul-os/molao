@@ -79,10 +79,10 @@ pub use fetch::{
     UreqTransport, HARD_DENIED_HOSTS, USER_AGENT,
 };
 pub use html::{Hints, HtmlError};
-pub use peachjam::{SignalPolicy, 
+pub use peachjam::{
     enumerate, extract_judgment_links, fetch_judgment, source_for_host, source_for_region,
     FetchedJudgment, NoSleeper, PageMeta, PeachjamAdapter, PeachjamError, Platform, RealSleeper,
-    Sleeper, SourceEntry, SOURCES,
+    SignalPolicy, Sleeper, SourceEntry, SOURCES,
 };
 pub use robots::Robots;
 pub use signals::{ContentSignal, CorpusEligibility, Signal};
