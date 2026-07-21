@@ -39,6 +39,20 @@ pub enum AdapterError {
     Html(#[from] HtmlError),
     #[error("document body is not valid UTF-8")]
     NotUtf8,
+    /// A peachjam page whose body is a separate PDF document: parsing the page
+    /// alone cannot produce the judgment, because the body must be fetched from
+    /// the carried `source.pdf` URL. The peachjam fetch orchestrator handles
+    /// this; a single-shot [`SourceAdapter::parse`] caller cannot.
+    #[error("judgment body is a separate PDF; fetch it from {0}")]
+    SecondFetchRequired(String),
+    /// No Laws.Africa FRBR path (`/akn/<cc>/judgment/<court>/<year>/<num>`)
+    /// could be found for the page, so its court/year/number are unknown.
+    #[error("no FRBR path found for {0}")]
+    NoFrbrPath(String),
+    /// The page carried neither an Akoma Ntoso HTML body nor a `source.pdf`
+    /// link — there is no body to ingest.
+    #[error("no judgment body found on {0}")]
+    NoBody(String),
 }
 
 /// A fetched document, ready to be handed to an adapter.

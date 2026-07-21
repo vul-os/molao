@@ -127,6 +127,54 @@ enum Command {
         #[command(subcommand)]
         command: IndexCommand,
     },
+
+    /// Fetch and parse one judgment from a live AfricanLII (peachjam) site.
+    ///
+    /// Give the judgment's page URL, e.g.
+    /// `https://new.kenyalaw.org/akn/ke/judgment/keca/2026/1460/eng`. The
+    /// fetch honours the site's robots.txt and its crawl-delay, identifies
+    /// itself, and follows a PDF-backed judgment to its `source.pdf`.
+    ///
+    /// Like a file import, a fetched judgment enters with **Manual**
+    /// provenance until a witness signs the recorded bytes: an unsigned fetch
+    /// is not independent corroboration. `--dry-run` prints the parsed
+    /// judgment without storing anything.
+    Fetch {
+        /// The judgment page URL on a peachjam site. SAFLII hosts are refused.
+        url: String,
+        /// Parse and print the judgment without storing it.
+        #[arg(long)]
+        dry_run: bool,
+        /// Corpus database to ingest into. Ignored with `--dry-run`.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+    },
+
+    /// Crawl an AfricanLII (peachjam) site's judgment listing and ingest up to N.
+    ///
+    /// The target is a region code (`ke`, `zm`, `ng`, …) resolved through the
+    /// built-in sources registry, or a base URL (`https://zambialii.org`).
+    /// SAFLII-hosted jurisdictions (e.g. `bw`, `za`) are citation-only and are
+    /// refused with a clear message — never crawled.
+    ///
+    /// Enumeration honours robots.txt and spaces every request by the site's
+    /// crawl-delay. This is a polite sample, not a bulk mirror.
+    Crawl {
+        /// Region code or base URL of a peachjam site.
+        target: String,
+        /// Restrict to a single court code, e.g. `KECA`.
+        #[arg(long)]
+        court: Option<String>,
+        /// Maximum judgments to ingest.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        /// Parse and print judgments without storing them.
+        #[arg(long)]
+        dry_run: bool,
+        /// Corpus database to ingest into. Ignored with `--dry-run`.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+    },
 }
 
 /// Which embedder to build an index with.
@@ -356,6 +404,16 @@ fn main() -> Result<()> {
         }
 
         Command::Index { command } => run_index(command),
+
+        Command::Fetch { url, dry_run, db } => run_fetch(&url, dry_run, &db),
+
+        Command::Crawl {
+            target,
+            court,
+            limit,
+            dry_run,
+            db,
+        } => run_crawl(&target, court.as_deref(), limit, dry_run, &db),
     }
 }
 
@@ -562,6 +620,254 @@ fn collect_xml(path: &std::path::Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Live fetch / crawl of AfricanLII (peachjam) sites
+// ---------------------------------------------------------------------------
+
+use molao_ingest::Sleeper as _;
+
+/// A polite gap between requests to one host. Above peachjam's 5s crawl-delay
+/// so the fetcher's own per-host rate limiter is always satisfied and never
+/// has to reject a too-soon request during a crawl.
+const CRAWL_DELAY: std::time::Duration = std::time::Duration::from_secs(6);
+
+/// A real, robots-respecting, rate-limited fetcher for live crawling.
+fn peachjam_client() -> molao_ingest::FetchClient<molao_ingest::UreqTransport> {
+    molao_ingest::FetchClient::new(
+        molao_ingest::UreqTransport::new(),
+        molao_ingest::SystemClock,
+    )
+}
+
+/// Insert one judgment under its country region. Like a file import, a fetched
+/// judgment carries **no** witness provenance (`&[]` → `Manual`): a fetch that
+/// nobody has signed is not independent corroboration, and the corpus should
+/// not pretend otherwise until a witness attests the bytes.
+fn ingest_one(corpus: &mut Corpus, j: &molao_core::Judgment, region: &str) -> Result<()> {
+    corpus
+        .insert_judgment_in_region(j, &[], region)
+        .with_context(|| format!("inserting {}", j.id))?;
+    Ok(())
+}
+
+fn region_of(url: &str) -> String {
+    molao_ingest::peachjam::country_from_url(url)
+        .unwrap_or_else(|| molao_corpus::DEFAULT_REGION.to_string())
+}
+
+/// `molao fetch <url>`.
+fn run_fetch(url: &str, dry_run: bool, db: &std::path::Path) -> Result<()> {
+    if url.to_ascii_lowercase().contains("saflii") {
+        return Err(anyhow!(
+            "SAFLII is a citation-only target and is never fetched for the corpus (see docs/SOURCES.md)"
+        ));
+    }
+    let client = peachjam_client();
+    let sleeper = molao_ingest::RealSleeper;
+    let fj = molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper)
+        .with_context(|| format!("fetching {url}"))?;
+
+    let region = region_of(url);
+    print_fetched(&fj, &region);
+
+    if dry_run {
+        println!("\n(dry run — nothing stored)");
+        return Ok(());
+    }
+
+    let mut corpus = open(db)?;
+    ingest_one(&mut corpus, &fj.judgment, &region)?;
+    let relinked = corpus.relink().context("relinking citations")?;
+    let graph = Graph::build(&corpus).context("building the citation graph")?;
+    graph
+        .write_authority(&corpus)
+        .context("writing authority scores")?;
+    println!(
+        "\nstored into {} ({} citation(s) resolved; Manual provenance)",
+        db.display(),
+        relinked
+    );
+    Ok(())
+}
+
+/// `molao crawl <region|base-url>`.
+fn run_crawl(
+    target: &str,
+    court: Option<&str>,
+    limit: usize,
+    dry_run: bool,
+    db: &std::path::Path,
+) -> Result<()> {
+    let base = resolve_crawl_target(target)?;
+    match court {
+        Some(c) => println!("crawling {base} (court {c}, up to {limit})"),
+        None => println!("crawling {base} (up to {limit})"),
+    }
+
+    let client = peachjam_client();
+    let sleeper = molao_ingest::RealSleeper;
+    let urls = molao_ingest::enumerate(&client, &base, court, limit, CRAWL_DELAY, &sleeper)
+        .with_context(|| format!("enumerating judgments from {base}"))?;
+
+    if urls.is_empty() {
+        println!(
+            "no judgment links found — the listing may render links via JavaScript this static \
+             fetch cannot see. Try a specific judgment URL with `molao fetch`."
+        );
+        return Ok(());
+    }
+    println!("found {} judgment URL(s)\n", urls.len());
+
+    let mut corpus = if dry_run { None } else { Some(open(db)?) };
+    let mut stored = 0usize;
+    let mut failed = 0usize;
+
+    for url in &urls {
+        // Space every judgment fetch by the crawl-delay: the previous request
+        // (enumeration, or the last judgment) was to this same host.
+        sleeper.sleep(CRAWL_DELAY);
+        match molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper) {
+            Ok(fj) => {
+                let j = &fj.judgment;
+                let cite = j.neutral_citation.as_deref().unwrap_or("(no citation)");
+                let kind = if fj.pdf_backed { "pdf" } else { "akn" };
+                match corpus.as_mut() {
+                    Some(c) => {
+                        let region = region_of(url);
+                        match ingest_one(c, j, &region) {
+                            Ok(()) => {
+                                stored += 1;
+                                println!(
+                                    "  [stored] {} {cite} — {} ({} para, {kind})",
+                                    j.court,
+                                    j.title,
+                                    j.paragraphs.len()
+                                );
+                            }
+                            Err(e) => {
+                                failed += 1;
+                                eprintln!("  [error]  {url}: {e:#}");
+                            }
+                        }
+                    }
+                    None => {
+                        println!(
+                            "  [parsed] {} {cite} — {} ({} para, {kind})",
+                            j.court,
+                            j.title,
+                            j.paragraphs.len()
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                eprintln!("  [skip]   {url}: {e}");
+            }
+        }
+    }
+
+    match corpus.as_ref() {
+        Some(c) => {
+            let relinked = c.relink().context("relinking citations after crawl")?;
+            let graph = Graph::build(c).context("building the citation graph")?;
+            graph
+                .write_authority(c)
+                .context("writing authority scores")?;
+            println!(
+                "\nstored {stored}, {failed} failed; {relinked} citation(s) resolved over {} judgment(s)",
+                graph.nodes().len()
+            );
+        }
+        None => {
+            println!(
+                "\nparsed {} judgment(s), {failed} failed (dry run — nothing stored)",
+                urls.len() - failed
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Resolve a crawl target — a region code or a base URL — to a base URL,
+/// refusing SAFLII-hosted jurisdictions outright.
+fn resolve_crawl_target(target: &str) -> Result<String> {
+    let lower = target.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        if lower.contains("saflii") {
+            return Err(anyhow!(
+                "SAFLII is a citation-only target and is never crawled (see docs/SOURCES.md)"
+            ));
+        }
+        return Ok(target.to_string());
+    }
+    match molao_ingest::source_for_region(target) {
+        Some(src) if src.platform == molao_ingest::Platform::SafliiCitationOnly => Err(anyhow!(
+            "{} is a SAFLII citation-only jurisdiction — Molao resolves citations into it but never \
+             crawls it (see docs/SOURCES.md). Its case law is on SAFLII, not a peachjam host.",
+            target.to_uppercase()
+        )),
+        Some(src) => Ok(src.base_url()),
+        None => Err(anyhow!(
+            "no peachjam source is configured for region {:?}. Known regions: {}. \
+             Or pass a base URL like https://<host>.",
+            target.to_uppercase(),
+            molao_ingest::SOURCES
+                .iter()
+                .filter(|s| s.platform == molao_ingest::Platform::Peachjam)
+                .map(|s| s.region)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+/// Print a parsed judgment and its provenance for `--dry-run` and the fetch
+/// summary.
+fn print_fetched(fj: &molao_ingest::FetchedJudgment, region: &str) {
+    let j = &fj.judgment;
+    println!("court            {}", j.court);
+    println!("region           {region}");
+    println!("title            {}", j.title);
+    if let Some(n) = &j.neutral_citation {
+        println!("neutral citation {n}");
+    }
+    if !j.reported_citations.is_empty() {
+        println!("reported         {}", j.reported_citations.join("; "));
+    }
+    if !j.case_numbers.is_empty() {
+        println!("case number(s)   {}", j.case_numbers.join("; "));
+    }
+    if let Some(d) = &j.date {
+        println!("date             {d}");
+    }
+    println!(
+        "body source      {}",
+        if fj.pdf_backed {
+            "source.pdf"
+        } else {
+            "Akoma Ntoso HTML"
+        }
+    );
+    println!("paragraphs       {}", j.paragraphs.len());
+    println!("doc id           {}", j.id);
+    println!("verifies         {}", j.verify_id());
+    if let Some(p) = j.paragraphs.first() {
+        let snippet: String = p.text.chars().take(180).collect();
+        let ellipsis = if p.text.chars().count() > 180 {
+            "…"
+        } else {
+            ""
+        };
+        println!("first paragraph  {snippet}{ellipsis}");
+    }
+    println!("provenance");
+    println!("  source_url     {}", fj.provenance.source_url);
+    println!("  fetched_at     {}", fj.provenance.fetched_at);
+    println!("  raw_hash       {}", fj.provenance.raw_hash);
+    println!("  class          manual (unsigned fetch; a witness signs to corroborate the bytes)");
+}
+
 /// Start the HTTP server and block until shutdown.
 fn run_server(addr: SocketAddr, state: api::AppState) -> Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -641,7 +947,7 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec!["serve", "ingest", "demo", "verify", "stats", "index"],
+            vec!["serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl"],
             "a subcommand was added or renamed without updating the docs"
         );
         for name in &names {

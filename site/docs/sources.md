@@ -76,9 +76,71 @@ path is wired into the node**: `molao ingest <file-or-dir>` reads Akoma Ntoso
 the court code's country prefix, and stores each judgment with `Manual`
 provenance — because a file import is not a witnessed fetch, and the corpus
 should say so until a witness corroborates the bytes. The **robots-respecting
-crawler and the witness-signing daemon** are built and tested as library code
-but are not yet exposed as node commands, and none of it has ingested a real
-document yet. There is no public corpus.
+crawler is now exposed** as `molao fetch` and `molao crawl` (see the AfricanLII
+section below), and has fetched, parsed, and ingested real judgments from live
+sites. The **witness-signing daemon** is built and tested as library code but is
+not yet a long-running node command — a fetch it performs enters with `Manual`
+provenance until a witness signs the recorded bytes. There is no public corpus.
+
+## The AfricanLII peachjam crawler (built and live-tested)
+
+Almost every AfricanLII member institute runs the same open-source **peachjam**
+platform (Laws.Africa). Because they share a URL scheme, a `robots.txt` shape,
+and where they put metadata, Molao needs **one** adapter, parameterised by host,
+not one scraper per country. It lives in `molao-ingest/src/peachjam.rs` and is
+driven by two node commands:
+
+- `molao fetch <judgment-url> [--dry-run] [--db <path>]` — fetch and parse one
+  judgment. A PDF-backed judgment (common on Kenya Law) is followed to its
+  `/source.pdf` and the text extracted; an HTML-bodied judgment is parsed from
+  the page. `--dry-run` prints the parsed judgment (court, citation, date,
+  paragraph count, provenance) without storing.
+- `molao crawl <region-code|base-url> [--court CODE] [--limit N] [--dry-run]
+  [--db <path>]` — enumerate a site's `/judgments/` listing (following
+  `?page=N`) and ingest up to `N`, honouring `robots.txt` and spacing every
+  request by the site's crawl-delay.
+
+Both send the identified user agent `molao-node/0.1
+(+https://github.com/vul-os/molao)`, honour `robots.txt` **including the
+per-judgment `Disallow` lines** LIIs use for takedowns and privacy, and enforce
+the 5-second crawl-delay. Ingested judgments carry `Manual` provenance until a
+witness signs the recorded bytes. This is a **polite sample, not a bulk
+mirror** — for bulk work the correct route remains the licensed
+`api.laws.africa` Akoma Ntoso feed (raw AKN XML is **not** served on the public
+web pages; the pages carry a rendered HTML or PDF body plus an `og:title` with
+the citation metadata, which is what this adapter reads).
+
+### What is actually verified
+
+Real peachjam markup varies between sites and over time, so "works for the whole
+network" is a claim this adapter earns host by host, not once. Verified live on
+2026-07-21:
+
+| Host | Region | Body form | Result |
+|------|--------|-----------|--------|
+| `new.kenyalaw.org` | KE | PDF-backed | **Verified** — `fetch` and `crawl` both parse and ingest; e.g. *Kigen v Kigen* `[2026] KECA 1460`, 117 paras from the PDF; a crawled `[2026] KEHC 10827` ingested and found by search. |
+| `nigerialii.org` | NG | HTML body (`content__html`) | **Verified** — `fetch` parses federal `/akn/ng/judgment/…`; e.g. *Compagnie Generale…* `[2017] NGSC 7`, 60 paras, party name with embedded `(NIG)` handled. |
+| `zambialii.org` | ZM | — | **Enumeration works, bodies not crawlable**: its `robots.txt` sets `Disallow: /akn/zm/judgment/` for generic agents, so the adapter correctly *refuses* every judgment fetch. ZambiaLII judgments are effectively citation-only for us. |
+
+The remaining registry hosts (UG, MW, TZ, ZW, LS, NA, SZ, GH, and pan-African
+AfricanLII) are **listed but not yet live-verified**; enumeration or a body
+form may differ and should be checked with `molao crawl <host> --dry-run` before
+relying on them. Two honest caveats seen already in testing:
+
+- **Enumeration depends on server-rendered links.** Where a `/judgments/`
+  listing renders its links via JavaScript, a static fetch sees none and
+  `crawl` reports finding nothing rather than guessing.
+- **`robots.txt` is authoritative and can forbid the whole judgment tree**
+  (ZambiaLII does). The crawler fails closed and skips, per rule 1.
+
+The parsing and enumeration *logic* is unit-tested offline against small
+**invented** fixtures (no real judgment text is committed); the live results
+above are reported here, not baked into the test suite, so `cargo test` needs no
+network.
+
+**SAFLII is never crawled by these commands.** SAFLII hosts are hard-denied in
+the fetcher and marked citation-only in the sources registry, so `molao crawl za`
+or `molao crawl bw` refuses with a clear message rather than fetching.
 
 ## The organisations (ZA)
 

@@ -17,7 +17,10 @@ molao-cite.workspace = true
 molao-corpus.workspace = true
 molao-graph.workspace = true
 molao-index.workspace = true
-molao-ingest.workspace = true
+# `pdf` enabled: many peachjam judgments (e.g. Kenya Law) are PDF-backed, and
+# the `molao fetch`/`molao crawl` commands need PDF text extraction to ingest
+# them. See crates/molao-ingest/src/html.rs on why the path is feature-gated.
+molao-ingest = { workspace = true, features = ["pdf"] }
 
 anyhow.workspace = true
 serde.workspace = true

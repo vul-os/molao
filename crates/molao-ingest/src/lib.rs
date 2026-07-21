@@ -59,6 +59,7 @@ pub mod akn;
 pub mod clock;
 pub mod fetch;
 pub mod html;
+pub mod peachjam;
 pub mod robots;
 pub mod witness;
 
@@ -73,6 +74,11 @@ pub use fetch::{
     UreqTransport, HARD_DENIED_HOSTS, USER_AGENT,
 };
 pub use html::{Hints, HtmlError};
+pub use peachjam::{
+    enumerate, extract_judgment_links, fetch_judgment, source_for_host, source_for_region,
+    FetchedJudgment, NoSleeper, PageMeta, PeachjamAdapter, PeachjamError, Platform, RealSleeper,
+    Sleeper, SourceEntry, SOURCES,
+};
 pub use robots::Robots;
 pub use witness::{corroborate, sign, verify, Corroboration, WitnessError};
 
