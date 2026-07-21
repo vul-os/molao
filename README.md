@@ -19,7 +19,7 @@
 
 <!-- Plain-text badges on purpose: rendering this README triggers no external
      image fetches — the same no-network-calls ethos as the node. -->
-<p align="center"><sub><a href="LICENSE">MIT license</a> · Rust 1.85+ · SQLite + FTS5 · TypeScript UI · offline-first · no accounts, no billing, ever</sub></p>
+<p align="center"><sub><a href="LICENSE-MIT">MIT</a> OR <a href="LICENSE-APACHE">Apache-2.0</a> · Rust 1.85+ · SQLite + FTS5 · TypeScript UI · offline-first · no accounts, no billing, ever</sub></p>
 
 <p align="center">
   <sub><img src="site/assets/vulos-logo.png" height="14" alt="VulOS"> Part of <strong><a href="https://vulos.org">VulOS</a></strong> — the open, self-hostable web OS &amp; app suite. Runs standalone, or as an app hosted by the Vulos OS.</sub>
@@ -423,5 +423,8 @@ assembling a genuinely independent signer set. See
 
 ## License
 
-[MIT](LICENSE) for the software. The judgments themselves are not anyone's to
-license — they are public documents of the Republic.
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE) — © VulOS. Molao is a VulOS
+project; source and issues at
+[github.com/vul-os/molao](https://github.com/vul-os/molao). The judgments
+themselves are not anyone's to license — they are public documents of the
+Republic.
