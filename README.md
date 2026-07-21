@@ -432,3 +432,10 @@ Source and issues at
 [github.com/vul-os/molao](https://github.com/vul-os/molao). The judgments
 themselves are not anyone's to license — they are public documents, the work of
 the courts.
+
+---
+
+<p align="center">
+  <a href="https://vulos.org"><img src="site/assets/vulos-logo.png" alt="vulos" height="20"></a><br>
+  <sub><a href="https://vulos.org"><b>vulos</b></a> — open by design</sub>
+</p>
