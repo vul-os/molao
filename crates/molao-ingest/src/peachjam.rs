@@ -30,12 +30,35 @@
 use crate::adapter::{AdapterError, FetchedDocument, SourceAdapter};
 use crate::fetch::{FetchClient, FetchError, FetchRecord, Transport};
 use crate::html::{self, Hints};
+use crate::signals::{ContentSignal, CorpusEligibility, Signal};
 use molao_core::region::{self, RegionProfile};
 use molao_core::{DocId, Judgment, Provenance};
 use regex::Regex;
 use std::sync::LazyLock;
 use std::time::Duration;
 use url::Url;
+
+/// How [`fetch_judgment`] treats a source's `Content-Signal`.
+///
+/// The signal is a non-binding convention and the judgments are public-domain
+/// law, so honouring it is a *policy* a node operator sets, not a law of
+/// physics. `Respect` is the default because a corpus that gets redistributed,
+/// and a tool other people also run, should not quietly override a source's
+/// stated wish. `Ignore` is the operator's explicit determination that their
+/// use is within the source's rights (public-domain text, search use, or a
+/// permission they hold) — an informed choice, made in the open, never a
+/// disguise. Neither value changes the crawler's identity: it always fetches as
+/// `molao-node` and always honours `robots.txt` `Disallow`/`Crawl-delay`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SignalPolicy {
+    /// Refuse corpus ingestion from a source whose `Content-Signal` forbids AI
+    /// input. The default.
+    #[default]
+    Respect,
+    /// Proceed regardless, on the operator's own determination. The signal is
+    /// still read and can be surfaced; it just does not block.
+    Ignore,
+}
 
 /// Which platform a jurisdiction's case law lives on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,12 +83,27 @@ pub struct SourceEntry {
     /// Base host, e.g. `new.kenyalaw.org`.
     pub host: &'static str,
     pub platform: Platform,
+    /// The `Content-Signal` this host was observed to publish, recorded as a
+    /// **hint** for listings and early warnings. It is never the authority: the
+    /// crawler consults the *live* `robots.txt` before every ingest, because a
+    /// site can change its signal and a stale hint must never permit what the
+    /// live signal forbids. A host with no observed signal is [`ContentSignal::none`].
+    pub signal: ContentSignal,
 }
 
 impl SourceEntry {
     /// The `https://<host>` base URL for this source.
     pub fn base_url(&self) -> String {
         format!("https://{}", self.host)
+    }
+
+    /// The corpus eligibility implied by the recorded signal hint. Advisory —
+    /// [`fetch_judgment`] re-checks the live signal regardless.
+    pub fn eligibility(&self) -> CorpusEligibility {
+        if self.platform == Platform::SafliiCitationOnly {
+            return CorpusEligibility::CitationOnly;
+        }
+        self.signal.eligibility()
     }
 }
 
@@ -80,84 +118,98 @@ pub static SOURCES: &[SourceEntry] = &[
         name: "Kenya Law",
         host: "new.kenyalaw.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "UG",
         name: "ULII (Uganda)",
         host: "ulii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::No, Signal::No, Signal::Yes, false),
     },
     SourceEntry {
         region: "MW",
         name: "MalawiLII",
         host: "malawilii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "TZ",
         name: "TanzLII",
         host: "tanzlii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::No, Signal::No, Signal::Yes, false),
     },
     SourceEntry {
         region: "ZM",
         name: "ZambiaLII",
         host: "zambialii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::No, Signal::No, Signal::Yes, false),
     },
     SourceEntry {
         region: "ZW",
         name: "ZimLII",
         host: "zimlii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "LS",
         name: "LesothoLII",
         host: "lesotholii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "NA",
         name: "NamibLII",
         host: "namiblii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "SZ",
         name: "EswatiniLII",
         host: "eswatinilii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "GH",
         name: "GhaLII",
         host: "ghalii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "NG",
         name: "NigeriaLII",
         host: "nigerialii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::No, Signal::No, Signal::Yes, false),
     },
     SourceEntry {
         region: "AFRICANLII",
         name: "AfricanLII (pan-African)",
         host: "africanlii.org",
         platform: Platform::Peachjam,
+        signal: ContentSignal::new(Signal::Unset, Signal::No, Signal::Yes, true),
     },
     SourceEntry {
         region: "ZA",
         name: "SAFLII (South Africa) — citation-only",
         host: "www.saflii.org",
         platform: Platform::SafliiCitationOnly,
+        signal: ContentSignal::none(),
     },
     SourceEntry {
         region: "BW",
         name: "SAFLII (Botswana) — citation-only",
         host: "www.saflii.org",
         platform: Platform::SafliiCitationOnly,
+        signal: ContentSignal::none(),
     },
 ];
 
@@ -187,6 +239,15 @@ pub enum PeachjamError {
         "{0} is not a peachjam site: it is a SAFLII citation-only target and is never crawled"
     )]
     NotPeachjam(String),
+    #[error(
+        "refusing to ingest {host} into the corpus: its robots.txt Content-Signal ({signal}) means {} — Molao's corpus feeds a retrieval-augmented-generation (RAG) index, so a source that forbids AI input is off-limits; reach it the court-direct or licensed-bulk way instead (see docs/CONTENT-SIGNALS.md)",
+        .eligibility.explain()
+    )]
+    ContentSignalForbidsCorpus {
+        host: String,
+        signal: String,
+        eligibility: CorpusEligibility,
+    },
     #[error("no source is configured for region {0:?}; pass a base URL instead")]
     UnknownRegion(String),
     #[error("{0} is not a valid URL: {1}")]
@@ -808,9 +869,39 @@ pub fn fetch_judgment<T: Transport>(
     url: &str,
     delay: Duration,
     sleeper: &dyn Sleeper,
+    signals: SignalPolicy,
 ) -> Result<FetchedJudgment, PeachjamError> {
     if !is_judgment_url(url) {
         return Err(PeachjamError::NotAJudgmentUrl(url.to_string()));
+    }
+
+    // The Content-Signal gate, read against the LIVE robots.txt (not the
+    // registry hint). A `Content-Signal: ai-input=no` names exactly what a RAG
+    // corpus does with the text, so under the default policy the source is
+    // refused for the corpus before any body is fetched. The identity/robots
+    // question is separate and always honoured: `molao-node` fetches under its
+    // own name, and the `Disallow` rules for `*` still apply through `client`.
+    //
+    // The gate is a *policy*, not an absolute: the judgments are public-domain
+    // law, the signal is a non-binding convention, and whether a given node's
+    // use is within it is the operator's determination to make. `Respect`
+    // (default) honours the signal; `Ignore` records it and proceeds. What is
+    // NOT offered anywhere is disguise — there is no browser-spoofing path;
+    // evading an identity control is the line this project does not cross.
+    if signals == SignalPolicy::Respect {
+        let signal = client.content_signal(url)?;
+        let eligibility = signal.eligibility();
+        if !eligibility.permits_rag() {
+            let host = Url::parse(url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+                .unwrap_or_else(|| url.to_string());
+            return Err(PeachjamError::ContentSignalForbidsCorpus {
+                host,
+                signal: signal.to_string(),
+                eligibility,
+            });
+        }
     }
 
     let page = client.fetch(url)?;
@@ -1226,7 +1317,7 @@ mod tests {
                 },
             );
         let client = client(transport);
-        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper);
+        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
 
         #[cfg(not(feature = "pdf"))]
         assert!(matches!(result, Err(PeachjamError::PdfUnsupported)));
@@ -1241,6 +1332,108 @@ mod tests {
                 "expected a clean PDF-extraction error, got {result:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_source_that_signals_ai_input_no_is_refused_before_any_body_fetch() {
+        // ULII-style signal. The gate must refuse the judgment for the corpus
+        // (which feeds RAG) WITHOUT fetching the page body — note no body is
+        // registered for the judgment URL, so if the gate did not fire first,
+        // the fixture would error on the missing page instead.
+        let page_url = "https://ulii.org/akn/ug/judgment/ugsc/2024/4/eng";
+        let transport = FixtureTransport::new().with_body(
+            "https://ulii.org/robots.txt",
+            "User-agent: *\nContent-Signal: ai-train=no, search=yes, ai-input=no\nAllow: /\n",
+        );
+        let client = client(transport);
+        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
+        match result {
+            Err(PeachjamError::ContentSignalForbidsCorpus {
+                host, eligibility, ..
+            }) => {
+                assert_eq!(host, "ulii.org");
+                assert_eq!(eligibility, CorpusEligibility::SearchOnly);
+            }
+            other => panic!("expected a Content-Signal refusal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_ignore_policy_lets_an_ai_input_no_source_through_the_gate() {
+        // The operator's explicit determination. Same ai-input=no host as the
+        // refusal test, but with SignalPolicy::Ignore the gate does not block —
+        // it proceeds to fetch the body (which is registered here so parsing
+        // runs). The point proven: the policy, not the identity, is what
+        // changed; the crawler is still molao-node.
+        let page_url = "https://ulii.org/akn/ug/judgment/ugsc/2024/4/eng";
+        let transport = FixtureTransport::new()
+            .with_body(
+                "https://ulii.org/robots.txt",
+                "User-agent: *\nContent-Signal: ai-input=no, search=yes\nAllow: /\n",
+            )
+            .with_body(page_url, AKN_PAGE);
+        let client = client(transport);
+        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Ignore);
+        assert!(
+            !matches!(result, Err(PeachjamError::ContentSignalForbidsCorpus { .. })),
+            "Ignore policy must not refuse on the signal, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn a_use_reference_source_is_also_refused() {
+        // AfricanLII/ZimLII style: search=yes, use=reference, no ai-input key.
+        let page_url = "https://zimlii.org/akn/zw/judgment/zwcc/2025/1/eng";
+        let transport = FixtureTransport::new().with_body(
+            "https://zimlii.org/robots.txt",
+            "User-agent: *\nContent-Signal: search=yes,ai-train=no,use=reference\nAllow: /\n",
+        );
+        let client = client(transport);
+        assert!(
+            matches!(
+                fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect),
+                Err(PeachjamError::ContentSignalForbidsCorpus { .. })
+            ),
+            "a use=reference source must be refused for the corpus"
+        );
+    }
+
+    #[test]
+    fn a_source_with_no_signal_passes_the_gate() {
+        // Kenya Law has no Content-Signal (a 404 robots.txt here): the gate must
+        // let it through. We only prove the gate does not block — body parsing
+        // is covered by the PDF/HTML tests; here the result is anything BUT a
+        // Content-Signal refusal.
+        let page_url = "https://new.kenyalaw.org/akn/ke/judgment/keca/2027/99/eng";
+        let transport = FixtureTransport::new()
+            .with_status("https://new.kenyalaw.org/robots.txt", 404)
+            .with_body(page_url, PDF_PAGE);
+        let client = client(transport);
+        let result = fetch_judgment(&client, page_url, Duration::ZERO, &NoSleeper, SignalPolicy::Respect);
+        assert!(
+            !matches!(result, Err(PeachjamError::ContentSignalForbidsCorpus { .. })),
+            "a no-signal host must pass the Content-Signal gate, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn the_registry_records_the_known_signal_hints() {
+        // Kenya Law is RAG-permitted; the ai-input=no hosts are not.
+        assert!(source_for_host("new.kenyalaw.org")
+            .unwrap()
+            .eligibility()
+            .permits_rag());
+        for host in ["ulii.org", "tanzlii.org", "zambialii.org", "nigerialii.org"] {
+            assert!(
+                !source_for_host(host).unwrap().eligibility().permits_rag(),
+                "{host} should not be RAG-permitted by its recorded hint"
+            );
+        }
+        // SAFLII is citation-only regardless of signal.
+        assert_eq!(
+            source_for_host("www.saflii.org").unwrap().eligibility(),
+            CorpusEligibility::CitationOnly
+        );
     }
 
     #[test]

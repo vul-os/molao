@@ -38,6 +38,7 @@
 
 use crate::clock::Clock;
 use crate::robots::Robots;
+use crate::signals::ContentSignal;
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::Mutex;
@@ -364,6 +365,33 @@ impl<T: Transport> FetchClient<T> {
         })
     }
 
+    /// The host's `Content-Signal` — what it permits a robot to *do with* its
+    /// content, as opposed to whether a path may be fetched. Reads (and caches)
+    /// the same `robots.txt` [`Self::fetch`] does, so it is cheap to call before
+    /// a fetch and authoritative: this is the live signal the corpus-eligibility
+    /// gate (see [`crate::signals`]) must consult before ingesting any source,
+    /// not a registry guess.
+    ///
+    /// Fails closed exactly as [`Self::fetch`] does: a `robots.txt` that cannot
+    /// be fetched (a real network error) is an error here too, never a silent
+    /// "no restrictions".
+    pub fn content_signal(&self, url_str: &str) -> Result<ContentSignal, FetchError> {
+        let url = Url::parse(url_str)
+            .map_err(|e| FetchError::InvalidUrl(url_str.to_string(), e.to_string()))?;
+        Ok(self.robots_for(&url)?.content_signal())
+    }
+
+    /// Does the host's live `robots.txt` name and block the well-known AI
+    /// crawlers? The second half of the corpus-eligibility gate: a site that
+    /// turns AI crawlers away is expressing "not for AI" even without a
+    /// `Content-Signal`. Reads the same cached `robots.txt`; fails closed like
+    /// [`Self::content_signal`].
+    pub fn blocks_ai_crawlers(&self, url_str: &str) -> Result<bool, FetchError> {
+        let url = Url::parse(url_str)
+            .map_err(|e| FetchError::InvalidUrl(url_str.to_string(), e.to_string()))?;
+        Ok(self.robots_for(&url)?.blocks_ai_crawlers())
+    }
+
     fn check_rate_limit(&self, host: &str, interval: time::Duration) -> Result<(), FetchError> {
         let last_fetch = self.last_fetch.lock().expect("fetch client mutex poisoned");
         if let Some(&last) = last_fetch.get(host) {
@@ -611,6 +639,31 @@ mod tests {
             fc.fetch("not a url"),
             Err(FetchError::InvalidUrl(_, _))
         ));
+    }
+
+    #[test]
+    fn content_signal_is_read_from_the_hosts_robots_txt() {
+        use crate::signals::CorpusEligibility;
+        let transport = FixtureTransport::new().with_body(
+            "https://nigerialii.org/robots.txt",
+            "User-agent: *\nContent-Signal: ai-input=no\n",
+        );
+        let signal = client(transport)
+            .content_signal("https://nigerialii.org/akn/ng/judgment/nghc/2026/7")
+            .unwrap();
+        assert_eq!(signal.eligibility(), CorpusEligibility::CitationOnly);
+        assert!(!signal.permits_rag());
+    }
+
+    #[test]
+    fn content_signal_is_none_when_the_site_declares_nothing() {
+        let transport =
+            FixtureTransport::new().with_status("https://court.example.gov/robots.txt", 404);
+        let signal = client(transport)
+            .content_signal("https://court.example.gov/j/1")
+            .unwrap();
+        assert!(signal.is_none());
+        assert!(signal.permits_rag());
     }
 
     #[test]

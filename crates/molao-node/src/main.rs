@@ -145,6 +145,15 @@ enum Command {
         /// Parse and print the judgment without storing it.
         #[arg(long)]
         dry_run: bool,
+        /// Ingest even if the site's robots.txt Content-Signal says `ai-input=no`.
+        ///
+        /// Off by default. Setting it is your determination that this node's use
+        /// is within the source's rights — the judgments are public-domain law
+        /// and the signal is a non-binding convention. It never changes how the
+        /// crawler identifies itself (always `molao-node`) or its respect for
+        /// robots.txt `Disallow`/`Crawl-delay`; it only sets the corpus policy.
+        #[arg(long)]
+        ignore_content_signals: bool,
         /// Corpus database to ingest into. Ignored with `--dry-run`.
         #[arg(long, default_value = "molao.db")]
         db: PathBuf,
@@ -171,6 +180,10 @@ enum Command {
         /// Parse and print judgments without storing them.
         #[arg(long)]
         dry_run: bool,
+        /// Ingest even if the site's Content-Signal says `ai-input=no`. See
+        /// `molao fetch --help`; off by default, an operator determination.
+        #[arg(long)]
+        ignore_content_signals: bool,
         /// Corpus database to ingest into. Ignored with `--dry-run`.
         #[arg(long, default_value = "molao.db")]
         db: PathBuf,
@@ -405,15 +418,28 @@ fn main() -> Result<()> {
 
         Command::Index { command } => run_index(command),
 
-        Command::Fetch { url, dry_run, db } => run_fetch(&url, dry_run, &db),
+        Command::Fetch {
+            url,
+            dry_run,
+            ignore_content_signals,
+            db,
+        } => run_fetch(&url, dry_run, signal_policy(ignore_content_signals), &db),
 
         Command::Crawl {
             target,
             court,
             limit,
             dry_run,
+            ignore_content_signals,
             db,
-        } => run_crawl(&target, court.as_deref(), limit, dry_run, &db),
+        } => run_crawl(
+            &target,
+            court.as_deref(),
+            limit,
+            dry_run,
+            signal_policy(ignore_content_signals),
+            &db,
+        ),
     }
 }
 
@@ -655,8 +681,29 @@ fn region_of(url: &str) -> String {
         .unwrap_or_else(|| molao_corpus::DEFAULT_REGION.to_string())
 }
 
+/// Map the CLI flag to the ingest policy, and warn loudly when it is set — an
+/// override is a deliberate, on-the-record choice, never a quiet default.
+fn signal_policy(ignore: bool) -> molao_ingest::SignalPolicy {
+    if ignore {
+        eprintln!(
+            "note: --ignore-content-signals is set. Molao will ingest sources whose robots.txt\n\
+             Content-Signal says ai-input=no. This is your determination that the use is within\n\
+             the source's rights (public-domain law, a permission you hold). The crawler still\n\
+             identifies as molao-node and still honours robots.txt Disallow/Crawl-delay.\n"
+        );
+        molao_ingest::SignalPolicy::Ignore
+    } else {
+        molao_ingest::SignalPolicy::Respect
+    }
+}
+
 /// `molao fetch <url>`.
-fn run_fetch(url: &str, dry_run: bool, db: &std::path::Path) -> Result<()> {
+fn run_fetch(
+    url: &str,
+    dry_run: bool,
+    signals: molao_ingest::SignalPolicy,
+    db: &std::path::Path,
+) -> Result<()> {
     if url.to_ascii_lowercase().contains("saflii") {
         return Err(anyhow!(
             "SAFLII is a citation-only target and is never fetched for the corpus (see docs/SOURCES.md)"
@@ -664,7 +711,7 @@ fn run_fetch(url: &str, dry_run: bool, db: &std::path::Path) -> Result<()> {
     }
     let client = peachjam_client();
     let sleeper = molao_ingest::RealSleeper;
-    let fj = molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper)
+    let fj = molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper, signals)
         .with_context(|| format!("fetching {url}"))?;
 
     let region = region_of(url);
@@ -696,6 +743,7 @@ fn run_crawl(
     court: Option<&str>,
     limit: usize,
     dry_run: bool,
+    signals: molao_ingest::SignalPolicy,
     db: &std::path::Path,
 ) -> Result<()> {
     let base = resolve_crawl_target(target)?;
@@ -726,7 +774,7 @@ fn run_crawl(
         // Space every judgment fetch by the crawl-delay: the previous request
         // (enumeration, or the last judgment) was to this same host.
         sleeper.sleep(CRAWL_DELAY);
-        match molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper) {
+        match molao_ingest::fetch_judgment(&client, url, CRAWL_DELAY, &sleeper, signals) {
             Ok(fj) => {
                 let j = &fj.judgment;
                 let cite = j.neutral_citation.as_deref().unwrap_or("(no citation)");

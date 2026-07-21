@@ -110,33 +110,54 @@ mirror** — for bulk work the correct route remains the licensed
 web pages; the pages carry a rendered HTML or PDF body plus an `og:title` with
 the citation metadata, which is what this adapter reads).
 
-### What is actually verified
+### The AfricanLII network mostly asks not to be a corpus source
 
-Real peachjam markup varies between sites and over time, so "works for the whole
-network" is a claim this adapter earns host by host, not once. Verified live on
-2026-07-21:
+The adapter parses peachjam correctly — but a July 2026 sweep of the network
+found that almost every host tells crawlers, one way or another, that its
+content is not for AI use. Either its `robots.txt` publishes
+`Content-Signal: ai-input=no`, or it `Disallow`s the judgment path outright, or
+both, and several also block `ClaudeBot`/`GPTBot` by name. Under Molao's default
+policy that means **most of the network is not a corpus source**. See
+[CONTENT-SIGNALS.md](CONTENT-SIGNALS.md) for how the three layers (identity,
+`robots.txt`, `Content-Signal`) are handled and which are absolute.
 
-| Host | Region | Body form | Result |
-|------|--------|-----------|--------|
-| `new.kenyalaw.org` | KE | PDF-backed | **Verified** — `fetch` and `crawl` both parse and ingest; e.g. *Kigen v Kigen* `[2026] KECA 1460`, 117 paras from the PDF; a crawled `[2026] KEHC 10827` ingested and found by search. |
-| `nigerialii.org` | NG | HTML body (`content__html`) | **Verified** — `fetch` parses federal `/akn/ng/judgment/…`; e.g. *Compagnie Generale…* `[2017] NGSC 7`, 60 paras, party name with embedded `(NIG)` handled. |
-| `zambialii.org` | ZM | — | **Enumeration works, bodies not crawlable**: its `robots.txt` sets `Disallow: /akn/zm/judgment/` for generic agents, so the adapter correctly *refuses* every judgment fetch. ZambiaLII judgments are effectively citation-only for us. |
+Verified live on 2026-07-21:
 
-The remaining registry hosts (UG, MW, TZ, ZW, LS, NA, SZ, GH, and pan-African
-AfricanLII) are **listed but not yet live-verified**; enumeration or a body
-form may differ and should be checked with `molao crawl <host> --dry-run` before
-relying on them. Two honest caveats seen already in testing:
+| Host | Region | Finding |
+|------|--------|---------|
+| `new.kenyalaw.org` | KE | **Fetchable, no `Content-Signal`.** `robots.txt` allows the judgment path for `*`; no signal restricts AI input. `fetch` and `crawl` parse and ingest under the default policy — e.g. *Kigen v Kigen* `[2026] KECA 1460`, 117 paras from the PDF. (Kenya Law blocks `ClaudeBot` by name, but not `molao-node`; and it is reported to be moving toward a paywall.) |
+| `ulii.org` | UG | **Refused.** Its `robots.txt` both signals `ai-input=no` *and* `Disallow`s `/akn/ug/judgment/`. The signal is policy (overridable); the `Disallow` is not — so ULII stays refused even with `--ignore-content-signals`. |
+| `nigerialii.org` | NG | Parses (HTML body; *Compagnie Generale* `[2017] NGSC 7`, 60 paras) but signals `ai-input=no`, so it is **refused by default**. An earlier test ingested it before the signal was known; that was against the host's stated wish and such content should not be retained for RAG. |
+| `zambialii.org` | ZM | **Refused.** `robots.txt` `Disallow`s `/akn/zm/judgment/`; the adapter fails closed. |
 
-- **Enumeration depends on server-rendered links.** Where a `/judgments/`
-  listing renders its links via JavaScript, a static fetch sees none and
-  `crawl` reports finding nothing rather than guessing.
-- **`robots.txt` is authoritative and can forbid the whole judgment tree**
-  (ZambiaLII does). The crawler fails closed and skips, per rule 1.
+The signal picture across the network (live-checked): `ulii`, `tanzlii`,
+`zambialii`, `nigerialii`, `malawilii`, `sierralii`, and `lawlibrary.org.za`
+(South Africa) publish `ai-input=no`; `africanlii`, `zimlii`, `namiblii`,
+`lesotholii`, `eswatinilii`, `ghalii`, and `seylii` publish `use=reference` (or
+carry an AI-crawler block); `new.kenyalaw.org` alone carries no `Content-Signal`.
+None is a clean bulk route as-is.
 
-The parsing and enumeration *logic* is unit-tested offline against small
-**invented** fixtures (no real judgment text is committed); the live results
-above are reported here, not baked into the test suite, so `cargo test` needs no
-network.
+**The legitimate routes**, therefore, are court-direct and licensed, not the LII
+aggregators:
+
+- **Court-direct**, where a judiciary publishes its own judgments with no AI
+  block — e.g. Ghana's e-Judgment portal (`ejudgment.judicial.gov.gh`, open
+  `robots.txt`) is the cleanest African hit found. Their judgments are public
+  domain; confirm each site's own `robots.txt` before crawling.
+- **Laws.Africa licensed bulk** (`api.laws.africa`) — the upstream digitiser
+  behind most peachjam sites. Its default `CC-BY-NC-SA` does not itself forbid
+  AI/RAG use and is workable for a genuinely non-commercial commons with
+  attribution and share-alike; a commercial licence is offered separately. Its
+  AI-specific terms are not published, so this is a **negotiated** route, not a
+  self-service one.
+
+The default honours all of the above. The `--ignore-content-signals` flag
+relaxes only the `Content-Signal` layer, on the operator's own determination
+that their use of public-domain text is within the source's rights — it never
+touches identity or `robots.txt`. The parsing/enumeration logic is unit-tested
+offline against **invented** fixtures (no real judgment text is committed); the
+live results here are reported, not baked into the suite, so `cargo test` needs
+no network.
 
 **SAFLII is never crawled by these commands.** SAFLII hosts are hard-denied in
 the fetcher and marked citation-only in the sources registry, so `molao crawl za`

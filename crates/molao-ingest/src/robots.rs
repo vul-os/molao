@@ -13,11 +13,22 @@
 //! crawlers' behaviour, because a site with a slightly broken `robots.txt`
 //! should get the benefit of the doubt on the well-formed directives it did
 //! write, not an all-or-nothing rejection.
+//!
+//! It does read one directive beyond the fetch-permission subset: the
+//! `Content-Signal:` line (see [`crate::signals`]), which states what a robot
+//! may *do with* the content rather than whether it may fetch it. That is a
+//! separate question from `Disallow`, and Molao needs the answer before it may
+//! put a source into a RAG corpus, so it is parsed here alongside the rest.
+
+use crate::signals::ContentSignal;
 
 /// A parsed `robots.txt`.
 #[derive(Debug, Clone, Default)]
 pub struct Robots {
     groups: Vec<Group>,
+    /// The merged `Content-Signal` directives found anywhere in the file. A
+    /// `robots.txt` with no such line leaves this at [`ContentSignal::none`].
+    content_signal: ContentSignal,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -43,6 +54,7 @@ impl Robots {
     pub fn parse(body: &str) -> Self {
         let mut groups: Vec<Group> = Vec::new();
         let mut current: Option<Group> = None;
+        let mut content_signal = ContentSignal::none();
         // True immediately after a `User-agent` line: a *run* of consecutive
         // `User-agent` lines shares one group and its following rules, per
         // the spec's grouping rule.
@@ -103,6 +115,14 @@ impl Robots {
                         g.crawl_delay = value.parse::<f64>().ok();
                     }
                 }
+                "content-signal" => {
+                    // Not scoped to the matching agent group: a `Content-Signal`
+                    // is a statement about the content, not about one crawler,
+                    // so every such line in the file is merged (most-restrictive
+                    // wins) and applies regardless of which group it sat under.
+                    in_agent_run = false;
+                    content_signal.merge_line(value);
+                }
                 _ => {
                     // Sitemap, Host, and anything a site invents: not our
                     // concern, and not an error.
@@ -113,7 +133,18 @@ impl Robots {
         if let Some(g) = current.take() {
             groups.push(g);
         }
-        Robots { groups }
+        Robots {
+            groups,
+            content_signal,
+        }
+    }
+
+    /// The merged `Content-Signal` directives this `robots.txt` declared, or
+    /// [`ContentSignal::none`] if it declared none. This is what
+    /// [`crate::fetch::FetchClient::content_signal`] returns to the
+    /// corpus-eligibility gate.
+    pub fn content_signal(&self) -> ContentSignal {
+        self.content_signal
     }
 
     fn matching_group(&self, user_agent: &str) -> Option<&Group> {
@@ -168,6 +199,79 @@ impl Robots {
             .filter(|d| d.is_finite() && *d >= 0.0)
             .map(time::Duration::seconds_f64)
     }
+
+    /// Does this `robots.txt` name and block the well-known AI crawlers?
+    ///
+    /// A site can express "not for AI use" by giving `ClaudeBot`, `GPTBot`,
+    /// `anthropic-ai`, `Google-Extended` and their kin a dedicated group that
+    /// `Disallow: /`s them — many legal-information sites do exactly this
+    /// *instead of* (or as well as) a `Content-Signal` line. Molao honours it
+    /// the same way: a source that turns AI crawlers away is not a corpus
+    /// source, even though Molao itself crawls under its own name. Using a
+    /// differently-named agent to take content a site plainly withholds from AI
+    /// would be the dishonesty this whole module exists to avoid.
+    ///
+    /// Keyed on a **named** group for the crawler, so a blanket `Disallow: /`
+    /// for `*` (which already stops Molao via [`is_allowed`](Self::is_allowed))
+    /// is not misread as an AI-specific signal.
+    pub fn blocks_ai_crawlers(&self) -> bool {
+        self.groups.iter().any(|g| {
+            g.agents
+                .iter()
+                .any(|a| AI_CRAWLER_TOKENS.contains(&a.as_str()))
+                && group_disallows_root(g)
+        })
+    }
+}
+
+/// Product tokens of the well-known AI crawlers, lower-cased. Not exhaustive of
+/// every bot in existence — the ones legal-information sites actually name.
+const AI_CRAWLER_TOKENS: &[&str] = &[
+    "claudebot",
+    "claude-web",
+    "anthropic-ai",
+    "gptbot",
+    "chatgpt-user",
+    "oai-searchbot",
+    "ccbot",
+    "google-extended",
+    "cohere-ai",
+    "cohere-training-data-crawler",
+    "meta-externalagent",
+    "meta-externalfetcher",
+    "bytespider",
+    "amazonbot",
+    "applebot-extended",
+    "perplexitybot",
+    "diffbot",
+    "omgilibot",
+    "youbot",
+    "imagesiftbot",
+    "petalbot",
+    "timpibot",
+];
+
+/// Does this group's own rules disallow the site root `/`? Used only to decide
+/// whether a named AI-crawler group is a block; evaluates the group in
+/// isolation (no `*` fallback), longest-match-wins like [`Robots::is_allowed`].
+fn group_disallows_root(group: &Group) -> bool {
+    let mut best: Option<&Rule> = None;
+    for rule in &group.rules {
+        if !pattern_matches(&rule.pattern, "/") {
+            continue;
+        }
+        let take = match best {
+            None => true,
+            Some(b) => {
+                rule.pattern.len() > b.pattern.len()
+                    || (rule.pattern.len() == b.pattern.len() && rule.allow && !b.allow)
+            }
+        };
+        if take {
+            best = Some(rule);
+        }
+    }
+    best.is_some_and(|r| !r.allow)
 }
 
 /// The bit of a User-Agent header robots.txt matching actually compares:
@@ -353,5 +457,28 @@ mod tests {
              Disallow: /private/ # keep out\n",
         );
         assert!(!robots.is_allowed("molao-node/0.1", "/private/x"));
+    }
+
+    #[test]
+    fn a_content_signal_line_is_parsed_and_exposed() {
+        use crate::signals::{CorpusEligibility, Signal};
+        let robots = Robots::parse(
+            "User-agent: *\n\
+             Disallow:\n\
+             Content-Signal: ai-train=no, search=yes, ai-input=no\n",
+        );
+        let signal = robots.content_signal();
+        assert_eq!(signal.ai_input, Signal::No);
+        assert_eq!(signal.search, Signal::Yes);
+        assert_eq!(signal.eligibility(), CorpusEligibility::SearchOnly);
+        // The Disallow question and the Content-Signal question are separate:
+        // this file allows fetching, but forbids AI input.
+        assert!(robots.is_allowed("molao-node/0.1", "/akn/ng/judgment/x"));
+    }
+
+    #[test]
+    fn a_robots_txt_with_no_content_signal_reports_none() {
+        let robots = Robots::parse("User-agent: *\nDisallow: /private/\n");
+        assert!(robots.content_signal().is_none());
     }
 }

@@ -12,6 +12,10 @@
 //! - [`fetch`] — a robots-respecting, rate-limited, identified HTTP fetcher.
 //!   SAFLII bulk fetching is hard-denied at the type level (see
 //!   [`fetch::HARD_DENIED_HOSTS`]), not left to operator discipline.
+//! - [`signals`] — the `Content-Signal` corpus-eligibility gate: a source whose
+//!   `robots.txt` signals `ai-input=no` (or `use=reference`) is refused corpus
+//!   ingestion, because the corpus feeds a RAG index and honest sourcing will
+//!   not feed a source that forbids AI input into it.
 //! - [`akn`] — Akoma Ntoso ingest, the primary path: Laws.Africa/AfricanLII's
 //!   licensed bulk corpus, parsed into structured [`molao_core::Judgment`]s.
 //! - [`html`] — a fallback for courts and gazettes that only self-publish as
@@ -61,6 +65,7 @@ pub mod fetch;
 pub mod html;
 pub mod peachjam;
 pub mod robots;
+pub mod signals;
 pub mod witness;
 
 pub use adapter::{
@@ -74,12 +79,13 @@ pub use fetch::{
     UreqTransport, HARD_DENIED_HOSTS, USER_AGENT,
 };
 pub use html::{Hints, HtmlError};
-pub use peachjam::{
+pub use peachjam::{SignalPolicy, 
     enumerate, extract_judgment_links, fetch_judgment, source_for_host, source_for_region,
     FetchedJudgment, NoSleeper, PageMeta, PeachjamAdapter, PeachjamError, Platform, RealSleeper,
     Sleeper, SourceEntry, SOURCES,
 };
 pub use robots::Robots;
+pub use signals::{ContentSignal, CorpusEligibility, Signal};
 pub use witness::{corroborate, sign, verify, Corroboration, WitnessError};
 
 /// Version of this crate. Not yet surfaced anywhere a manifest reads — unlike
