@@ -22,10 +22,6 @@
 <p align="center"><sub><a href="LICENSE-MIT">MIT</a> OR <a href="LICENSE-APACHE">Apache-2.0</a> · Rust 1.85+ · SQLite + FTS5 · TypeScript UI · offline-first · no accounts, no billing, ever</sub></p>
 
 <p align="center">
-  <sub><img src="site/assets/vulos-logo.png" height="14" alt="VulOS"> Part of <strong><a href="https://vulos.org">VulOS</a></strong> — the open, self-hostable web OS &amp; app suite. Runs standalone, or as an app hosted by the Vulos OS.</sub>
-</p>
-
-<p align="center">
   <img src="docs/screenshots/hero.png" alt="Molao — search results across the corpus, showing court, neutral citation, provenance class and authority" width="820">
   <br>
   <sub><em>Search across the corpus. Every judgment carries its court, neutral citation, provenance class and inbound-citation weight. All screenshots use the demo corpus — there is no bundled corpus yet (<a href="docs/SCREENSHOTS.md">full tour</a>).</em></sub>
@@ -111,32 +107,6 @@ the court registry differs, and that is data, not code.
 > ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)) —
 > a local rebuildable cache is not the same thing and does not reopen that
 > question. Full status in [ROADMAP.md](ROADMAP.md).
-
-## Part of VulOS
-
-**Vulos = free, open-source software plus two paid services.** The Vulos OS, all
-its apps, and the app store are OSS and free — you self-host them. Users
-self-provision and self-pay their own box (Fly, Hetzner, any VPS, a home
-server); Vulos does not host or provision boxes. Vulos bills for exactly two
-things: **Vulos Relay** (reachability) and **backup storage** (buckets). There
-is no compute billing, no mail billing, and no app-store subscription.
-
-The product map:
-
-- **Vulos OS** — the web-native desktop shell that hosts the apps
-- **Vulos Office** — documents: docs, sheets, slides, PDF, and whiteboards
-- **Vulos Files** — file storage and P2P sharing, built into the OS
-- **Vulos Relay** — sovereign connectivity fabric; one of the two paid services
-- **llmux** — sovereign AI gateway
-
-PIM is bring-your-own via **lilmail**. Comms are third-party (Matrix/Element for
-chat, Element Call or Jitsi for video). Account: email, password, OAuth,
-passkeys.
-
-**Molao's role:** the legal commons. It is **neither paid service** — it bills
-nothing, hosts nothing, and has no paid tier. It runs standalone **and** is
-hosted as an app by the Vulos OS. Products never import each other; Molao
-depends on no VulOS service and works with no network at all.
 
 ## Features
 
@@ -224,8 +194,8 @@ citation graph between them. There is no bundled corpus yet. Full tour in
 
 ## Quick start (standalone)
 
-Molao runs by itself. It has no dependency on VulOS, on any hosted service, or
-on a network.
+Molao runs by itself. It has no dependency on any hosted service or on a
+network.
 
 ### Prerequisites
 
@@ -457,8 +427,8 @@ assembling a genuinely independent signer set. See
 
 ## License
 
-[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE) — © VulOS. Molao is a VulOS
-project; source and issues at
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE) — © Molao contributors.
+Source and issues at
 [github.com/vul-os/molao](https://github.com/vul-os/molao). The judgments
-themselves are not anyone's to license — they are public documents of the
-Republic.
+themselves are not anyone's to license — they are public documents, the work of
+the courts.
