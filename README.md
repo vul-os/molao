@@ -274,6 +274,38 @@ in-progress work as the server above.
 To ingest real documents, read [docs/SOURCES.md](docs/SOURCES.md) first. The
 sourcing rules are a deliberate ethical position.
 
+## Where the law comes from
+
+A July 2026 sweep of the free-access-to-law world found the honest shape of the
+problem: **the LII aggregators mostly forbid AI use.** Most publish a
+`robots.txt` `Content-Signal: ai-input=no`, or block AI crawlers, or say so in
+their terms. Molao honours that — its crawler reads the signal and, by default,
+will not ingest a source that declines AI input into the corpus (which feeds a
+RAG index). It never disguises itself to get around a control: it always
+identifies as `molao-node`, always obeys `robots.txt`, and there is no
+browser-spoofing option. See [docs/CONTENT-SIGNALS.md](docs/CONTENT-SIGNALS.md).
+
+So the corpus comes from **courts and official publishers directly, or under
+licence** — the honest inversion of where you'd instinctively start. The full
+per-jurisdiction map is [docs/SOURCE-MAP.md](docs/SOURCE-MAP.md); `molao sources`
+prints the crawler's live registry. In brief:
+
+| Status | Jurisdictions |
+|---|---|
+| 🟢 **Usable now** | New Zealand, Kenya, Ghana, Scotland, Northern Ireland, South Africa (Constitutional Court direct — SA judgments are public domain by statute) |
+| 🟡 **A free paperwork step away** | England & UK Supreme Court (National Archives API, Akoma Ntoso), Ireland, Australia, federal Canada |
+| 🟡 **Via a Laws.Africa licence** | Most of Africa, as bulk |
+| 🔵 **Preliminary** | EU (EUR-Lex/CJEU), France, Netherlands, Germany |
+| 🔴 **Off-limits by their policy** | BAILII, AustLII, NZLII, CanLII, SAFLII |
+
+**This is where an open-source community moves faster than any one team.** The
+code adapters (a court-direct parser for New Zealand, Ghana, the SA
+Constitutional Court, EUR-Lex) are pick-up tasks behind one trait; a new
+jurisdiction's court codes are a TOML [region profile](docs/COURTS.md#adding-a-jurisdiction);
+and the biggest unlocks are **licence applications a person files** — drafted and
+ready in [`paperwork/`](paperwork/). See the contribution list in
+[docs/SOURCE-MAP.md](docs/SOURCE-MAP.md#how-the-community-can-help).
+
 ### Use the crates on their own
 
 Both core crates work standalone, with no node and no network. If all you want
@@ -378,6 +410,8 @@ Node roles, what each costs to run, and the practical guidance are in
 | [PROVENANCE.md](docs/PROVENANCE.md) | Witnesses, corroboration, and the Corroborated / Single / Manual classes — the model that lets a corpus be built collectively |
 | [THREAT-MODEL.md](docs/THREAT-MODEL.md) | Poisoning, split view, why embeddings are excluded, why a rebuildable RAG cache doesn't reopen that, distribution over untrusted transports, and what is **not** protected |
 | [SOURCES.md](docs/SOURCES.md) | How to source responsibly in any jurisdiction: direct, robots-respecting crawl, licensed bulk, and why an LII that declines bulk supply is not scraped |
+| [SOURCE-MAP.md](docs/SOURCE-MAP.md) | The live per-jurisdiction map: what is usable now, what needs an adapter, what needs a licence — and how to help |
+| [CONTENT-SIGNALS.md](docs/CONTENT-SIGNALS.md) | How the crawler reads `Content-Signal` and AI-crawler blocks, and the three layers (identity, robots, signal) — which are absolute and which is a policy |
 | [RUNNING-A-NODE.md](docs/RUNNING-A-NODE.md) | The four roles — Mirror, Witness, Builder, Attestor — and what each costs |
 | [API.md](docs/API.md) | The node's read-only HTTP API, endpoint by endpoint |
 | [SCREENSHOTS.md](docs/SCREENSHOTS.md) | The screenshot set and how to regenerate it |
