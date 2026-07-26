@@ -150,9 +150,10 @@ These do not change without changing what Molao is:
 
 ## Part of VulOS
 
-Molao is part of [VulOS](https://vulos.org), which is free open-source software
-plus two paid services (Relay reachability, and backup storage). **Molao is
-neither of them.** It bills nothing, hosts nothing, and has no paid tier. It
-runs standalone and can also be hosted as an app by the Vulos OS. Nothing about
-the VulOS relationship gives any party — including VulOS — a vote in the signer
-set.
+Molao is part of [VulOS](https://vulos.org), which is free, open-source
+software — all of it, with no paid Vulos services. Reachability runs over
+**Ephor**, an open broker you self-host or point at a hosted one, and backup
+storage is your own bucket. **Molao bills nothing, hosts nothing, and has no
+paid tier.** It runs standalone and can also be hosted as an app by the Vulos
+OS. Nothing about the VulOS relationship gives any party — including VulOS — a
+vote in the signer set.
