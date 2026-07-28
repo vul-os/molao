@@ -59,6 +59,23 @@ cargo run -p molao-node
 The node binds `127.0.0.1` by default and serves the HTTP API described in
 [API.md](API.md) plus the embedded UI.
 
+### Serving your own jurisdiction
+
+Fourteen region profiles are compiled in, and `ZA` is the default. To run
+against your own court registry, point the node at a directory of profile TOML:
+
+```sh
+molao regions                          # what is compiled in
+molao --profiles ./profiles regions    # what a directory resolves to
+molao --profiles ./profiles serve
+```
+
+A loaded profile takes precedence over the compiled-in profile of the same code
+and the rest stay as the fallback, so correcting one court code is a file edit,
+not a rebuild. The format and the invariants are in
+[COURTS.md](COURTS.md#adding-a-jurisdiction) and
+[`profiles/README.md`](../profiles/README.md).
+
 > **The node crate is in progress.** The API contract is specified and the core
 > crates it depends on are complete, but the server itself is still being
 > written. Run `cargo run -p molao-node -- --help` to see what the version in

@@ -2,17 +2,35 @@
 
 A region profile is one jurisdiction's citation data: which court codes exist,
 where each court sits in the hierarchy, and which law-report series are cited.
-It is **data, not code**. Adding a jurisdiction to Molao means adding a file
-like the ones here and nothing else.
+It is **data, not code**.
+
+A node reads a directory of these at start-up:
+
+```sh
+molao --profiles ./profiles regions   # what resolved, and from which file
+molao --profiles ./profiles serve
+```
+
+A loaded profile takes precedence over the compiled-in profile of the same
+code, and the compiled-in set is the fallback for everything not supplied. So
+this directory is not a mirror of the code — it is a directory a node can
+actually be pointed at, and so is any directory you assemble yourself.
+
+Loading is fail-closed: a malformed file, two files claiming one region code, a
+missing directory, or a directory with no `*.toml` in it each stop the node
+before anything is ingested, with the offending file named.
 
 | File | What it is |
 |---|---|
-| `za.toml` | South Africa. The reference profile — 32 courts, 24 series. Kept byte-equal to the built-in `molao_core::region::ZA` by a test. |
+| `za.toml` | South Africa. The reference profile — 32 courts, 24 series. Held equal to the built-in `molao_core::region::ZA` by a test. |
 | `generic.toml` | No courts, no series. Usable in any jurisdiction on day one; see its comments for exactly what it does and does not find. |
 
-Every file below ships alongside a built-in constant in `molao_core::region`, and
-a test asserts the two are byte-for-byte the same profile, so the "data, not
-code" claim holds for each — a hand-edit to either side fails the build.
+Every file here also ships as a constant in `molao_core::region`, because the
+compiled-in set is what a node with no `--profiles` flag reads. A test scans
+this whole directory and asserts each file parses to exactly its constant — same
+courts, same series, same fingerprint. It is not a byte comparison: reformatting
+a file or editing a comment is fine, changing a court code is not. Because it
+scans rather than reading a list, adding a file without its constant fails too.
 
 See [docs/COURTS.md](../docs/COURTS.md) for the model and
 [docs/CITATIONS.md](../docs/CITATIONS.md) for what the parser does with it.
@@ -83,6 +101,13 @@ legitimate — that is what `generic.toml` is.
 
 A profile need not use every tier. Map your courts onto the ones that fit.
 
+**The weights are not profile data.** They are constants in
+`molao_core::court::Tier::authority_weight`, shared by every jurisdiction, and
+there is no field here that overrides one. A profile chooses a court's tier; it
+cannot re-weight a tier. If your hierarchy genuinely needs different weights,
+that is a gap in the model — report it as one rather than reaching for a tier
+that fits the number instead of the court.
+
 ## Contributing a jurisdiction
 
 1. **Use the codes your LII already publishes.** BAILII, AustLII, NZLII, CanLII
@@ -97,11 +122,18 @@ A profile need not use every tier. Map your courts onto the ones that fit.
    series, page with no bracketed volume.
 4. **Run the tests.** Uniqueness of codes and series within a profile, and no
    court outranking the apex court, are enforced for every built-in profile.
-5. **Bump `EXTRACTOR_VERSION`** if you change a profile that is already in use.
-   Court codes decide whether a citation is flagged known, and series decide
-   whether a reported citation is found at all — both are extraction output, and
-   extraction output is what a release manifest pins. If one version string can
-   produce two different graphs, verification by recomputation verifies nothing.
+5. **Bump `EXTRACTOR_VERSION`** if you change a profile that ships here and is
+   already in use. Court codes decide whether a citation is flagged known, and
+   series decide whether a reported citation is found at all — both are
+   extraction output, and extraction output is what a release manifest pins. If
+   one version string can produce two different graphs, verification by
+   recomputation verifies nothing.
+
+   A profile you keep on your own disk and pass with `--profiles` is outside
+   that pin: no version string in this repository can describe a file this
+   project has never seen. Record the profile's **fingerprint** instead — the
+   hash of the registry itself, printed by `molao regions` — alongside the
+   extractor version, and a graph you publish stays reproducible.
 
 If your jurisdiction cannot be expressed in this format, that is a gap in the
 model. Report it as one; do not work around it with a special case in the
@@ -111,8 +143,9 @@ parser.
 
 **This is an illustrative example, not a maintained profile.** It is here to
 show the shape of a second jurisdiction — it is deliberately tiny, it is not
-checked against BAILII, and it should not be used as-is. Nothing in the codebase
-loads it.
+checked against BAILII, and it should not be used as-is. It is not a file in
+this directory, so nothing loads it; save it as `uk.toml` in a directory of your
+own and `molao --profiles` would.
 
 ```toml
 code = "UK"

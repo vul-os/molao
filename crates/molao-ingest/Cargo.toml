@@ -8,12 +8,6 @@ license = "MIT"
 repository = "https://github.com/vul-os/molao"
 authors = ["Molao contributors"]
 
-# NOTE for integration: this crate is built as a standalone workspace so it
-# compiles and tests on its own while it is under review. When it is folded
-# into the parent workspace, remove the `[workspace]` stanza above and switch
-# the path dependencies below to `{ workspace = true }` per the sibling
-# crates' Cargo.toml files.
-
 [features]
 default = []
 # PDF text extraction pulls in a non-trivial dependency tree for a fallback

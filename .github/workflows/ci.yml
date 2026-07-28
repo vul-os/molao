@@ -42,6 +42,41 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+  # `cargo test --workspace` above builds every crate with DEFAULT features, so
+  # molao-dist's `transport::iroh` module — and the one test in it — is never
+  # compiled there, let alone run. A feature-gated module nothing in CI touches
+  # is a module that rots quietly, so it gets its own job rather than a note in
+  # a doc comment.
+  dist-iroh:
+    name: molao-dist (iroh feature)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The iroh test runs two endpoints in one process over a loopback socket,
+      # with relaying and address discovery disabled. It needs no Internet
+      # access at run time.
+      - name: Test
+        run: cargo test -p molao-dist --features iroh
+
+      - name: Clippy
+        run: cargo clippy -p molao-dist --features iroh --all-targets -- -D warnings
+
+      # State the limits of what just passed, in the log, where somebody reading
+      # a green tick will see it.
+      - name: What this job does not verify
+        run: |
+          echo "::notice title=iroh coverage::molao-dist's iroh transport is exercised \
+          only over a same-host loopback connection with relaying and address discovery \
+          disabled. NAT traversal, relay fallback and wide-area address lookup are NOT \
+          verified by this job, and nothing in the workspace depends on molao-dist at all."
+
   web:
     name: Web UI
     runs-on: ubuntu-latest

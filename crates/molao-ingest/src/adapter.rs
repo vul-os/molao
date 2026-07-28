@@ -11,7 +11,7 @@
 //! new country or a new court's self-published site to the corpus should
 //! never require a new branch in the fetcher or either parser — it should be
 //! a new adapter, built from data, registered in an [`AdapterRegistry`]
-//! keyed by region code exactly the way [`molao_core::region::builtin`]
+//! keyed by region code exactly the way [`molao_core::region::resolve`]
 //! keys its profiles.
 //!
 //! ## Corpus vs. chrome
@@ -93,8 +93,11 @@ pub trait SourceAdapter: std::fmt::Debug + Send + Sync {
     fn parse(&self, doc: &FetchedDocument<'_>) -> Result<Judgment, AdapterError>;
 }
 
+/// The profile an adapter's region code names: whatever the node resolves for
+/// it — a profile loaded from disk if the operator supplied one, else the
+/// built-in constant — and `GENERIC` for a jurisdiction with neither.
 fn resolve_profile(code: &str) -> &'static RegionProfile {
-    region::builtin(code).unwrap_or(&region::GENERIC)
+    region::resolve(code).unwrap_or(&region::GENERIC)
 }
 
 fn body_as_str<'a>(doc: &FetchedDocument<'a>) -> Result<&'a str, AdapterError> {
@@ -111,10 +114,10 @@ pub struct LawsAfricaAdapter {
 }
 
 impl LawsAfricaAdapter {
-    /// A Laws.Africa/AfricanLII adapter for `region_code` (any code known to
-    /// [`molao_core::region::builtin`], or any other — an unrecognised code
-    /// resolves to [`region::GENERIC`], never a parse error, matching how
-    /// the rest of the crate treats an unprofiled jurisdiction).
+    /// A Laws.Africa/AfricanLII adapter for `region_code` (any code the node
+    /// resolves through [`molao_core::region::resolve`], or any other — an
+    /// unrecognised code resolves to [`region::GENERIC`], never a parse error,
+    /// matching how the rest of the crate treats an unprofiled jurisdiction).
     pub const fn new(region_code: &'static str) -> Self {
         LawsAfricaAdapter {
             region: region_code,

@@ -442,6 +442,157 @@ mod tests {
         assert!(!release.chains_onto(&first));
     }
 
+    // -----------------------------------------------------------------------
+    // Known-answer vectors
+    //
+    // Every other test in this module signs with the same code it verifies
+    // with, so all of them would still pass if the signing encoding changed
+    // wholesale — and a changed encoding silently invalidates every signature
+    // anyone has ever produced over a Molao manifest, including on releases
+    // already published. These vectors are the fixed point: literal bytes,
+    // computed once, never regenerated from the code under test.
+    //
+    // **If one of these fails, the release format has changed.** That is a
+    // breaking change to `molao-release-v1` and needs a new format tag, not a
+    // new constant here.
+    // -----------------------------------------------------------------------
+
+    /// The vector manifest. Fixed values, deliberately not the one the other
+    /// tests use, so nobody edits it to make a test pass.
+    fn vector_manifest() -> Manifest {
+        Manifest {
+            release: 42,
+            previous: Some("11".repeat(32)),
+            created_at: "2026-07-20T10:00:00Z".into(),
+            corpus_root: "aa".repeat(32),
+            doc_count: 130_161,
+            graph_root: "bb".repeat(32),
+            extractor_version: "molao-cite@0.1.0".into(),
+        }
+    }
+
+    /// `signing_bytes` for [`vector_manifest`], hex.
+    const VECTOR_SIGNING_BYTES: &str = "\
+6d6f6c616f2d72656c656173652d76310a00000000000000023432000000000000004031313131313131313131313131\
+313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131\
+3131310000000000000014323032362d30372d32305431303a30303a30305a0000000000000040616161616161616161\
+616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161\
+616161616161610000000000000006313330313631000000000000004062626262626262626262626262626262626262\
+626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262000000\
+00000000106d6f6c616f2d6369746540302e312e30";
+
+    /// `hash()` of [`vector_manifest`] — what release 43 must name as its
+    /// `previous`, on every platform and every future version of this crate.
+    const VECTOR_HASH: &str = "4db6f22386c48fa11db51e6b958cf635a35a4349958d46866c11337a1a08f5e3";
+
+    /// Ed25519 keys from seeds `[1; 32]`, `[2; 32]`, `[3; 32]`, and their
+    /// signatures over [`VECTOR_SIGNING_BYTES`].
+    const VECTOR_SIGNERS: &[(&str, &str)] = &[
+        (
+            "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
+            "d56b089d11d62afb9b21cc7ca9ce53935a74bb78749ead0cbfc1f05a3c29d9bf\
+             15fa1bff1b40ea658a81a90261e880d214090ef2fa22905e0a023d12220bda03",
+        ),
+        (
+            "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+            "2ad65042e7c3da5186c3d01d4715617a20be80d8f45856169b2fe2a451b1ef4a\
+             604a3f73bb99f7848b5e3154f36100d38bff26eece51d1f2c42c454dc6e02c0c",
+        ),
+        (
+            "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
+            "385307fbf23e7f259402baf39f3b3c85df86930fef09a4fbd6698b6398848de6\
+             b4c876ce97eda877aedf20b1c2e6da889821eb667afb187c762160b4b6dea600",
+        ),
+    ];
+
+    /// Strip the line-continuation whitespace the constants above use to stay
+    /// inside a readable line length.
+    fn unwrap_hex(s: &str) -> String {
+        s.chars().filter(|c| !c.is_whitespace()).collect()
+    }
+
+    #[test]
+    fn vector_signing_bytes_and_hash_are_unchanged() {
+        let m = vector_manifest();
+        assert_eq!(
+            hex::encode(m.signing_bytes()),
+            unwrap_hex(VECTOR_SIGNING_BYTES),
+            "the molao-release-v1 signing encoding has changed; every signature \
+             ever produced over a Molao manifest is now invalid"
+        );
+        assert_eq!(m.hash(), VECTOR_HASH, "the manifest hash has changed");
+    }
+
+    /// A quorum verifies against signatures this code did not just produce.
+    /// This is the property that matters across versions: a release signed by
+    /// yesterday's binary must still verify under today's.
+    #[test]
+    fn a_quorum_of_recorded_signatures_still_verifies() {
+        let set = SignerSet {
+            threshold: 2,
+            epoch: 1,
+            signers: VECTOR_SIGNERS
+                .iter()
+                .enumerate()
+                .map(|(i, (key, _))| Signer {
+                    name: format!("institution-{i}"),
+                    key: (*key).to_string(),
+                })
+                .collect(),
+        };
+        let release = SignedRelease {
+            manifest: vector_manifest(),
+            signatures: VECTOR_SIGNERS[..2]
+                .iter()
+                .map(|(key, sig)| ManifestSignature {
+                    key: (*key).to_string(),
+                    signature: unwrap_hex(sig),
+                })
+                .collect(),
+        };
+        assert_eq!(
+            release
+                .verify(&set)
+                .expect("recorded signatures must verify"),
+            2
+        );
+    }
+
+    /// The vectors must be able to fail. A signature over a *different*
+    /// manifest must not verify against this one, which is what proves the test
+    /// above is checking the bytes and not merely the key set.
+    #[test]
+    fn a_recorded_signature_does_not_verify_over_a_different_manifest() {
+        let set = SignerSet {
+            threshold: 2,
+            epoch: 1,
+            signers: VECTOR_SIGNERS
+                .iter()
+                .enumerate()
+                .map(|(i, (key, _))| Signer {
+                    name: format!("institution-{i}"),
+                    key: (*key).to_string(),
+                })
+                .collect(),
+        };
+        let mut altered = vector_manifest();
+        altered.doc_count += 1;
+        let release = SignedRelease {
+            manifest: altered,
+            signatures: VECTOR_SIGNERS[..2]
+                .iter()
+                .map(|(key, sig)| ManifestSignature {
+                    key: (*key).to_string(),
+                    signature: unwrap_hex(sig),
+                })
+                .collect(),
+        };
+        assert_eq!(
+            release.verify(&set),
+            Err(ReleaseError::ThresholdNotMet { got: 0, need: 2 })
+        );
+    }
+
     #[test]
     fn signing_bytes_are_unambiguous_across_field_boundaries() {
         // Without length prefixes, moving a character between adjacent fields

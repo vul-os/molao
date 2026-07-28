@@ -41,12 +41,13 @@
 //! `corpus_root` and `graph_root` verification, and where the honest
 //! boundary is.
 //!
-//! ## Standalone workspace
+//! ## Nothing depends on this crate yet
 //!
-//! This crate's `Cargo.toml` declares its own `[workspace]` so it builds,
-//! tests, and lints independently of the parent `molao` workspace during
-//! development. That stanza is removed and the crate added to the parent
-//! workspace's members at integration time.
+//! It is a member of the `molao` workspace, and `cargo test --workspace`
+//! builds and tests it — but no other crate lists it as a dependency and no
+//! `molao` command publishes or fetches a packaged release. Everything here is
+//! exercised by its own tests and by nothing else. Read a status claim about
+//! distribution with that in mind.
 
 #![forbid(unsafe_code)]
 

@@ -132,9 +132,11 @@ untrusted transport cannot smuggle in altered bytes, and what content
 addressing does *not* solve on its own (split view — see
 [THREAT-MODEL.md](THREAT-MODEL.md#distribution-content-addressed-release-over-an-untrusted-transport)).
 
-**Status:** the packaging model is settled. iroh and the torrent export are
-**landing this session** as `molao-dist`. Neither has carried a real release
-yet, because there is no public release yet — today a release is a directory
+**Status:** the packaging model is settled, and `molao-dist` implements it —
+packaging, the torrent v2 export, a filesystem transport, an `iroh` adapter
+behind a feature flag. Nothing depends on that crate: no `molao` command
+publishes or fetches a packaged release, so none of it has carried a real one,
+and there is no public release for it to carry — today a release is a directory
 of files on a plain host, mirrored by hand.
 
 ## Verifying a release yourself

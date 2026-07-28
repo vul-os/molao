@@ -33,6 +33,21 @@ use std::sync::Arc;
                   ingest` your own."
 )]
 struct Cli {
+    /// Directory of region-profile TOML files to load at start-up.
+    ///
+    /// Court codes, tiers and law-report series are data, and this is where a
+    /// node supplies its own. A loaded profile takes precedence over the
+    /// compiled-in profile of the same code, and anything not supplied falls
+    /// back to the compiled-in registry — so correcting one court code is a
+    /// file, not a rebuild. `profiles/` in the repository is a directory of
+    /// exactly this shape.
+    ///
+    /// Loading is fail-closed: a malformed file, two files claiming one region
+    /// code, or a directory with no profiles in it all abort before anything is
+    /// ingested. `molao regions` prints what an invocation resolves.
+    #[arg(long, global = true, value_name = "DIR")]
+    profiles: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -196,6 +211,17 @@ enum Command {
     /// cross-jurisdiction picture — court-direct sources, licensed routes, and
     /// what still needs an adapter or paperwork — is in docs/SOURCE-MAP.md.
     Sources,
+
+    /// List the region profiles this node resolves, and where each came from.
+    ///
+    /// With `--profiles <DIR>`, profiles loaded from that directory are listed
+    /// first and shadow the compiled-in profile of the same code; the rest of
+    /// the built-in set is the fallback. Each line carries the profile's
+    /// fingerprint — the hash of the registry itself. A citation graph is
+    /// reproducible from the extractor version *and* the fingerprints of the
+    /// profiles that produced it; a node running its own registry can say so
+    /// exactly rather than leaving a reader to assume.
+    Regions,
 }
 
 /// Which embedder to build an index with.
@@ -255,7 +281,14 @@ fn main() -> Result<()> {
         .with_target(false)
         .init();
 
-    match Cli::parse().command {
+    let cli = Cli::parse();
+
+    // Before anything reads a court code. An extractor caches the patterns its
+    // profile compiles to, so the registry has to be settled before the first
+    // one is built, not swapped underneath it later.
+    install_profiles(cli.profiles.as_deref())?;
+
+    match cli.command {
         Command::Serve {
             addr,
             db,
@@ -453,7 +486,111 @@ fn main() -> Result<()> {
             run_sources();
             Ok(())
         }
+
+        Command::Regions => {
+            run_regions();
+            Ok(())
+        }
     }
+}
+
+/// Load `--profiles <DIR>` and install it for the process.
+///
+/// Fail-closed, and loud on success: an operator who pointed at the wrong
+/// directory must find out here, not by noticing months later that a graph was
+/// built against the compiled-in registry. An empty directory is an error for
+/// the same reason — silently falling back to the built-ins would be exactly
+/// the failure that is hardest to see.
+fn install_profiles(dir: Option<&std::path::Path>) -> Result<()> {
+    use molao_core::region;
+
+    let Some(dir) = dir else { return Ok(()) };
+    let set = region::ProfileSet::load_dir(dir)
+        .with_context(|| format!("loading region profiles from {}", dir.display()))?;
+    if set.is_empty() {
+        return Err(anyhow!(
+            "no *.toml region profiles in {} — check the path, or drop the flag to use the \
+             compiled-in profiles",
+            dir.display()
+        ));
+    }
+    for loaded in set.iter() {
+        let p = loaded.profile;
+        println!(
+            "loaded region profile {} ({} court(s), {} series) from {}",
+            p.code,
+            p.courts.len(),
+            p.series.len(),
+            loaded.path.display()
+        );
+    }
+    region::install(set)?;
+    Ok(())
+}
+
+/// `molao regions` — every profile this invocation resolves, and its origin.
+fn run_regions() {
+    use molao_core::region;
+
+    let installed = region::installed();
+    println!("Region profiles this node resolves (see docs/COURTS.md):\n");
+    println!(
+        "  {:<8} {:<8} {:>6} {:>6}  {:<16} SOURCE",
+        "CODE", "ORIGIN", "COURTS", "SERIES", "FINGERPRINT"
+    );
+
+    let mut shadowed = 0usize;
+    if let Some(set) = installed {
+        for loaded in set.iter() {
+            let p = loaded.profile;
+            if region::builtin(p.code).is_some() {
+                shadowed += 1;
+            }
+            print_region_row(p, "loaded", &loaded.path.display().to_string());
+        }
+    }
+    for p in region::all_builtin() {
+        // A built-in whose code was supplied from disk is not what this node
+        // uses; listing it as if it were would be the whole defect this command
+        // exists to make visible.
+        if installed.is_some_and(|s| s.get(p.code).is_some()) {
+            continue;
+        }
+        print_region_row(p, "built-in", p.name);
+    }
+
+    println!();
+    match installed {
+        None => println!(
+            "No profiles were loaded from disk; every profile above is compiled in.\n\
+             Pass --profiles <DIR> to load your own — see profiles/ in the repository."
+        ),
+        Some(set) => {
+            let fallback = region::all_builtin().len() - shadowed;
+            println!(
+                "{} profile(s) loaded from disk; {shadowed} shadow a compiled-in profile of the \
+                 same code.\n{fallback} compiled-in profile(s) remain as the fallback.",
+                set.len()
+            );
+        }
+    }
+    println!(
+        "A citation graph is reproducible from the extractor version ({}) together with the\n\
+         fingerprints above — the first pins the grammar, the second pins the registry.",
+        molao_cite::EXTRACTOR_VERSION
+    );
+}
+
+fn print_region_row(p: &molao_core::RegionProfile, origin: &str, source: &str) {
+    let fp = p.fingerprint();
+    println!(
+        "  {:<8} {:<8} {:>6} {:>6}  {:<16} {source}",
+        p.code,
+        origin,
+        p.courts.len(),
+        p.series.len(),
+        &fp[..16]
+    );
 }
 
 /// Handle `molao index build` and `molao index info`.
@@ -589,7 +726,8 @@ struct AknReport {
 /// as Akoma Ntoso, and [`molao_ingest::akn::parse`] turns one into a structured
 /// judgment. Region comes from the court code's ISO country prefix (`ZACC` is
 /// `ZA`, `UGSC` is `UG`), which is how the LII neutral-citation codes are
-/// built; an unrecognised prefix falls back to the default profile.
+/// built; a prefix this node resolves no profile for falls back to the corpus
+/// default.
 ///
 /// A file import is not a witnessed fetch, so judgments enter with **no**
 /// provenance — `ProvenanceClass::Manual`. A witness corroborates the bytes
@@ -617,10 +755,12 @@ fn ingest_akn(corpus: &mut Corpus, path: &std::path::Path) -> Result<AknReport> 
             }
         };
         // LII court codes carry the ISO country prefix; use it as the region
-        // when it names a profile we know, else let the corpus default apply.
+        // when it names a profile this node resolves — one loaded from
+        // `--profiles`, else a compiled-in one — and otherwise let the corpus
+        // default apply.
         let region = judgment.court.get(..2).filter(|p| {
             let up = p.to_uppercase();
-            molao_core::region::builtin(&up).is_some()
+            molao_core::region::resolve(&up).is_some()
         });
         let result = match region {
             Some(code) => corpus.insert_judgment_in_region(&judgment, &[], &code.to_uppercase()),
@@ -1036,9 +1176,11 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources"
+                "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources",
+                "regions"
             ],
-            "a subcommand was added or renamed without updating the docs"
+            "a subcommand was added or renamed without updating the docs, and \
+             TOP_LEVEL_COMMANDS in tests/cli.rs"
         );
         for name in &names {
             let sub = cmd.find_subcommand_mut(name).unwrap();

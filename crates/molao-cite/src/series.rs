@@ -13,7 +13,10 @@ pub use molao_core::region::Series;
 
 use molao_core::region::{self, RegionProfile};
 
-/// Series recognised by the default profile. See [`region::ZA_SERIES`].
+/// The **built-in** ZA series registry. See [`region::ZA_SERIES`].
+///
+/// A node that loaded its own `ZA` profile from disk reads that instead; the
+/// functions below follow it, this constant does not.
 pub const SERIES: &[Series] = region::ZA_SERIES;
 
 fn profile() -> &'static RegionProfile {

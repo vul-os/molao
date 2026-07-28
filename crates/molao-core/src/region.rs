@@ -22,6 +22,26 @@
 //!   positives the registry exists to exclude. That is a real limitation of the
 //!   generic profile, honestly stated, not a placeholder for missing code.
 //!
+//! Twelve pan-African profiles ship built in alongside them; see the constants
+//! below.
+//!
+//! ## Built in, or loaded from disk
+//!
+//! The built-in constants are a **fallback**, not the only source. A node loads
+//! a directory of profile TOML with [`ProfileSet::load_dir`] and hands it to
+//! [`install`]; from then on [`resolve`] answers from the loaded set first and
+//! falls back to the constants for anything the operator did not supply. That
+//! is what makes a jurisdiction genuinely a data edit: correcting a court code,
+//! or adding a jurisdiction nobody compiled in, is a file, not a release of this
+//! crate.
+//!
+//! The `molao` binary exposes this as `--profiles <DIR>`, and `molao regions`
+//! prints what a given invocation resolves and where each profile came from.
+//!
+//! [`builtin`] deliberately keeps answering from the constants alone. It is what
+//! the drift tests use, and a test that could be answered by a file on the test
+//! machine's disk would prove nothing.
+//!
 //! ## Why `&'static str` and `Copy`
 //!
 //! Built-in profiles are compile-time constants, so their strings are already
@@ -39,10 +59,21 @@
 //! Court codes decide whether a neutral citation is flagged known; series decide
 //! whether a reported citation is found at all. Both are extraction output, and
 //! extraction output is pinned by `molao_cite::EXTRACTOR_VERSION`. Editing a
-//! profile is therefore a version bump, not a data tweak.
+//! profile that ships in this crate is therefore a version bump, not a data
+//! tweak.
+//!
+//! A profile loaded from disk is outside that pin by construction — the operator
+//! supplied it, and no version string in this repository can describe it. What
+//! makes such a graph reproducible instead is the pair
+//! (`EXTRACTOR_VERSION`, [`RegionProfile::fingerprint`]): the first pins the
+//! grammar, the second pins the registry it was applied against. `molao regions`
+//! prints the fingerprint of every profile a node resolves, so a node running
+//! its own registry can still say exactly what produced its graph.
 
 use crate::court::{Court, Tier};
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 /// A law-report series.
 ///
@@ -296,6 +327,214 @@ impl RegionProfile {
 
         Ok(Box::leak(Box::new(profile)))
     }
+
+    /// Content fingerprint of this profile: BLAKE3 over a canonical encoding of
+    /// everything that affects extraction, hex-encoded.
+    ///
+    /// This exists because a profile loaded from disk is data an operator
+    /// supplied, and extraction output is supposed to be pinned. `molao-cite`'s
+    /// `EXTRACTOR_VERSION` pins the *grammar*; this pins the *registry* the
+    /// grammar was applied against. A graph is reproducible from the pair, and
+    /// from neither alone — so a node that loads its own profiles can still say
+    /// exactly what produced its graph rather than asking a reader to assume.
+    ///
+    /// Encoded like [`crate::release::Manifest::signing_bytes`]: length-prefixed
+    /// fields in a fixed order, so no two different profiles can encode the same
+    /// way by shuffling a character across a field boundary.
+    pub fn fingerprint(&self) -> String {
+        fn field(h: &mut blake3::Hasher, bytes: &[u8]) {
+            h.update(&(bytes.len() as u64).to_be_bytes());
+            h.update(bytes);
+        }
+
+        let mut h = blake3::Hasher::new();
+        h.update(b"molao-region-v1\n");
+        field(&mut h, self.code.as_bytes());
+        field(&mut h, self.name.as_bytes());
+        h.update(&(self.courts.len() as u64).to_be_bytes());
+        for c in self.courts {
+            field(&mut h, c.code.as_bytes());
+            field(&mut h, c.name.as_bytes());
+            field(&mut h, c.tier.as_str().as_bytes());
+            field(&mut h, c.seat.unwrap_or("").as_bytes());
+        }
+        h.update(&(self.series.len() as u64).to_be_bytes());
+        for s in self.series {
+            field(&mut h, s.abbr.as_bytes());
+            field(&mut h, s.name.as_bytes());
+            field(&mut h, if s.no_volume { b"1" } else { b"0" });
+        }
+        hex::encode(h.finalize().as_bytes())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Loading profiles from a directory at run time
+// ---------------------------------------------------------------------------
+
+/// A profile loaded from disk, with the file it came from.
+///
+/// The path is kept so a node can report *which file* produced a registry.
+/// "Where did this court code come from?" must have a one-line answer.
+#[derive(Debug, Clone)]
+pub struct LoadedProfile {
+    pub profile: &'static RegionProfile,
+    pub path: PathBuf,
+}
+
+/// The profiles a node loaded from a directory.
+///
+/// Consulted ahead of the built-in constants by [`resolve`], which is what
+/// makes the constants a *fallback* rather than the only source: a jurisdiction
+/// whose registry has moved on can be corrected by editing a file, and a
+/// jurisdiction nobody compiled in can be added the same way.
+#[derive(Debug, Clone, Default)]
+pub struct ProfileSet {
+    loaded: Vec<LoadedProfile>,
+}
+
+impl ProfileSet {
+    /// Load every `*.toml` in `dir` as a region profile.
+    ///
+    /// Files are read in sorted order so the same directory always produces the
+    /// same set in the same order, on every platform. Subdirectories and
+    /// non-`.toml` files are ignored; a directory containing no profiles yields
+    /// an empty set rather than an error, and it is the caller's business to
+    /// decide whether that is a mistake (`molao --profiles` treats it as one).
+    ///
+    /// Every failure names its file. A profile that does not parse, or that
+    /// collides with another file's region code, is fatal: silently skipping it
+    /// would leave a node quietly running the built-in registry while its
+    /// operator believed otherwise, and a court registry is the last place to
+    /// guess.
+    ///
+    /// Call this **once, at start-up**. Each profile it returns is `'static` by
+    /// leaking (see the module docs); loading the same directory in a loop leaks
+    /// the same amount again each time.
+    pub fn load_dir(dir: &Path) -> Result<Self, LoadError> {
+        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+            .map_err(|source| LoadError::Io {
+                path: dir.to_path_buf(),
+                source,
+            })?
+            .map(|entry| {
+                entry.map(|e| e.path()).map_err(|source| LoadError::Io {
+                    path: dir.to_path_buf(),
+                    source,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "toml"))
+            .collect();
+        files.sort();
+
+        let mut loaded: Vec<LoadedProfile> = Vec::with_capacity(files.len());
+        for path in files {
+            let src = std::fs::read_to_string(&path).map_err(|source| LoadError::Io {
+                path: path.clone(),
+                source,
+            })?;
+            let profile = RegionProfile::from_toml(&src).map_err(|source| LoadError::Profile {
+                path: path.clone(),
+                source,
+            })?;
+            if let Some(first) = loaded
+                .iter()
+                .find(|l| l.profile.code.eq_ignore_ascii_case(profile.code))
+            {
+                return Err(LoadError::DuplicateCode {
+                    code: profile.code.to_string(),
+                    first: first.path.clone(),
+                    second: path,
+                });
+            }
+            loaded.push(LoadedProfile { profile, path });
+        }
+        Ok(ProfileSet { loaded })
+    }
+
+    /// Look a loaded profile up by code. Case-insensitive, like
+    /// [`RegionProfile::court`], because operators name files however they like.
+    pub fn get(&self, code: &str) -> Option<&'static RegionProfile> {
+        self.loaded
+            .iter()
+            .find(|l| l.profile.code.eq_ignore_ascii_case(code))
+            .map(|l| l.profile)
+    }
+
+    /// The loaded profiles, in the order they were read.
+    pub fn iter(&self) -> impl Iterator<Item = &LoadedProfile> {
+        self.loaded.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.loaded.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.loaded.is_empty()
+    }
+}
+
+/// Why loading region profiles from disk failed.
+///
+/// Every variant names the file, because "a region profile is bad" is not an
+/// actionable message when a node loads a directory of them.
+#[derive(Debug, thiserror::Error)]
+pub enum LoadError {
+    #[error("reading region profiles from {path}: {source}")]
+    Io {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    #[error("{path}: {source}")]
+    Profile { path: PathBuf, source: RegionError },
+    #[error("{first} and {second} both declare region code {code:?}")]
+    DuplicateCode {
+        code: String,
+        first: PathBuf,
+        second: PathBuf,
+    },
+    #[error("region profiles have already been installed in this process")]
+    AlreadyInstalled,
+}
+
+/// The profiles installed for this process. Set once, at start-up, never
+/// mutated afterwards — an extractor built from a profile caches its compiled
+/// patterns, so a registry that could change underneath one would mean two
+/// judgments ingested by the same node were parsed against different data.
+static INSTALLED: OnceLock<ProfileSet> = OnceLock::new();
+
+/// Install a loaded set as the overlay [`resolve`] and [`default_profile`]
+/// consult ahead of the built-ins.
+///
+/// **Call this before anything extracts a citation.** `molao_cite::extract`
+/// builds its extractor from [`default_profile`] on first use and caches the
+/// compiled patterns; installing afterwards would leave that one extractor on
+/// the old registry while everything else moved. The `molao` binary installs
+/// immediately after parsing its arguments, before it opens a corpus.
+///
+/// Refuses a second call rather than replacing the first: see [`INSTALLED`].
+pub fn install(set: ProfileSet) -> Result<(), LoadError> {
+    INSTALLED.set(set).map_err(|_| LoadError::AlreadyInstalled)
+}
+
+/// The installed set, if a node loaded one.
+pub fn installed() -> Option<&'static ProfileSet> {
+    INSTALLED.get()
+}
+
+/// Resolve a region code: **loaded profiles first, built-in constants as the
+/// fallback.**
+///
+/// This is what every consumer that picks a profile by code should call.
+/// [`builtin`] remains the way to ask specifically for what was compiled in —
+/// which is what the drift tests want, and nothing else.
+pub fn resolve(code: &str) -> Option<&'static RegionProfile> {
+    installed()
+        .and_then(|set| set.get(code))
+        .or_else(|| builtin(code))
 }
 
 // ---------------------------------------------------------------------------
@@ -666,8 +905,9 @@ pub const ZA_SERIES: &[Series] = &[
 // ---------------------------------------------------------------------------
 //
 // Each of these ships both as a built-in constant here and as `profiles/<cc>.toml`,
-// and a test asserts the two are byte-for-byte the same profile so they cannot
-// drift. Court codes are the neutral-citation designators the relevant AfricanLII
+// and a test asserts the parsed file is the same profile as the constant so the
+// two cannot drift (same courts, same series, same fingerprint — not a byte
+// comparison of the file). Court codes are the neutral-citation designators the relevant AfricanLII
 // member publishes; the source URLs are in each TOML file's header.
 //
 // These profiles are *not* the default and are not read by the free `extract`
@@ -1156,15 +1396,27 @@ pub fn builtin(code: &str) -> Option<&'static RegionProfile> {
         .find(|p| p.code.eq_ignore_ascii_case(code))
 }
 
-/// The profile used when a node has not chosen one.
+/// The region code used when a node has not chosen one.
 ///
-/// This returns [`ZA`], and the reason is historical rather than architectural:
-/// South Africa is simply the first profile anybody populated, and the corpus
-/// this code was first run against is South African. It is not a statement that
-/// Molao is a South African system. A node serving another jurisdiction selects
-/// its own profile — or [`GENERIC`] — and no code path changes.
+/// It is `ZA` for a historical rather than an architectural reason: South Africa
+/// is simply the first profile anybody populated, and the corpus this code was
+/// first run against is South African. It is not a statement that Molao is a
+/// South African system. A node serving another jurisdiction selects its own
+/// profile — or [`GENERIC`] — and no code path changes.
+pub const DEFAULT_CODE: &str = "ZA";
+
+/// The profile used when a node has not chosen one: [`DEFAULT_CODE`], resolved
+/// the same way any other code is — a profile loaded from disk if the operator
+/// supplied one under that code, else the built-in [`ZA`] constant.
+///
+/// This is what makes `--profiles` reach the *default* ingest path and not only
+/// the paths that name a jurisdiction explicitly. A `--profiles` directory that
+/// silently did not affect `molao ingest` would be the decorative kind of
+/// configuration this whole mechanism exists to avoid.
 pub fn default_profile() -> &'static RegionProfile {
-    &ZA
+    installed()
+        .and_then(|set| set.get(DEFAULT_CODE))
+        .unwrap_or(&ZA)
 }
 
 #[cfg(test)]
@@ -1242,6 +1494,215 @@ mod tests {
                 builtin.code.to_lowercase()
             );
         }
+    }
+
+    /// Path to the repository's `profiles/` directory, from this crate.
+    fn profiles_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../profiles")
+    }
+
+    /// The two tests above check a hand-written list of files. A hand-written
+    /// list is exactly the thing that silently under-runs when somebody adds a
+    /// fourteenth profile and forgets it, so this one scans the directory
+    /// instead and asserts that **every** file in it is covered: it parses, it
+    /// names a code that is built in, and it equals that built-in.
+    ///
+    /// It is also the loader's own end-to-end test — `load_dir` is what the
+    /// `molao --profiles` flag runs.
+    #[test]
+    fn every_file_in_the_profiles_directory_is_loadable_and_matches_its_builtin() {
+        let dir = profiles_dir();
+        let set = ProfileSet::load_dir(&dir)
+            .unwrap_or_else(|e| panic!("profiles/ must load as a directory of profiles: {e}"));
+
+        // A wrong path, or a filter that stopped matching, would otherwise let
+        // this test pass by checking nothing at all.
+        let on_disk = std::fs::read_dir(&dir)
+            .expect("profiles/ must exist")
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|e| e == "toml"))
+            .count();
+        assert_eq!(
+            set.len(),
+            on_disk,
+            "load_dir skipped a profile: {} loaded, {on_disk} *.toml on disk",
+            set.len()
+        );
+        assert_eq!(
+            set.len(),
+            all_builtin().len(),
+            "profiles/ and the built-in list have diverged: {} file(s), {} built-in profile(s). \
+             Every built-in profile ships as a file and every file is built in.",
+            set.len(),
+            all_builtin().len()
+        );
+
+        for loaded in set.iter() {
+            let file = loaded.path.display();
+            let built_in = builtin(loaded.profile.code).unwrap_or_else(|| {
+                panic!(
+                    "{file} declares code {:?}, which is not built in — a \
+                                           shipped profile must also be a fallback constant",
+                    loaded.profile.code
+                )
+            });
+            assert_eq!(
+                *loaded.profile, *built_in,
+                "{file} has drifted from the built-in {} profile",
+                built_in.code
+            );
+            assert_eq!(
+                loaded.profile.fingerprint(),
+                built_in.fingerprint(),
+                "{file} and the built-in {} profile fingerprint differently",
+                built_in.code
+            );
+        }
+    }
+
+    /// A profile loaded from disk shadows the built-in constant of the same
+    /// code, and anything the operator did not supply still resolves to the
+    /// constant. This is the whole claim behind "regions are data": the code is
+    /// the fallback, not the source of truth.
+    ///
+    /// One test, because installation is process-wide and once-only.
+    #[test]
+    fn installed_profiles_shadow_the_builtins_and_the_builtins_remain_the_fallback() {
+        let dir = std::env::temp_dir().join(format!("molao-region-install-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        // A jurisdiction nobody compiled in...
+        std::fs::write(
+            dir.join("xx.toml"),
+            "code = \"XX\"\nname = \"Nowhere\"\n\n\
+             [[courts]]\ncode = \"XXSC\"\nname = \"Supreme Court of Nowhere\"\ntier = \"apex\"\n",
+        )
+        .unwrap();
+        // ...and a correction to one that is. The built-in KE has five courts;
+        // this file has one, and a series the built-in does not carry.
+        std::fs::write(
+            dir.join("ke.toml"),
+            "code = \"KE\"\nname = \"Kenya (operator registry)\"\n\n\
+             [[courts]]\ncode = \"KESC\"\nname = \"Supreme Court of Kenya\"\ntier = \"apex\"\n\n\
+             [[series]]\nabbr = \"EKLR\"\nname = \"Kenya Law Reports (electronic)\"\n",
+        )
+        .unwrap();
+        // Not a profile; must be ignored rather than fail the load.
+        std::fs::write(dir.join("notes.md"), "not a profile").unwrap();
+
+        let set = ProfileSet::load_dir(&dir).expect("the directory must load");
+        assert_eq!(set.len(), 2, "load_dir must read exactly the *.toml files");
+        install(set).expect("first install in this process");
+        assert!(
+            matches!(
+                install(ProfileSet::default()),
+                Err(LoadError::AlreadyInstalled)
+            ),
+            "a second install must be refused, not silently applied"
+        );
+
+        // Loaded first.
+        let ke = resolve("KE").expect("KE resolves");
+        assert_eq!(ke.name, "Kenya (operator registry)");
+        assert_eq!(ke.courts.len(), 1);
+        assert!(ke.series("EKLR").is_some());
+        assert_eq!(
+            resolve("ke").map(|p| p.name),
+            Some(ke.name),
+            "case-insensitive"
+        );
+
+        // A jurisdiction that exists only as a file.
+        assert_eq!(resolve("XX").map(|p| p.code), Some("XX"));
+        assert!(builtin("XX").is_none(), "XX must not be compiled in");
+
+        // Built-in fallback for everything the operator did not supply.
+        assert_eq!(resolve("ZA").map(|p| p.courts.len()), Some(ZA.courts.len()));
+        assert_eq!(resolve("TZ"), builtin("TZ"));
+        assert!(resolve("ZZ").is_none(), "unknown codes stay unknown");
+
+        // `builtin` must keep answering from the constants alone, or the drift
+        // tests above would be answerable by a file on the test machine's disk.
+        assert_eq!(builtin("KE").map(|p| p.courts.len()), Some(5));
+
+        // The fingerprint is what a node reports; two different registries for
+        // one code must not fingerprint the same.
+        assert_ne!(ke.fingerprint(), builtin("KE").unwrap().fingerprint());
+        assert_eq!(ke.fingerprint().len(), 64);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Loading is fail-closed and every error names its file. A profile a node
+    /// silently skipped is a registry its operator thinks is loaded and is not.
+    #[test]
+    fn a_bad_profile_fails_the_whole_load_and_names_its_file() {
+        let dir = std::env::temp_dir().join(format!("molao-region-bad-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        std::fs::write(dir.join("broken.toml"), "code = \"BR\"\n# no name field\n").unwrap();
+        let err = ProfileSet::load_dir(&dir).expect_err("a malformed profile must be fatal");
+        assert!(
+            matches!(&err, LoadError::Profile { path, .. } if path.ends_with("broken.toml")),
+            "error must name the file: {err}"
+        );
+        assert!(err.to_string().contains("broken.toml"));
+
+        // Two files claiming one code: which one wins would be filename luck.
+        std::fs::remove_file(dir.join("broken.toml")).unwrap();
+        for name in ["a.toml", "b.toml"] {
+            std::fs::write(dir.join(name), "code = \"DUP\"\nname = \"Duplicate\"\n").unwrap();
+        }
+        let err = ProfileSet::load_dir(&dir).expect_err("a duplicate code must be fatal");
+        assert!(
+            matches!(&err, LoadError::DuplicateCode { code, .. } if code == "DUP"),
+            "expected a duplicate-code error: {err}"
+        );
+
+        // A directory that is not there at all.
+        let err =
+            ProfileSet::load_dir(&dir.join("nope")).expect_err("a missing directory is an error");
+        assert!(matches!(err, LoadError::Io { .. }), "{err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The fingerprint has to change when anything that changes extraction
+    /// changes, and it must not be confusable across field boundaries.
+    #[test]
+    fn the_fingerprint_covers_everything_that_changes_extraction() {
+        let base = "code = \"FP\"\nname = \"Fingerprint\"\n\n\
+                    [[courts]]\ncode = \"FPSC\"\nname = \"Apex\"\ntier = \"apex\"\n\n\
+                    [[series]]\nabbr = \"FPR\"\nname = \"Reports\"\n";
+        let fp = |src: &str| RegionProfile::from_toml(src).expect("parses").fingerprint();
+
+        let baseline = fp(base);
+        assert_eq!(baseline.len(), 64);
+        assert_eq!(baseline, fp(base), "the fingerprint must be deterministic");
+
+        // Tier is authority weight; a changed tier is a changed graph.
+        assert_ne!(baseline, fp(&base.replace("\"apex\"", "\"tribunal\"")));
+        // A court code decides whether a citation is flagged known.
+        assert_ne!(baseline, fp(&base.replace("FPSC", "FPCA")));
+        // A series decides whether a reported citation is found at all.
+        assert_ne!(
+            baseline,
+            fp(&base.replace("abbr = \"FPR\"", "abbr = \"FPQ\""))
+        );
+        // `no_volume` picks which of the two reported patterns matches.
+        assert_ne!(
+            baseline,
+            fp(&format!("{base}no_volume = true\n")),
+            "no_volume must be fingerprinted"
+        );
+        // Length prefixes: moving a character across a field boundary must not
+        // produce the same encoding.
+        assert_ne!(
+            fp("code = \"AB\"\nname = \"C\"\n"),
+            fp("code = \"A\"\nname = \"BC\"\n")
+        );
     }
 
     /// Every pan-African profile is reachable by its ISO code, and the reference

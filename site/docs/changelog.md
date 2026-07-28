@@ -20,9 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     numbers alongside dense indices so pinpoint citations work
   - `Provenance` and `ProvenanceClass` (Corroborated / Single / Manual), with
     corroboration that a misconfigured threshold cannot weaken
-  - Region profiles for court registries: the shared seven-tier hierarchy,
-    authority weights, graceful handling of unknown codes, and `ZA` as the
-    first fully-populated profile with 32 courts
+  - Region profiles for court registries: the shared seven-tier hierarchy and
+    its authority weights, graceful handling of unknown codes, and `ZA` as the
+    first fully-populated profile with 32 courts. The weights are constants
+    shared by every jurisdiction; a profile picks a court's tier, it does not
+    re-weight one
   - Threshold-signed releases: length-prefixed signing bytes, fail-closed
     verification, one signer one vote, `threshold >= 2` enforced in code, and
     hash chaining so forks are detectable
@@ -46,17 +48,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: build, test, clippy with warnings denied, format check, and the web UI
   build and typecheck
 
+### Changed
+
+- **Region profiles now load at run time.** `molao --profiles <DIR>` reads a
+  directory of profile TOML (`molao_core::region::ProfileSet::load_dir`) and
+  installs it for the process; `region::resolve` and `region::default_profile`
+  answer from the loaded set first and fall back to the compiled-in constants.
+  Before this, the fourteen `profiles/*.toml` files were mirrors of the
+  constants that nothing read at run time, and "regions are data, not code" was
+  true of the shape of the data and not of how a node behaved. A loaded profile
+  now reaches the default ingest path, so it changes what a node extracts.
+  Loading is fail-closed and every error names its file.
+- `molao regions` — what an invocation resolves, whether each profile was
+  loaded or compiled in, and each one's fingerprint.
+- `RegionProfile::fingerprint()` — BLAKE3 over the registry, so a graph built
+  against an operator's own profile is still pinned: `EXTRACTOR_VERSION` for
+  the grammar, the fingerprint for the data.
+- Docs corrected where the code did not support the claim: a profile does not
+  carry authority weights and does not select citation styles (both were
+  claimed in `docs/COURTS.md`); the TOML/constant equality test is a profile
+  comparison, not a byte comparison; `molao-dist`, `molao-ingest` and
+  `molao-index` are no longer described as "landing this session", and
+  `molao-dist` is now stated to have no dependents.
+
 ### In progress
 
 - `molao-corpus` (SQLite + FTS5 storage and ingest), `molao-graph` (citation
   graph and authority scoring), the node HTTP server, and the web UI
+- `molao-ingest` (sourcing and witness corroboration) and `molao-index` (the
+  local rebuildable search cache), both wired into the node
+- `molao-dist` (release packaging, torrent export, transports) — in the
+  workspace and tested, but **nothing depends on it**
 
 ### Notes
 
 - **There is no bundled corpus.** A node starts empty.
 - **Treatment attestations** (followed / distinguished / overruled) are
   designed, not built.
-- **P2P distribution** is designed, not built. Releases are plain files.
+- **P2P distribution** is not running. `molao-dist` holds the packaging and
+  the transports, but no node command publishes or fetches a release, so
+  releases are still plain files mirrored by hand.
 - **Semantic search is deliberately excluded**, because embeddings cannot be
   verified by recomputation and a poisoned index is worse than a poisoned
   document.

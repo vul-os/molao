@@ -273,6 +273,11 @@ static DEFAULT_EXTRACTOR: LazyLock<Extractor> =
 /// Behaviourally identical to [`Extractor::extract`] on
 /// [`region::default_profile`]; this is the convenience form for the common case
 /// of a node serving one jurisdiction.
+///
+/// The profile is bound on **first use** and the compiled patterns cached, so a
+/// process that loads its own profiles with `molao_core::region::install` must
+/// do so before the first call — which is why the `molao` binary installs
+/// `--profiles` immediately after parsing its arguments.
 pub fn extract(text: &str) -> Vec<CitationRef> {
     DEFAULT_EXTRACTOR.extract(text)
 }

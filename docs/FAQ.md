@@ -167,9 +167,15 @@ the same time.
 ### Is this South Africa only?
 
 No. **Molao is jurisdiction-neutral by design.** Court codes, court names,
-hierarchy tiers, authority weights and law-report series are **region profile
-data**, not hardcoded logic. A `generic` profile works anywhere from day one;
-South Africa (`ZA`) is simply the first fully-populated profile.
+hierarchy tiers and law-report series are **region profile data**, not
+hardcoded logic: TOML files a node loads with `molao --profiles <DIR>`, taking
+precedence over the fourteen profiles compiled into the binary. A `generic`
+profile works anywhere from day one; South Africa (`ZA`) is simply the first
+fully-populated profile.
+
+(The authority weight per tier is *not* profile data — it is a constant shared
+by every jurisdiction. A profile picks a court's tier; it cannot re-weight a
+tier.)
 
 This is feasible because the free-access-to-law world already shares one
 citation convention: `[2020] UKSC 1`, `[2020] HCA 1`, `[2020] NZSC 1`,

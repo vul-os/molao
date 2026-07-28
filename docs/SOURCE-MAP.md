@@ -76,7 +76,7 @@ Every 🔵 and 🟡 row is a contribution waiting to happen. Concrete tasks:
 
 1. **Verify a host.** Run `molao crawl <host> --dry-run` (or `molao fetch <url> --dry-run`) against a court-direct source, confirm it parses, and report the result. Update this table.
 2. **Add a court-direct adapter.** The peachjam adapter (`crates/molao-ingest/src/peachjam.rs`) handles the AfricanLII network; the clean court-direct sources (NZ courts, Ghana e-Judgment, SA Constitutional Court, EUR-Lex) each need their own small adapter behind the same `SourceAdapter` trait. This is the highest-leverage code contribution.
-3. **Add a region profile.** A new jurisdiction needs its court codes and report series — a TOML file under `profiles/` (see [COURTS.md](COURTS.md#adding-a-jurisdiction)). No code.
+3. **Add a region profile.** A new jurisdiction needs its court codes and report series — a TOML file, which a node loads with `molao --profiles <DIR>` (see [COURTS.md](COURTS.md#adding-a-jurisdiction)). No code. Contributing it to this repository additionally means its fallback constant in `molao_core::region`, so a node with no flag still has it.
 4. **File the paperwork.** The 🟡 rows need a human to send a licence/permission request. Templates are ready in [`paperwork/`](../paperwork/) — the National Archives computational licence, a Laws.Africa bulk request, court-direct permission letters, and OGL/CC-BY confirmations. Filing these is the single biggest unlock, and only a person can do it.
 5. **Correct the map.** Policies change. If a source's `robots.txt`, content-signal, or terms have shifted, open a PR against this file with the evidence.
 

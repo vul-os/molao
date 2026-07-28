@@ -79,10 +79,13 @@ deliberate and are explained below.
 
 | Crate | Owns | Status |
 |---|---|---|
-| `molao-core` | `DocId`, `canonicalise()`, `Judgment`, `Paragraph`, `Provenance`, `ProvenanceClass`, region profiles (court registry), threshold-signed releases | Written, tested; profile refactor in progress |
+| `molao-core` | `DocId`, `canonicalise()`, `Judgment`, `Paragraph`, `Provenance`, `ProvenanceClass`, region profiles (court registry, loaded from TOML or compiled in), threshold-signed releases | Written, tested |
 | `molao-cite` | Deterministic citation extraction, profile-driven series registry, `EXTRACTOR_VERSION` | Written, tested |
 | `molao-corpus` | SQLite storage, FTS5 search, ingest | In progress |
-| `molao-graph` | Citation graph, authority scoring, treatment attestations | Planned |
+| `molao-graph` | Citation graph, authority scoring, treatment attestations | In progress; treatment attestations **designed, not built** |
+| `molao-ingest` | Robots-respecting fetch, Akoma Ntoso / HTML / PDF ingest, witness corroboration, jurisdiction adapters | In progress; used by the node |
+| `molao-index` | Local rebuildable keyword+vector search cache, never part of a release | In progress; used by the node |
+| `molao-dist` | Content-addressed release packaging, torrent v2 export, delta, transports | In progress; **nothing depends on it** — no node command publishes or fetches a release |
 | node binary | `axum` HTTP server, embedded UI | In progress |
 | `apps/web` | TypeScript + Vite + Preact UI, embedded into the binary | In progress |
 
@@ -125,11 +128,18 @@ any paragraph breaks it.
 ## Region profiles
 
 **No jurisdiction is hardcoded into core logic.** Court codes, names, hierarchy
-tiers, authority weights and law-report series are **region profile** data; a
-`generic` profile works anywhere from day one and `ZA` is the first
-fully-populated one. The citation *grammar* is shared, because the LII neutral
-citation convention is shared — `[2020] UKSC 1`, `[2020] HCA 1`, `[1995] ZACC
-3`. Only the codes differ, which is why the codes are data.
+tiers and law-report series are **region profile** data; a `generic` profile
+works anywhere from day one and `ZA` is the first fully-populated one. The
+citation *grammar* is shared, because the LII neutral citation convention is
+shared — `[2020] UKSC 1`, `[2020] HCA 1`, `[1995] ZACC 3`. Only the codes
+differ, which is why the codes are data. (Tier authority weights are *not*
+profile data — they are shared constants; see [COURTS.md](COURTS.md).)
+
+A profile is a TOML file. Fourteen ship compiled in, and each also ships as
+`profiles/<cc>.toml`; a node loads a directory of its own with
+`molao --profiles <DIR>`, and `region::resolve` answers from the loaded set
+first, falling back to the compiled-in constants. The constants are the
+fallback, not the source of truth.
 
 The ZA profile carries 32 courts, keyed by neutral-citation code, each with a
 name, a `Tier`, and an optional seat. `Tier` is ordered from `Apex` down to
@@ -212,9 +222,12 @@ optional, and never something anyone else has to trust. See
 Today a release is a set of plain files: the manifest, the signatures, and the
 corpus. Mirror it however you like — HTTPS, rsync, a hard drive in the post.
 
-P2P distribution (`iroh`) is **designed, not built**. When it lands it will make
-distribution faster and harder to censor. It will never be required to read the
-law, because the offline-first guarantee outranks it.
+P2P distribution is **not running**. The `molao-dist` crate holds the pieces —
+content-addressed packaging, a BitTorrent v2 export, a filesystem transport, and
+an `iroh` adapter behind `--features iroh` — but nothing depends on that crate
+and no `molao` command publishes or fetches a packaged release. When it is wired
+up it will make distribution faster and harder to censor. It will never be
+required to read the law, because the offline-first guarantee outranks it.
 
 ## Non-negotiables
 

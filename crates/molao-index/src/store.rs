@@ -332,13 +332,6 @@ impl Index {
         Ok(out)
     }
 
-    /// The one stored descriptor, if the index holds exactly one — the default
-    /// a query with no explicit `model` uses.
-    pub fn sole_descriptor(&self) -> Result<Option<StoredDescriptor>> {
-        let mut all = self.descriptors()?;
-        Ok(if all.len() == 1 { all.pop() } else { None })
-    }
-
     /// A specific descriptor by id.
     pub fn descriptor(&self, descriptor_id: &str) -> Result<Option<StoredDescriptor>> {
         Ok(self

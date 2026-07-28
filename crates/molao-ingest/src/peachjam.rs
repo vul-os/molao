@@ -377,11 +377,12 @@ fn frbr_parts(url_or_path: &str) -> Option<(String, u16, u32)> {
 }
 
 /// The region citation profile for a judgment URL — the country's profile if
-/// one is built in, else `GENERIC`, exactly as the rest of the crate treats an
-/// unprofiled jurisdiction.
+/// the node resolves one (a profile it loaded from disk, else a built-in), and
+/// `GENERIC` otherwise, exactly as the rest of the crate treats an unprofiled
+/// jurisdiction.
 fn profile_for_url(url: &str) -> &'static RegionProfile {
     country_from_url(url)
-        .and_then(|cc| region::builtin(&cc))
+        .and_then(|cc| region::resolve(&cc))
         .unwrap_or(&region::GENERIC)
 }
 

@@ -13,7 +13,9 @@
 //! - [`region`] — region profiles: the court and law-report-series registries
 //!   themselves, as data. Jurisdiction is a profile a node picks, never an
 //!   assumption baked into the parser. South Africa (`ZA`) is the first
-//!   populated profile and the default; `GENERIC` works anywhere.
+//!   populated profile and the default; `GENERIC` works anywhere; a node can
+//!   load its own from a directory of TOML, and the compiled-in profiles are
+//!   the fallback for whatever it did not supply.
 //! - [`release`] — threshold-signed corpus releases. No single party can
 //!   publish one.
 //!
@@ -45,7 +47,7 @@ pub mod release;
 
 pub use court::{Court, Tier};
 pub use doc::{canonicalise, DocId, Judgment, Paragraph, Provenance, ProvenanceClass};
-pub use region::{RegionError, RegionProfile, Series};
+pub use region::{LoadError, LoadedProfile, ProfileSet, RegionError, RegionProfile, Series};
 pub use release::{Manifest, SignedRelease, Signer, SignerSet};
 
 /// Version of this crate, surfaced in release manifests and the node's

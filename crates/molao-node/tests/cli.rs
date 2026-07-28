@@ -397,25 +397,324 @@ fn index_build_with_http_requires_an_endpoint() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// Every top-level subcommand the binary offers.
+///
+/// Hand-written, and a hand-written list is the thing that silently stops
+/// covering the eleventh command — so it is not the only guard:
+/// `every_subcommand_has_help` in `src/main.rs` asserts the same list against
+/// clap's own metadata and fails, naming this constant, the moment a command is
+/// added or renamed.
+const TOP_LEVEL_COMMANDS: &[&str] = &[
+    "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources", "regions",
+];
+
 #[test]
 fn every_documented_command_has_working_help() {
     // "Documented commands must execute" starts with --help not erroring.
-    for args in [
-        vec!["--help"],
-        vec!["serve", "--help"],
-        vec!["ingest", "--help"],
-        vec!["demo", "--help"],
-        vec!["verify", "--help"],
-        vec!["stats", "--help"],
-        vec!["index", "--help"],
-        vec!["index", "build", "--help"],
-        vec!["index", "info", "--help"],
-    ] {
+    let mut args: Vec<Vec<&str>> = vec![vec!["--help"]];
+    args.extend(TOP_LEVEL_COMMANDS.iter().map(|c| vec![*c, "--help"]));
+    args.push(vec!["index", "build", "--help"]);
+    args.push(vec!["index", "info", "--help"]);
+
+    // Covering nothing must not read as passing.
+    assert_eq!(
+        args.len(),
+        TOP_LEVEL_COMMANDS.len() + 3,
+        "the help matrix lost entries"
+    );
+
+    for args in &args {
         let out = Command::new(MOLAO)
-            .args(&args)
+            .args(args)
             .output()
             .unwrap_or_else(|e| panic!("running molao {args:?}: {e}"));
         assert!(out.status.success(), "molao {args:?} failed");
         assert!(!out.stdout.is_empty(), "molao {args:?} printed no help");
+        // `--profiles` is global: every command must accept it, or the flag is
+        // documented as global and is not.
+        assert!(
+            String::from_utf8_lossy(&out.stdout).contains("--profiles"),
+            "molao {args:?} does not offer the global --profiles flag"
+        );
     }
+}
+
+/// The claim under test: **region profiles are data a node loads, and the
+/// compiled-in profiles are the fallback.** Nothing short of running the binary
+/// proves it — an in-process test could not tell a loaded registry from the
+/// constant it happens to equal.
+///
+/// Two observable consequences, both through the real CLI:
+///
+/// 1. A law-report series that exists only in a loaded profile changes what the
+///    citation extractor finds on the **default** ingest path. This is the one
+///    that matters: a `--profiles` directory that did not reach `molao ingest`
+///    would be decoration.
+/// 2. A jurisdiction that exists only in a loaded profile files judgments under
+///    its own region instead of falling back to the corpus default.
+#[test]
+fn loaded_region_profiles_change_what_a_node_extracts_and_where_it_files() {
+    let dir = workdir("profiles");
+    let profiles = dir.join("profiles");
+    std::fs::create_dir_all(&profiles).unwrap();
+
+    // A ZA registry with one court and one law-report series that the built-in
+    // ZA profile does not carry.
+    std::fs::write(
+        profiles.join("za.toml"),
+        "code = \"ZA\"\nname = \"South Africa (operator registry)\"\n\n\
+         [[courts]]\ncode = \"ZACC\"\n\
+         name = \"Constitutional Court of South Africa\"\ntier = \"apex\"\n\n\
+         [[series]]\nabbr = \"XYZ\"\nname = \"Invented Reports\"\n",
+    )
+    .unwrap();
+    // And a jurisdiction that is not compiled in at all.
+    std::fs::write(
+        profiles.join("xx.toml"),
+        "code = \"XX\"\nname = \"Nowhere\"\n\n\
+         [[courts]]\ncode = \"XXSC\"\nname = \"Supreme Court of Nowhere\"\ntier = \"apex\"\n",
+    )
+    .unwrap();
+
+    // One judgment citing a report series only the loaded profile knows.
+    let input = dir.join("in.jsonl");
+    std::fs::write(
+        &input,
+        r#"{"court":"ZACC","title":"Ndlovu v Minister","neutral_citation":"[2026] ZACC 1","text":"[1] See the discussion reported in 2020 (3) XYZ 45."}"#,
+    )
+    .unwrap();
+
+    let unresolved = |db: &Path, with_profiles: bool| -> String {
+        for stage in ["ingest", "stats"] {
+            let mut cmd = Command::new(MOLAO);
+            if with_profiles {
+                cmd.arg("--profiles").arg(&profiles);
+            }
+            cmd.arg(stage);
+            if stage == "ingest" {
+                cmd.arg(&input);
+            }
+            let out = cmd
+                .arg("--db")
+                .arg(db)
+                .output()
+                .unwrap_or_else(|e| panic!("running molao {stage}: {e}"));
+            assert!(
+                out.status.success(),
+                "molao {stage} failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            if stage == "stats" {
+                return String::from_utf8_lossy(&out.stdout).into_owned();
+            }
+        }
+        unreachable!()
+    };
+
+    // Built-in ZA has no XYZ series, so the reported citation is not a citation.
+    let plain = unresolved(&dir.join("plain.db"), false);
+    assert!(
+        plain.contains("unresolved cites   0"),
+        "the built-in profile must not find a series it does not enumerate:\n{plain}"
+    );
+
+    // The loaded profile enumerates it, so the same bytes yield a citation.
+    let loaded = unresolved(&dir.join("loaded.db"), true);
+    assert!(
+        loaded.contains("unresolved cites   1"),
+        "a loaded profile must reach the default ingest path:\n{loaded}"
+    );
+
+    // A jurisdiction that exists only on disk files under its own region.
+    let akn = dir.join("xxsc.xml");
+    std::fs::write(
+        &akn,
+        r##"<?xml version="1.0" encoding="UTF-8"?>
+<akomaNtoso xmlns="http://docs.oasis-open.org/legaldocml/ns/akn/3.0"
+            xmlns:akn="https://laws.africa/akn">
+  <judgment name="judgment" contains="originalVersion">
+    <meta>
+      <identification source="#laws-africa">
+        <FRBRWork>
+          <FRBRthis value="/akn/xx/judgment/xxsc/2024/1/main"/>
+          <FRBRuri value="/akn/xx/judgment/xxsc/2024/1"/>
+          <FRBRalias value="Someone v Another" name="title"/>
+          <FRBRdate date="2024-05-10" name="Judgment"/>
+          <FRBRauthor href="#xxsc"/>
+          <FRBRcountry value="xx"/>
+        </FRBRWork>
+      </identification>
+      <references source="#this">
+        <TLCOrganization eId="xxsc" href="/ontology/organization/xx/xxsc" showAs="Supreme Court of Nowhere"/>
+      </references>
+      <proprietary source="#laws-africa">
+        <akn:neutralCitation>[2024] XXSC 1</akn:neutralCitation>
+      </proprietary>
+    </meta>
+    <judgmentBody>
+      <decision>
+        <p eId="dec__p_1"><num>1</num> The appeal is dismissed.</p>
+      </decision>
+    </judgmentBody>
+  </judgment>
+</akomaNtoso>
+"##,
+    )
+    .unwrap();
+
+    for (db, args, expected) in [
+        ("fallback.db", vec![], "ZA"),
+        ("profiled.db", vec!["--profiles"], "XX"),
+    ] {
+        let db = dir.join(db);
+        let mut cmd = Command::new(MOLAO);
+        for a in &args {
+            cmd.arg(a).arg(&profiles);
+        }
+        let out = cmd
+            .arg("ingest")
+            .arg(&akn)
+            .arg("--db")
+            .arg(&db)
+            .output()
+            .expect("running molao ingest");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let mut cmd = Command::new(MOLAO);
+        for a in &args {
+            cmd.arg(a).arg(&profiles);
+        }
+        let stats = cmd
+            .arg("stats")
+            .arg("--db")
+            .arg(&db)
+            .output()
+            .expect("running molao stats");
+        let stats = String::from_utf8_lossy(&stats.stdout);
+        assert!(
+            stats.contains(&format!("  {expected:<16} 1")),
+            "expected the judgment filed under {expected}:\n{stats}"
+        );
+    }
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// `molao regions` is how an operator checks what their node actually resolves.
+/// It has to distinguish loaded from compiled-in, or it answers the wrong
+/// question.
+#[test]
+fn regions_reports_loaded_profiles_apart_from_compiled_in_ones() {
+    let dir = workdir("regions");
+    let profiles = dir.join("profiles");
+    std::fs::create_dir_all(&profiles).unwrap();
+    std::fs::write(
+        profiles.join("ke.toml"),
+        "code = \"KE\"\nname = \"Kenya (operator registry)\"\n\n\
+         [[courts]]\ncode = \"KESC\"\nname = \"Supreme Court of Kenya\"\ntier = \"apex\"\n",
+    )
+    .unwrap();
+
+    let plain = Command::new(MOLAO)
+        .arg("regions")
+        .output()
+        .expect("running molao regions");
+    assert!(plain.status.success());
+    let plain = String::from_utf8_lossy(&plain.stdout);
+    assert!(plain.contains("built-in"), "{plain}");
+    assert!(
+        !plain
+            .lines()
+            .any(|l| l.split_whitespace().nth(1) == Some("loaded")),
+        "nothing was loaded, so no row may claim it was:\n{plain}"
+    );
+    assert!(
+        plain.contains("every profile above is compiled in"),
+        "{plain}"
+    );
+
+    let out = Command::new(MOLAO)
+        .arg("--profiles")
+        .arg(&profiles)
+        .arg("regions")
+        .output()
+        .expect("running molao --profiles regions");
+    assert!(out.status.success());
+    let out = String::from_utf8_lossy(&out.stdout);
+    assert!(out.contains("ke.toml"), "the file must be named: {out}");
+    assert!(out.contains("loaded"), "{out}");
+    // The shadowed built-in KE must not also be listed as if the node used it.
+    assert_eq!(
+        out.lines()
+            .filter(|l| l.trim_start().starts_with("KE "))
+            .count(),
+        1,
+        "KE must appear once, as the loaded profile:\n{out}"
+    );
+    // Untouched jurisdictions still resolve, from the constants.
+    assert!(out.contains("ZA"), "{out}");
+    assert!(
+        out.contains("compiled-in profile(s) remain as the fallback"),
+        "{out}"
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Loading is fail-closed. A node that quietly ran the compiled-in registry
+/// while its operator believed it was running theirs is the failure this whole
+/// mechanism has to not have.
+#[test]
+fn a_bad_profiles_directory_stops_the_node_rather_than_falling_back() {
+    let dir = workdir("profiles-bad");
+
+    // A path that is not there.
+    let out = Command::new(MOLAO)
+        .arg("--profiles")
+        .arg(dir.join("nope"))
+        .arg("regions")
+        .output()
+        .expect("running molao --profiles");
+    assert!(!out.status.success(), "a missing directory must fail");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("region profiles"), "{stderr}");
+
+    // A directory with no profiles in it: a typo, not a request for defaults.
+    let empty = dir.join("empty");
+    std::fs::create_dir_all(&empty).unwrap();
+    let out = Command::new(MOLAO)
+        .arg("--profiles")
+        .arg(&empty)
+        .arg("regions")
+        .output()
+        .expect("running molao --profiles");
+    assert!(!out.status.success(), "an empty directory must fail");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("no *.toml"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // A malformed profile, named in the error.
+    let broken = dir.join("broken");
+    std::fs::create_dir_all(&broken).unwrap();
+    std::fs::write(broken.join("oops.toml"), "code = \"OO\"\n# no name\n").unwrap();
+    let out = Command::new(MOLAO)
+        .arg("--profiles")
+        .arg(&broken)
+        .arg("regions")
+        .output()
+        .expect("running molao --profiles");
+    assert!(!out.status.success(), "a malformed profile must fail");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("oops.toml"),
+        "the error must name the file: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
 }

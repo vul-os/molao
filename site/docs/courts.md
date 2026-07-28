@@ -2,24 +2,42 @@
 
 Molao is jurisdiction-neutral. **No country is hardcoded into core logic.**
 Everything jurisdiction-specific — court codes, court names, hierarchy tiers,
-authority weights, law-report series, citation styles — ships as a **region
-profile**: data a node picks, never an assumption baked into the parser.
+law-report series — ships as a **region profile**: data a node loads, never an
+assumption baked into the parser. (The authority weight of a tier is shared
+across jurisdictions and is *not* profile data; see below.)
 
 A **generic** profile makes Molao usable in any jurisdiction from day one,
 before a dedicated profile for it exists. **ZA (South Africa) is the first
 fully-populated profile**, and it is the worked example throughout this
 document. It is never special-cased.
 
-> **Status: implemented.** Region profiles live in
-> `molao_core::region`. `RegionProfile` carries the court and series registries;
-> `ZA` and `GENERIC` ship built in; `RegionProfile::from_toml` loads one at
-> runtime; `region::builtin`, `region::all_builtin` and `region::default_profile`
-> (which returns `ZA`) select between them. The ZA profile also ships as
-> [`profiles/za.toml`](https://github.com/vul-os/molao/blob/main/profiles/za.toml), and a test asserts that parsing it
-> yields exactly the built-in constant, so the two cannot drift.
+> **Status: implemented.** Region profiles live in `molao_core::region`.
+> `RegionProfile` carries the court and series registries. Fourteen profiles
+> ship built in, and each also ships as [`profiles/<cc>.toml`](https://github.com/vul-os/molao/blob/main/profiles/);
+> a test parses every file in that directory and asserts it equals the
+> constant, so the two cannot drift.
+>
+> **A node loads its own profiles at run time.** `molao --profiles <DIR>` reads
+> every `*.toml` in the directory (`ProfileSet::load_dir`) and installs them
+> for the process; `region::resolve` then answers from the loaded set first and
+> falls back to the compiled-in constants, and `region::default_profile` does
+> the same for the code a node has not chosen. So the constants are a fallback,
+> not the source of truth: a wrong court code is fixed by editing a file.
+> `molao regions` prints what an invocation resolves and where each profile
+> came from.
+>
+> Loading is fail-closed. A malformed file, two files claiming one region code,
+> a missing directory, or a directory with no profiles in it each abort before
+> anything is ingested, and every error names its file.
+>
+> `region::builtin` and `region::all_builtin` deliberately keep answering from
+> the constants alone — they are what the drift tests use, and a test a file on
+> the test machine could answer would prove nothing.
 >
 > `molao_core::court::lookup`, `is_known_code` and `authority_weight` remain as
-> convenience wrappers over the default profile.
+> convenience wrappers over the default profile, and follow a loaded one. The
+> `court::COURTS` and `series::SERIES` constants are the compiled-in ZA
+> registry specifically, and do not.
 
 ## Why this is feasible
 
@@ -44,11 +62,23 @@ which is exactly why the codes belong in data and the grammar belongs in code.
 | Element | What it is | ZA example |
 |---|---|---|
 | Profile code | Jurisdiction identifier | `ZA` |
+| Display name | Human-readable, never interpreted | `South Africa` |
 | Court registry | Neutral-citation code → name, tier, seat | `ZACC` → Constitutional Court of South Africa, `Apex`, Johannesburg |
-| Hierarchy tiers | Which of the tiers below the jurisdiction uses | All seven |
-| Authority weights | Multiplier per tier when scoring citation edges | `Apex` 1.00 … `Lower` 0.10 |
 | Report series | Abbreviation → title, and whether it is cited with a volume | `SA` → South African Law Reports; `AD` → Appellate Division Reports, no volume |
-| Citation styles | Which citation forms the jurisdiction uses | Neutral, reported (volume), reported (historical), case number |
+
+That is the whole format. Two things a profile does **not** carry, both of
+which earlier drafts of this document claimed it did:
+
+- **Authority weights.** The multiplier per tier (`Apex` 1.00 … `Lower` 0.10)
+  is a constant in `molao_core::court::Tier::authority_weight`, shared by every
+  jurisdiction. A profile chooses which tier each of its courts sits in; it
+  cannot re-weight a tier. If a hierarchy genuinely needs different weights,
+  that is a gap in the model — report it as one.
+- **Citation styles.** There is no field selecting which citation forms apply.
+  Every profile is parsed with the same grammar; a jurisdiction that does not
+  use reported citations simply enumerates no series and matches none, which is
+  what the `GENERIC` profile does and is the correct answer rather than a
+  missing feature.
 
 The **generic** profile carries no court codes and no series. It still parses
 neutral citations, using the shape rule described in
@@ -78,8 +108,8 @@ citation edge when scoring authority.
 | `Lower` | 0.10 | Inferior courts. Rarely reported, never binding | Magistrates' courts | Magistrates' courts |
 
 A profile need not populate every tier. It maps its own courts onto the tiers
-that fit; the weights come from the profile, so a jurisdiction whose hierarchy
-weights differently may say so.
+that fit. The weights themselves are shared across jurisdictions and are not
+profile data — see above.
 
 These weights are deliberately coarse. They encode "an appellate judgment
 relying on a case says more about that case than a first-instance judgment
@@ -160,11 +190,14 @@ Twelve further profiles ship built in, covering AfricanLII / Free Access to Law
 member jurisdictions. Each uses the neutral-citation designators the relevant LII
 already publishes — inventing codes would fragment the graph against every
 citation already in the literature — and each ships both as a
-`molao_core::region` constant and as `profiles/<cc>.toml`, kept byte-equal by a
-test. None is the default; a node serving one selects it with
-`region::builtin("KE")` and holds an `Extractor::for_profile`, and because they
-are never read by the default extractor, adding them changes no existing
-extraction output and is **not** an `EXTRACTOR_VERSION` bump.
+`molao_core::region` constant and as `profiles/<cc>.toml`. A test parses the
+file and asserts it is the *same profile* as the constant — same courts, same
+series, same fingerprint. (It is not a byte comparison: reformatting the TOML
+or moving a comment is allowed, changing a code is not.) None is the default; a
+node serving one selects it with `region::resolve("KE")` and holds an
+`Extractor::for_profile`, and because they are never read by the default
+extractor, adding them changes no existing extraction output and is **not** an
+`EXTRACTOR_VERSION` bump.
 
 The honesty rule for these is strict: a court code is exactly the thing a legal
 tool must get right, because a wrong code silently drops every citation carrying
@@ -243,30 +276,53 @@ Lookup is case-insensitive.
 
 ## Adding a jurisdiction
 
-Adding a jurisdiction must never require touching core logic. What you supply:
+Adding a jurisdiction must never require touching core logic. What you supply,
+in one TOML file:
 
 1. **A profile code** — the ISO country code is the convention (`ZA`, `UK`,
-   `AU`, `NZ`, `KE`).
+   `AU`, `NZ`, `KE`) — and a display name.
 2. **The court registry** — for each court: neutral-citation code, name as it
    appears on judgments, tier, and seat where the code distinguishes one. Use
    the codes your LII already publishes; inventing new ones fragments the graph
    against every existing citation.
-3. **Authority weights**, if the defaults do not fit your hierarchy.
-4. **The report series** — abbreviation, full title, and whether it is cited
+3. **The report series** — abbreviation, full title, and whether it is cited
    with a volume number. Enumerating these is what stops the reported-citation
    parser matching ordinary prose ([CITATIONS.md](CITATIONS.md)).
-5. **Which citation styles apply.** Not every jurisdiction uses all four forms.
+
+Both `[[courts]]` and `[[series]]` may be empty; a profile with neither is
+legitimate, and is what `GENERIC` is. The format in full, with a worked
+example, is in [`profiles/README.md`](https://github.com/vul-os/molao/blob/main/profiles/README.md).
+
+Then run your node against it:
+
+```sh
+molao --profiles /etc/molao/profiles regions   # check what resolved
+molao --profiles /etc/molao/profiles serve
+```
 
 What you do **not** supply: any code. If a jurisdiction cannot be expressed as
 profile data, that is a gap in the profile model and it should be reported as
 one rather than worked around with a special case.
 
+Contributing a profile *to this repository* is the same file plus its constant
+in `molao_core::region`, because the compiled-in set is the fallback a node with
+no `--profiles` flag reads. The directory-scan test above fails if you add one
+without the other.
+
 Tests enforce the invariants for every profile: codes unique within a profile,
 no court outranking the apex court, tier ordering matching the hierarchy.
 
 **Adding or changing profile data changes what the citation parser accepts as a
-known code, which changes extraction output.** That means an
-`EXTRACTOR_VERSION` bump — see [CITATIONS.md](CITATIONS.md).
+known code, which changes extraction output.** For a profile that ships in this
+repository, that means an `EXTRACTOR_VERSION` bump — see
+[CITATIONS.md](CITATIONS.md).
+
+A profile you loaded from your own disk is outside that pin by construction: no
+version string here can describe a file this project has never seen. What makes
+such a graph reproducible instead is the pair (`EXTRACTOR_VERSION`, the
+profile's **fingerprint**) — a BLAKE3 hash over the registry itself, printed by
+`molao regions`. The first pins the grammar, the second pins the data it was
+applied to. Record both alongside any graph you publish.
 
 ## What a profile does not encode
 

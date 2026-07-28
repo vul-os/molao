@@ -109,10 +109,6 @@ impl FileIndex {
     pub fn hashes(&self) -> BTreeSet<&str> {
         self.files.iter().map(|f| f.hash.as_str()).collect()
     }
-
-    pub fn total_bytes(&self) -> u64 {
-        self.files.iter().map(|f| f.size).sum()
-    }
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

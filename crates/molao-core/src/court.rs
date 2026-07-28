@@ -74,6 +74,21 @@ impl Tier {
             Tier::Lower => 0.10,
         }
     }
+
+    /// Stable wire string — the value a profile TOML writes in `tier`, and the
+    /// value `serde` reads and writes. Both are part of the profile format, so
+    /// they must not drift; a test asserts they agree.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Tier::Apex => "apex",
+            Tier::Appellate => "appellate",
+            Tier::SpecialistAppellate => "specialist_appellate",
+            Tier::HighCourt => "high_court",
+            Tier::SpecialistHigh => "specialist_high",
+            Tier::Tribunal => "tribunal",
+            Tier::Lower => "lower",
+        }
+    }
 }
 
 /// A court in a profile's registry.
@@ -89,10 +104,15 @@ pub struct Court {
     pub seat: Option<&'static str>,
 }
 
-/// The default profile's court registry.
+/// The **built-in** ZA court registry.
 ///
 /// Retained as a name because callers and tests refer to it; it is the ZA
 /// profile's registry, not a separate table. See [`region::ZA_COURTS`].
+///
+/// This is the compiled-in constant, not whatever a node resolved: a node that
+/// loaded its own `ZA` profile from disk uses that, and the free functions below
+/// follow it. Use them, or [`region::default_profile`], to ask what a node
+/// actually reads.
 pub const COURTS: &[Court] = region::ZA_COURTS;
 
 /// The profile these convenience functions read. See the module docs.
@@ -159,6 +179,28 @@ mod tests {
                 "duplicate court code {}",
                 court.code
             );
+        }
+    }
+
+    /// `Tier::as_str` is the profile format's `tier` value and the fingerprint's
+    /// encoding of a tier. If it drifted from the `serde` representation, a
+    /// profile TOML would name one tier and hash as another.
+    #[test]
+    fn tier_wire_strings_match_the_serde_representation() {
+        for tier in [
+            Tier::Apex,
+            Tier::Appellate,
+            Tier::SpecialistAppellate,
+            Tier::HighCourt,
+            Tier::SpecialistHigh,
+            Tier::Tribunal,
+            Tier::Lower,
+        ] {
+            let json = serde_json::to_string(&tier).expect("tier serialises");
+            assert_eq!(json, format!("\"{}\"", tier.as_str()));
+            let back: Tier =
+                serde_json::from_str(&json).expect("tier round-trips through its wire string");
+            assert_eq!(back, tier);
         }
     }
 

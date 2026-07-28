@@ -71,6 +71,14 @@ publishes — see [COURTS.md](COURTS.md#pan-african-profiles) for the registries
 and which are complete versus a partial seed. They are additional profiles a node
 may select, not the default, so they change no existing extraction output.
 
+A jurisdiction with no built-in profile is not stuck with `GENERIC`: write the
+TOML and start the node with `molao --profiles <DIR>`, and a loaded profile
+resolves ahead of any compiled-in one of the same code
+([COURTS.md](COURTS.md#adding-a-jurisdiction)). Extraction output then depends
+on data this repository has never seen, so it is pinned by
+`EXTRACTOR_VERSION` **and** the profile's fingerprint, both printed by
+`molao regions`.
+
 Pattern: a four-digit year in square brackets, a court code, a number. This is
 the LII neutral-citation convention, and it is shared across jurisdictions —
 only the codes change.
@@ -270,5 +278,6 @@ lie about what a court said. A missing edge is a gap, and gaps are visible.
 - **It does not parse party names or case titles out of running text.** Style of
   cause comes from the structured judgment, not from the citation parser.
 - **It does not guess a jurisdiction.** The active region profile is a node's
-  configuration, not something inferred from the text. A corpus spanning
-  jurisdictions is a set of profiles, not a heuristic.
+  configuration — compiled in, or loaded with `--profiles` — not something
+  inferred from the text. A corpus spanning jurisdictions is a set of profiles,
+  not a heuristic.

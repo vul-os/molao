@@ -8,7 +8,7 @@ consistently across this repository:
 - **Designed, not built** — the model and the reasoning exist; the code does not
 - **Deliberately excluded** — not a gap; a decision, with reasons
 
-**This session (2026-07-20), three crates are landing in parallel:**
+**Three crates are in the workspace against the phases below:**
 `molao-ingest` (sourcing — the robots-respecting crawler, the licensed-bulk
 importer, and the witness-signing daemon behind [docs/SOURCES.md](sources.md)
 and [docs/PROVENANCE.md](provenance.md)), `molao-dist` (distribution — a
@@ -16,9 +16,13 @@ release as content-addressed files over iroh, a torrent export, or a plain
 HTTP mirror; see [docs/DISTRIBUTION.md](distribution.md)), and
 `molao-index` (a local, rebuildable, unsigned RAG cache — never part of a
 release; see [docs/THREAT-MODEL.md](threat-model.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)).
-None of the three has run against real data yet. They move the phases below
-from designed to in-progress; they do not produce a public corpus, a live P2P
-network, or a shared index by themselves — that is still ahead.
+
+`molao-ingest` and `molao-index` are wired into the node binary.
+**`molao-dist` is not: nothing depends on it**, and no `molao` command
+publishes or fetches a packaged release. None of the three has run against real
+data yet. They move the phases below from designed to in-progress; they do not
+produce a public corpus, a live P2P network, or a shared index by themselves —
+that is still ahead.
 
 ## Phase 0 — Foundations · Done
 
@@ -42,12 +46,23 @@ The layers everything else has to agree on exactly.
 
 ### Region profiles · Done
 
-Court and law-report registries are loadable TOML profiles, not compiled-in
-constants. `ZA` ships populated; `GENERIC` works anywhere from day one.
-`profiles/za.toml` is parsed in a test and asserted equal to the built-in ZA
-profile, so the two cannot drift. Adding a jurisdiction means writing a file —
-see [docs/COURTS.md](courts.md#adding-a-jurisdiction) and
+Court and law-report registries are TOML profiles a node loads at run time:
+`molao --profiles <DIR>` reads a directory of them and they take precedence
+over the profiles compiled into the binary, which remain as the fallback for
+whatever an operator did not supply. `molao regions` prints what an invocation
+resolves, where each profile came from, and its fingerprint.
+
+Fourteen profiles ship both ways — as `profiles/<cc>.toml` and as constants in
+`molao_core::region`. A test scans the directory and asserts every file is the
+same profile as its constant, so the two cannot drift and neither can be added
+without the other. `ZA` is populated; `GENERIC` works anywhere from day one.
+Adding a jurisdiction to *your node* means writing a file; adding one to this
+repository means the file plus its fallback constant — see
+[docs/COURTS.md](courts.md#adding-a-jurisdiction) and
 [profiles/README.md](profiles/README.md).
+
+The weights per tier are shared constants, not profile data. That is a
+deliberate limit of the model, not an omission.
 
 The honest limit: `GENERIC` finds neutral citations and case numbers, not
 reported ones. Enumerating a jurisdiction's law-report series is what makes
@@ -81,8 +96,9 @@ of a signed release. The corpus stays the only signed truth; see
 [docs/THREAT-MODEL.md](threat-model.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)
 for why that does not reopen the embeddings-exclusion argument below.
 
-This is `molao-index`, landing this session. It has not built a real index
-yet, and the cache-sharing path is design, not a running feature.
+This is `molao-index`. It is in the workspace, tested, and wired into the
+node (`molao index build`, `/api/rag/search`). It has not built an index over a
+real corpus yet, and the cache-sharing path is design, not a running feature.
 
 ## Phase 2 — Verification end to end · Designed, not built
 
@@ -100,7 +116,7 @@ corpus and graph are what the manifest says they are.
 The hardest phase, and mostly not a software problem. Sourcing ethics are
 settled and are a floor, not a default: [docs/SOURCES.md](sources.md).
 
-**Landing this session, as `molao-ingest`:**
+**In `molao-ingest`:**
 
 - Direct ingest from courts and gazettes
 - A polite, robots-respecting crawl for courts and gazettes that only
@@ -111,7 +127,7 @@ settled and are a floor, not a default: [docs/SOURCES.md](sources.md).
 - The witness daemon: fetch, hash raw bytes, sign, publish
 - Corroboration collection and disagreement workflow
 
-None of the above has assembled a real corpus yet. Landing the software is
+None of the above has assembled a real corpus yet. Writing the software is
 not the same as having run it against a real jurisdiction.
 
 ### Where the corpus can come from · a live map
@@ -215,7 +231,7 @@ Not backlog. Decisions.
 
 | Excluded | Why |
 |---|---|
-| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one — that is exactly what `molao-index` (above, landing this session) is for: an unsigned, rebuildable cache, never a release artifact. [docs/THREAT-MODEL.md](threat-model.md#why-embeddings-are-excluded-from-releases) |
+| **Embeddings in releases** | Float inference is not reproducible across hardware, so a contributed index could never be verified; and a poisoned index is worse than a poisoned document because the text stays correct while retrieval quietly steers. Build one locally if you want one — that is exactly what `molao-index` (above) is for: an unsigned, rebuildable cache, never a release artifact. [docs/THREAT-MODEL.md](threat-model.md#why-embeddings-are-excluded-from-releases) |
 | **Any hosted service** | No accounts, no telemetry, no billing, ever. There is nothing to be a customer of. |
 | **Bulk SAFLII scraping** | SAFLII declines to be a bulk re-supplier and has said so. [docs/SOURCES.md](sources.md) |
 | **Legislation** | A different grammar and corpus. Laws.Africa does it well. |

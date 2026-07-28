@@ -109,7 +109,12 @@ transport-independent, iroh as the primary transport, a torrent export for
 archival seeding, a plain HTTP mirror as the simple fallback that always
 works.
 
-The **software** is landing this session as `molao-dist`. It has not moved a
-real release yet, because there is no real release yet. Today, the only
-transport in actual use is a plain file host, mirrored by hand — exactly the
-limitation this crate exists to remove.
+The **software** is the `molao-dist` crate: in the workspace, tested, and
+holding the packaging, the torrent v2 export, the delta, a filesystem transport,
+and an `iroh` adapter behind `--features iroh`.
+
+**Nothing depends on it.** No `molao` command publishes or fetches a packaged
+release, so it has not moved a real release — and there is no real release for
+it to move. Today the only transport in actual use is a plain file host,
+mirrored by hand: exactly the limitation this crate exists to remove, and has
+not yet removed.
