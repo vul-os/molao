@@ -56,6 +56,42 @@ alteration is more damaging than most memory-safety bugs would be.
   Molao. Report those upstream.
 - Missing security headers on somebody's public mirror. Report to that operator.
 
+## Verifying a downloaded binary
+
+The two things called "signing" in this project are unrelated, and conflating
+them is the mistake this section exists to prevent:
+
+- **Corpus releases** are signed by a quorum of independent attesting
+  organisations with the keys described below. That is the trust model for
+  *the law*.
+- **Software releases** — the `molao` binaries on GitHub Releases — carry a
+  `SHA256SUMS.txt` manifest plus a sigstore **build provenance attestation**
+  minted from the release workflow's OIDC identity. That binds those bytes to
+  this repository's release workflow at a commit. It says nothing about any
+  corpus, and no signer organisation vouches for it.
+
+Check a binary before you run it:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/vul-os/molao/vX.Y.Z/scripts/verify.sh
+bash verify.sh --tag vX.Y.Z molao-X.Y.Z-linux-x86_64            # digest
+bash verify.sh --tag vX.Y.Z --attest molao-X.Y.Z-linux-x86_64   # + provenance
+```
+
+`verify.sh` needs only `curl` and `sha256sum`/`shasum`. It has two outcomes:
+verified, or a non-zero exit with a diagnostic naming what was wrong — a
+missing manifest (3), an HTML page where the manifest was expected (4), an
+empty or malformed manifest (5), no entry for the asset (6), an unfetchable
+artifact (7), a truncated download (8), a digest mismatch (9). A missing
+`SHA256SUMS.txt` is never treated as "nothing to check": that case is the
+whole point, because a verifier that shrugs at a 404 prints a line that looks
+like verification while checking nothing. `--attest` needs the `gh` CLI; a run
+without it prints that provenance was **not** checked, so a pass never implies
+more than it checked.
+
+These binaries are **not** OS code-signed: macOS Gatekeeper and Windows
+SmartScreen will still warn.
+
 ## Signing keys
 
 Release signing keys belong to independent attesting organisations, not to this

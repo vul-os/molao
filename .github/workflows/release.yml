@@ -27,7 +27,20 @@
 # under GitHub → Releases with generated notes and all assets; review and
 # publish.
 #
-# ── Signing (not configured; binaries ship unsigned until then) ──────────────
+# ── What is signed, and what is not ─────────────────────────────────────────
+# The `release` job publishes SHA256SUMS.txt over every attached asset and
+# attaches a sigstore BUILD PROVENANCE attestation (actions/attest-build-
+# provenance, signed with a short-lived certificate minted from this workflow's
+# OIDC token — no long-lived key, no repository secret). A downloader checks it
+# with `gh attestation verify` or `scripts/verify.sh --attest`. That binds the
+# bytes to "this repository's release workflow at this commit".
+#
+# It is NOT OS code-signing: macOS Gatekeeper and Windows SmartScreen know
+# nothing about sigstore and will still warn on these downloads. Nor is it a
+# detached signature a downloader can check offline with a pinned public key.
+# Do not describe these binaries as "code-signed".
+#
+# ── OS code-signing (not configured) ────────────────────────────────────────
 # macOS/Windows code-signing is not wired up. If added later: macOS needs
 # APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY /
 # APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID (notarization); Windows needs
@@ -165,28 +178,128 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Draft GitHub Release
+    name: Draft GitHub Release (checksummed + attested)
     needs: build
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write       # create the draft Release and upload assets
+      id-token: write       # mint the OIDC token the attestation is signed with
+      attestations: write   # record the attestation against this repo
     steps:
+      # scripts/verify.sh checks this job's own output below, so the repo has
+      # to be present. (Nothing else is taken from the checkout: every asset
+      # comes from the build jobs.)
+      - uses: actions/checkout@v4.2.2
+
       - uses: actions/download-artifact@v4.1.8
         with:
           path: dist
           pattern: bin-*
           merge-multiple: true
 
-      - name: Generate checksums
+      # Everything published lands in dist/ and nothing else does, so the
+      # manifest covering that directory makes "published" and "covered" the
+      # same set by construction rather than two lists kept in sync by hand.
+      #
+      # This replaced `cd dist && sha256sum molao-*`, which had two holes: the
+      # glob covered only assets whose names start with "molao-" (any other
+      # attached file would have shipped unvouched-for), and a build that
+      # produced nothing would have left the glob unmatched — sha256sum errors
+      # there, but nothing asserted that the manifest had a line per asset, so
+      # a one-line manifest for a three-binary release was indistinguishable
+      # from a complete one.
+      - name: Emit SHA256SUMS.txt
+        id: sums
         run: |
+          set -euo pipefail
+          # Asset names carry the bare version (v0.1.0 -> molao-0.1.0-...), so
+          # the tag cannot be pasted into the verify snippet unchanged.
+          echo "ver=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           cd dist
-          sha256sum molao-* > SHA256SUMS.txt
+
+          mapfile -t ASSETS < <(find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -exec basename {} \; | LC_ALL=C sort)
+
+          # FAIL CLOSED: a build that produced nothing is a red release, not a
+          # green one with an empty manifest. An empty manifest vouches for
+          # nothing while looking exactly like one that vouched for everything.
+          if [ "${#ASSETS[@]}" -eq 0 ]; then
+            echo "::error::dist/ contains no artifacts — refusing to publish a release whose manifest would vouch for nothing."
+            exit 1
+          fi
+
+          : > SHA256SUMS.txt
+          for a in "${ASSETS[@]}"; do
+            sha256sum "$a" >> SHA256SUMS.txt
+          done
+
+          # COVERAGE ASSERTION. Without it the step is trivially satisfiable: a
+          # manifest with one line "covers" a three-asset release and every
+          # later check still passes.
+          LINES="$(wc -l < SHA256SUMS.txt | tr -d ' ')"
+          if [ "$LINES" -ne "${#ASSETS[@]}" ]; then
+            echo "::error::SHA256SUMS.txt has ${LINES} line(s) for ${#ASSETS[@]} staged artifact(s) — the manifest does not cover the release."
+            exit 1
+          fi
+
+          echo "SHA256SUMS.txt covers ${#ASSETS[@]} artifact(s):"
           cat SHA256SUMS.txt
+          printf '%s\n' "${ASSETS[@]}" > "${RUNNER_TEMP}/release-assets.txt"
+
+      # The producer checked by the consumer. If verify.sh and the emit step
+      # ever disagree about the manifest format, it surfaces here — in a red
+      # release job — instead of in a user's terminal after publication.
+      - name: Verify SHA256SUMS.txt with the same script users run
+        run: |
+          set -euo pipefail
+          mapfile -t ASSETS < "${RUNNER_TEMP}/release-assets.txt"
+          bash scripts/verify.sh --dir dist "${ASSETS[@]}"
+
+          # The other direction. verify.sh proves every asset it was NAMED
+          # matches; this proves nothing reached dist/ after the manifest was
+          # written. An unlisted file would be attached to the release under a
+          # manifest that says nothing about it, and a downloader doing an
+          # exact-name lookup would (correctly) refuse it — so it has to be a
+          # red build here, not a dead end in someone's terminal.
+          diff <(find dist -maxdepth 1 -type f ! -name SHA256SUMS.txt -exec basename {} \; | LC_ALL=C sort) \
+               <(awk '{ n = $2; sub(/^\*/, "", n); print n }' dist/SHA256SUMS.txt | LC_ALL=C sort) \
+            || { echo "::error::dist/ and SHA256SUMS.txt disagree (< staged, > listed) — refusing to publish."; exit 1; }
+
+      # A verifier whose refusals are never exercised is a verifier that has
+      # probably stopped refusing. 24 synthetic-origin cases, asserting the
+      # exit code AND that a diagnostic was printed.
+      - name: Prove the verifier still refuses broken releases
+        run: bash scripts/verify.sh --selftest
 
       - name: List assets
         run: ls -la dist
+
+      # Short-lived sigstore certificate minted from this job's OIDC identity —
+      # no long-lived key, no repository secret, nothing to rotate. Attests
+      # every file in dist/ INCLUDING SHA256SUMS.txt, so an attestation on the
+      # manifest transitively covers every asset the manifest names.
+      - name: Attest build provenance (sigstore via OIDC — no long-lived key)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
 
       - uses: softprops/action-gh-release@v2.2.1
         with:
           draft: true
           generate_release_notes: true
           name: Molao ${{ github.ref_name }}
+          body: |
+            ### Verify before you run this
+
+            ```sh
+            curl -fsSLO https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/verify.sh
+            bash verify.sh --tag ${{ github.ref_name }} --attest molao-${{ steps.sums.outputs.ver }}-linux-x86_64
+            ```
+
+            `verify.sh` fetches `SHA256SUMS.txt`, looks up the exact entry for
+            the asset and compares digests. It exits non-zero, with a distinct
+            diagnostic, on a missing or malformed manifest, a missing entry, a
+            truncated download or a digest mismatch. There is no skip path.
+            `--attest` additionally checks the sigstore build provenance (needs
+            the `gh` CLI); without it, provenance is NOT checked and the script
+            says so rather than letting a pass imply it.
           files: dist/*

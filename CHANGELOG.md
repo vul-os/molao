@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Release checksums are now fail-closed and cover every asset.** The release
+  job ran `cd dist && sha256sum molao-*`, which covered only files whose names
+  begin with `molao-` (anything else would have shipped unvouched-for) and
+  asserted nothing about coverage, so a manifest with one line for a
+  three-binary release was indistinguishable from a complete one. The manifest
+  is now written over every file in the staging directory, refuses to be
+  written at all for an empty directory, asserts one line per staged asset, and
+  is then re-verified — in both directions — with the same `scripts/verify.sh`
+  a user runs.
+
+- **Releases carry a sigstore build-provenance attestation.**
+  `actions/attest-build-provenance` signs every asset including
+  `SHA256SUMS.txt`, with a short-lived certificate minted from the release
+  job's OIDC token — no long-lived key, no repository secret, nothing to
+  rotate. This is the *software* release; it is unrelated to the threshold
+  signing of a **corpus** release by attesting organisations, and neither
+  vouches for the other. It is also **not** OS code-signing: Gatekeeper and
+  SmartScreen still warn.
+
+- **Added `scripts/verify.sh`** — the fail-closed check a user runs before
+  executing a downloaded binary. Distinct exit code and diagnostic per failure
+  mode (missing manifest 3, HTML page served as the manifest 4, empty/malformed
+  manifest 5, no entry 6, unfetchable artifact 7, truncated download 8, digest
+  mismatch 9, missing tool 10, failed attestation 11, plaintext origin 12).
+  There is no skip flag, and an absent `SHA256SUMS.txt` is never read as
+  "nothing to check". `--selftest` runs 24 synthetic-origin cases asserting the
+  exit code and that a diagnostic was printed; CI runs it on every push and the
+  release job runs it again before publishing.
+
+
 ### Added
 
 - `molao-core` — the layers every node must agree on exactly:

@@ -147,3 +147,18 @@ jobs:
       # site/docs/courts.md telling readers the feature was unimplemented.
       - name: Check site/docs mirror is in sync
         run: node scripts/sync-site-docs.mjs --check
+
+  # scripts/verify.sh is what a user runs before executing a release binary.
+  # Its 24 synthetic-origin cases assert, for each way a release can be wrong
+  # (manifest 404, HTML error page served as the manifest, empty/garbage
+  # manifest, no entry for the asset, the two name-matching traps, artifact
+  # 404, truncated download, digest mismatch, missing tools), both the exit
+  # code and that a diagnostic was actually printed. It runs on every push
+  # because a checksum guard that has quietly stopped failing is, from a green
+  # CI run, indistinguishable from one that works.
+  verify-script:
+    name: verify.sh selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/verify.sh --selftest
