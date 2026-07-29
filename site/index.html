@@ -83,6 +83,12 @@ h3{font-size:18px;margin:0 0 9px;letter-spacing:-.01em;font-weight:620}
 
 /* Cards */
 .grid{display:grid;gap:18px}
+/* A grid item defaults to min-width:auto, so it refuses to shrink below its
+   content. That made the code blocks inside these cells 508px wide in a
+   342px track — their own overflow-x:auto never engaged, and the whole page
+   scrolled sideways instead. min-width:0 lets the track win, so the pre
+   scrolls within its card the way it was always meant to. */
+.grid > *{min-width:0}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g2{grid-template-columns:repeat(2,1fr)}
 @media(max-width:900px){.g3,.g2{grid-template-columns:1fr}}
