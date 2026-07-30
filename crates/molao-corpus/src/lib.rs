@@ -47,11 +47,13 @@
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 
+pub mod attest;
 pub mod error;
 pub mod ingest;
 pub mod schema;
 pub mod search;
 
+pub use attest::{AttestationRow, AttestationStats};
 pub use error::{CorpusError, Result};
 pub use search::{sanitise_query, Hit, SearchFilters, MAX_LIMIT};
 
@@ -248,10 +250,15 @@ impl Corpus {
 
     /// Borrow the underlying connection.
     ///
-    /// An escape hatch for crates that own their own tables in this database —
-    /// `molao-graph` owns `treatments`. Callers must not write to tables this
-    /// crate manages; nothing enforces that, which is why the table list in
-    /// [`schema`] is the contract.
+    /// An escape hatch for crates that need SQL this crate does not wrap.
+    /// Callers must not write to tables this crate manages; nothing enforces
+    /// that, which is why the table list in [`schema`] is the contract.
+    ///
+    /// `treatments` used to be the exception — `molao-graph` wrote it through
+    /// this handle. It no longer does: [`attest`] is that table's row access,
+    /// so the store is again the single writer of every table it declares, and
+    /// `molao-graph` supplies only the meaning (vocabulary, signing bytes,
+    /// signature verification, trust policy).
     pub fn connection(&self) -> &Connection {
         &self.conn
     }
