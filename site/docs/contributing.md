@@ -109,6 +109,7 @@ contributors.
 
 ## Licence
 
-Contributions are MIT, matching the project ([LICENSE](LICENSE)). The judgments
-themselves are not anyone's to license; they are public documents of the
-Republic.
+Contributions are dual-licensed **MIT OR Apache-2.0**, matching the project
+([LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE)). The judgments
+themselves are nobody's to license: they are public documents, the work of the
+courts that handed them down.
