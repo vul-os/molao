@@ -78,10 +78,17 @@
 //!   peer exchange, no subscription to a signer, and no discovery of who has
 //!   attested to what. A node's attestation set is exactly what has been
 //!   imported into it, and nothing tells a reader what exists elsewhere.
-//! - **No authoring path.** Nothing in this repository signs an attestation.
-//!   [`Attestation::signing_bytes`] is public and the format is fixed, so an
-//!   attestor can produce one with any Ed25519 tooling, but there is no
-//!   `molao attest sign` command and no key management.
+//! - **No authoring path.** Nothing outside this module's own tests signs an
+//!   attestation. [`Attestation::signing_bytes`] is public and the format is
+//!   fixed and pinned by known-answer vectors, so an attestor can produce one
+//!   with any Ed25519 tooling — but there is no `molao attest sign`, no key
+//!   generation, and no key storage. Producing an attestation today means
+//!   writing the JSON and signing the canonical bytes yourself.
+//! - **Nothing has ever been attested.** No real attestation set exists, from
+//!   anyone, anywhere. Every attestation this code has processed was written by
+//!   a test. The plumbing works; the practice it is plumbing for has not
+//!   started, which is why the currency signal is close to useless in the
+//!   field however correct it is here.
 //! - **No CLI wiring.** There is no `molao attest import`; [`ingest`] and
 //!   [`ingest_bundle`] are library calls. A node's default [`TrustPolicy`] can
 //!   be attached to the server state in code, but no flag loads one from a
@@ -1397,6 +1404,31 @@ c6b1a8ff031924a6c9238a6df594ce0c";
         assert_eq!(report.examined, 4);
         assert_eq!(report.accepted, 2);
         assert_eq!(report.malformed, vec![1, 3]);
+    }
+
+    #[test]
+    fn a_bundle_can_be_imported_from_a_file() {
+        let dir = std::env::temp_dir().join(format!("molao-attest-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bundle.jsonl");
+        std::fs::write(
+            &path,
+            format!("{}\n", line(&signed(Treatment::Overruled, 1))),
+        )
+        .unwrap();
+
+        let c = corpus();
+        assert_eq!(ingest(&c, &path).unwrap().accepted, 1);
+        assert_eq!(verified_all(&c).unwrap().attestations.len(), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_bundle_that_is_not_there_is_an_error_not_a_silent_zero() {
+        // "Imported 0" from a path that does not exist is how a mirror thinks
+        // it has an attestation set and has nothing.
+        let err = ingest(&corpus(), "/nonexistent/molao/bundle.jsonl").unwrap_err();
+        assert!(matches!(err, molao_corpus::CorpusError::Io(_)), "{err}");
     }
 
     #[test]
