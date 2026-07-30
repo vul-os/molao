@@ -142,7 +142,7 @@ impl Corpus {
         let mut stmt = self.connection().prepare(&format!(
             "SELECT {COLUMNS} FROM treatments WHERE to_doc = ?1 {ORDER}"
         ))?;
-        let rows = stmt.query_map([to_doc], |r| row_from(r))?;
+        let rows = stmt.query_map([to_doc], row_from)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
@@ -155,7 +155,7 @@ impl Corpus {
         let mut stmt = self
             .connection()
             .prepare(&format!("SELECT {COLUMNS} FROM treatments {ORDER}"))?;
-        let rows = stmt.query_map([], |r| row_from(r))?;
+        let rows = stmt.query_map([], row_from)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 

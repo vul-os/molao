@@ -11,7 +11,13 @@ repository.workspace = true
 molao-core.workspace = true
 molao-corpus.workspace = true
 blake3.workspace = true
+# Attestations are self-authenticating: the signature check in `treatment` is
+# what stands between a forged "overruled" and a practitioner, because the
+# treatments table is excluded from the release root and nothing else covers it.
+ed25519-dalek.workspace = true
 hex.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 tracing.workspace = true

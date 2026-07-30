@@ -61,8 +61,13 @@
 //! Known biases, stated rather than buried:
 //!
 //! - **It measures citation, not correctness.** A frequently-distinguished case
-//!   and a frequently-followed one score alike. Fixing that needs treatment
-//!   attestations, which are [designed and not built](treatment).
+//!   and a frequently-followed one score alike, and an overruled case can still
+//!   score at the top. [`treatment`] now carries signed attestations that say
+//!   which is which, and **the score deliberately does not read them**: an
+//!   attestation is one named party's interpretation, and letting it move a
+//!   number that is otherwise recomputable by anyone would make authority
+//!   unverifiable and quietly give whoever attests most a lever on the ranking.
+//!   Treatment is shown beside the score, never folded into it.
 //! - **It is biased toward the old.** A judgment delivered last week cannot have
 //!   been cited yet. No recency correction is applied, because every available
 //!   one is a fudge factor with its own bias.
@@ -94,7 +99,10 @@
 
 pub mod treatment;
 
-pub use treatment::{Attestation, Treatment};
+pub use treatment::{
+    Attestation, AttestationError, Conflict, CurrencyReport, CurrencySignal, IngestReport,
+    Treatment, TreatmentView, TrustPolicy, TrustedSigner, Verified, VerifiedSet,
+};
 
 use molao_core::DocId;
 use molao_corpus::{Corpus, Result};
