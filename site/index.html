@@ -53,7 +53,41 @@
   --serif:"Fraunces","Iowan Old Style","Palatino Linotype",Palatino,Charter,Georgia,"Times New Roman",serif;
   --mono:"Plex Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   --sheet:1180px;
+
+  /* ── Type scale ───────────────────────────────────────────────────────────
+     The page's real mobile defect was never overflow — it was SIZE. Long-form
+     legal prose set at its desktop size on a 354px column yields six to eight
+     words a line, and a judgment-length argument becomes a wall.
+
+     Every token is clamp(phone, fluid, desktop): the floor is the value at
+     390px, the ceiling is the value this page already used, reached at 900px.
+     So a desktop reader sees exactly what they saw before and a phone reader
+     gets roughly 44 characters a line instead of 38.
+
+     The floor of the smallest token is 13.3px. That is deliberate headroom
+     over the 12px minimum the harness guards — a fluid scale that could ever
+     round under 12px would be a check waiting to fail. Anything already at or
+     below 13px (the mono labels, code, the rail) is NOT in this scale and is
+     not shrunk; those are at the floor already and shrinking them buys
+     nothing but a failing check. */
+  --t-xs:clamp(13.3px,12.77px + .137vw,14px);    /* figcaptions, colophon    */
+  --t-sm:clamp(14.6px,13.91px + .176vw,15.5px);  /* lists, cards, tables     */
+  --t-md:clamp(15.4px,14.56px + .216vw,16.5px);  /* secondary prose          */
+  --t-bd:clamp(16px,14.85px + .294vw,17.5px);    /* body and standfirsts     */
+  --t-lg:clamp(17px,13.56px + .882vw,21.5px);    /* the lede                 */
+  --t-h3:clamp(17.2px,15.86px + .343vw,19px);    /* subheads                 */
+
+  /* Leading and paragraph gap are the other half of the wall. Generous leading
+     is right for a wide measure and wrong for a narrow one: at 44 characters
+     the eye finds the next line without help, and 1.66 just adds height. */
+  --lh:1.66; --p-gap:1.05em;
+  /* Vertical rhythm, phone → desktop. Named so the whole page tightens from
+     one place rather than from thirty scattered clamps. */
+  --gap-chapter:clamp(30px,6.5vw,86px);   /* padding above/below a chapter   */
+  --gap-block:clamp(16px,3vw,32px);       /* the spacer between blocks       */
+  --gap-stand:clamp(15px,3vw,34px);       /* standfirst to the body below it */
 }
+@media(max-width:760px){:root{--lh:1.52;--p-gap:.85em}}
 @media (prefers-color-scheme: dark){
   :root{
     --paper:#100E0B; --paper-2:#16130F; --surface:#1A1713; --sink:#211D17;
@@ -72,7 +106,7 @@ html{scroll-behavior:smooth}
 
 body{
   margin:0;background:var(--paper);color:var(--body);
-  font-family:var(--serif);font-size:17.5px;line-height:1.66;font-weight:400;
+  font-family:var(--serif);font-size:var(--t-bd);line-height:var(--lh);font-weight:400;
   font-optical-sizing:auto;font-variation-settings:"SOFT" 6;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
   overflow-x:hidden;
@@ -93,7 +127,7 @@ body::before{
 img,svg{max-width:100%;height:auto;display:block}
 
 a{color:inherit;text-decoration:none}
-p{margin:0 0 1.05em}
+p{margin:0 0 var(--p-gap)}
 strong{font-weight:600;color:var(--ink)}
 em{font-style:italic}
 .sheet{max-width:var(--sheet);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
@@ -118,7 +152,7 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 .strip .push{margin-left:auto}
 @media(max-width:640px){.strip .push{margin-left:0}.strip .sep{display:none}}
 
-.plate{display:flex;align-items:flex-end;gap:clamp(14px,3vw,26px);padding:clamp(22px,4vw,34px) 0 clamp(16px,2.6vw,22px);flex-wrap:wrap}
+.plate{display:flex;align-items:flex-end;gap:clamp(12px,3vw,26px);padding:clamp(16px,4vw,34px) 0 clamp(12px,2.6vw,22px);flex-wrap:wrap}
 .plate .mark{width:clamp(46px,7vw,62px);flex:none}
 .plate .mark img{width:100%;height:auto}
 .plate .names{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -127,7 +161,7 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
   letter-spacing:-.018em;font-variation-settings:"SOFT" 0;
 }
 .plate .said{font-family:var(--mono);font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
-.plate .motto{margin-left:auto;text-align:right;max-width:30ch;color:var(--muted);font-size:15.5px;line-height:1.45;font-style:italic}
+.plate .motto{margin-left:auto;text-align:right;max-width:30ch;color:var(--muted);font-size:var(--t-sm);line-height:1.45;font-style:italic}
 @media(max-width:760px){.plate .motto{margin-left:0;text-align:left;max-width:none;font-size:15px}}
 .double{border-bottom:3px double var(--rule-3)}
 
@@ -152,29 +186,29 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 /* ── Opening ─────────────────────────────────────────────────────────────── */
 /* padding-block only: the shorthand here also reset .sheet's horizontal
    padding to 0, and the whole opening ran hard against the edge of a phone. */
-.open{padding-top:clamp(40px,6vw,72px);padding-bottom:clamp(34px,5vw,56px)}
+.open{padding-top:clamp(26px,6vw,72px);padding-bottom:clamp(24px,5vw,56px)}
 h1{
-  font-size:clamp(34px,5.6vw,60px);line-height:1.06;margin:0 0 .5em;font-weight:450;
+  font-size:clamp(29px,5.6vw,60px);line-height:1.06;margin:0 0 .42em;font-weight:450;
   color:var(--ink);letter-spacing:-.02em;font-variation-settings:"SOFT" 0;max-width:19ch;
 }
 h1 .brk{display:block}
-.lede{font-size:clamp(18px,2.2vw,21.5px);line-height:1.55;color:var(--body);max-width:60ch;margin:0 0 1em}
+.lede{font-size:var(--t-lg);line-height:1.42;color:var(--body);max-width:60ch;margin:0 0 1em}
 .lede strong{color:var(--ink)}
-.after{font-size:16.5px;color:var(--muted);max-width:62ch}
+.after{font-size:var(--t-md);color:var(--muted);max-width:62ch}
 
 /* Headnote — the block a law report puts above the judgment. */
-.headnote{margin:clamp(30px,4.4vw,44px) 0 0;border-top:3px double var(--rule-3);border-bottom:1px solid var(--rule);padding:22px 0 20px;display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:1fr}
+.headnote{margin:clamp(20px,4.4vw,44px) 0 0;border-top:3px double var(--rule-3);border-bottom:1px solid var(--rule);padding:clamp(14px,2.6vw,22px) 0 clamp(13px,2.4vw,20px);display:grid;gap:clamp(16px,3vw,40px);grid-template-columns:1fr}
 @media(min-width:840px){.headnote{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
 .lbl{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--seal-ink);font-weight:600;margin:0 0 9px;display:block}
-.held{margin:0;font-size:16.5px;color:var(--body)}
+.held{margin:0;font-size:var(--t-md);color:var(--body)}
 .held + .held{margin-top:.8em}
-.facts{list-style:none;margin:0;padding:0;font-size:15.5px}
+.facts{list-style:none;margin:0;padding:0;font-size:var(--t-sm)}
 .facts li{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--rule);color:var(--muted)}
 .facts li:last-child{border-bottom:0}
 .facts .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);flex:none;width:9.5em;padding-top:3px}
 .facts .v{color:var(--body);min-width:0}
 
-.acts{display:flex;flex-wrap:wrap;gap:12px;margin-top:clamp(26px,3.6vw,34px)}
+.acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:clamp(18px,3.6vw,34px)}
 .btn{
   display:inline-flex;align-items:center;gap:9px;padding:12px 20px;border-radius:2px;
   font-family:var(--mono);font-size:13px;letter-spacing:.07em;text-transform:uppercase;
@@ -186,25 +220,25 @@ h1 .brk{display:block}
 .btn .arrow{font-size:15px;line-height:1}
 
 /* ── Notice: the honest status, immediately after the opening ───────────── */
-.notice{border:1px solid var(--rule-2);border-left:4px solid var(--seal);background:var(--surface);padding:clamp(20px,3vw,28px);margin-top:clamp(30px,4vw,42px)}
-.notice h2{font-size:clamp(20px,2.6vw,25px);margin:0 0 12px;color:var(--ink);font-weight:500;letter-spacing:-.01em}
-.notice p{font-size:16px;color:var(--body);margin:0 0 .85em}
+.notice{border:1px solid var(--rule-2);border-left:4px solid var(--seal);background:var(--surface);padding:clamp(16px,3vw,28px);margin-top:clamp(20px,4vw,42px)}
+.notice h2{font-size:clamp(19px,2.6vw,25px);margin:0 0 12px;color:var(--ink);font-weight:500;letter-spacing:-.01em}
+.notice p{font-size:var(--t-md);color:var(--body);margin:0 0 .85em}
 .notice p:last-child{margin-bottom:0}
-.notice .cols{display:grid;gap:clamp(18px,2.6vw,32px);grid-template-columns:1fr;margin-top:6px}
+.notice .cols{display:grid;gap:clamp(14px,2.6vw,32px);grid-template-columns:1fr;margin-top:6px}
 @media(min-width:820px){.notice .cols{grid-template-columns:1fr 1fr}}
 .notice .cols h3{font-family:var(--mono);font-size:12.5px;letter-spacing:.11em;text-transform:uppercase;margin:0 0 10px;font-weight:600}
 .notice .built h3{color:var(--ok)}
 .notice .unbuilt h3{color:var(--stop)}
-.tick{list-style:none;margin:0;padding:0;font-size:15.5px}
-.tick li{position:relative;padding:0 0 9px 22px;color:var(--muted)}
+.tick{list-style:none;margin:0;padding:0;font-size:var(--t-sm)}
+.tick li{position:relative;padding:0 0 clamp(6px,1.2vw,9px) 20px;color:var(--muted)}
 .tick li strong{color:var(--ink)}
 .tick li::before{position:absolute;left:0;top:0;font-family:var(--mono);font-size:13px}
 .built .tick li::before{content:"✓";color:var(--ok)}
 .unbuilt .tick li::before{content:"—";color:var(--stop)}
 
 /* ── Chapters ───────────────────────────────────────────────────────────── */
-.chapter{border-top:3px double var(--rule-3);padding:clamp(46px,6.5vw,86px) 0}
-.chapter > .sheet{display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:1fr}
+.chapter{border-top:3px double var(--rule-3);padding:var(--gap-chapter) 0}
+.chapter > .sheet{display:grid;gap:clamp(12px,3vw,40px);grid-template-columns:1fr}
 /* A grid item defaults to min-width:auto, so it refuses to shrink below its
    own min-content. The figure scrollers and the ledger declare a min-width, so
    without this the CHAPTER grew to 660px inside a 320px viewport — and because
@@ -216,29 +250,29 @@ h1 .brk{display:block}
 .gutter{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
 .gutter .no{display:block;color:var(--seal-ink);font-weight:600;font-size:13px;margin-bottom:6px}
 @media(max-width:1019px){.gutter{display:flex;gap:12px;align-items:baseline}.gutter .no{margin-bottom:0}}
-h2{font-size:clamp(26px,3.7vw,38px);line-height:1.14;margin:0 0 .45em;color:var(--ink);font-weight:450;letter-spacing:-.018em;font-variation-settings:"SOFT" 0;max-width:22ch}
-h3{font-size:19px;margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacing:-.008em}
-.stand{font-size:17.5px;color:var(--muted);max-width:64ch;margin:0 0 clamp(24px,3vw,34px)}
+h2{font-size:clamp(23px,3.7vw,38px);line-height:1.14;margin:0 0 .45em;color:var(--ink);font-weight:450;letter-spacing:-.018em;font-variation-settings:"SOFT" 0;max-width:22ch}
+h3{font-size:var(--t-h3);margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacing:-.008em}
+.stand{font-size:var(--t-bd);color:var(--muted);max-width:64ch;margin:0 0 var(--gap-stand)}
 .stand strong{color:var(--ink)}
 
-.cols{display:grid;gap:clamp(18px,2.4vw,30px);grid-template-columns:1fr}
+.cols{display:grid;gap:clamp(14px,2.4vw,30px);grid-template-columns:1fr}
 .cols > *{min-width:0}
 @media(min-width:760px){.c2{grid-template-columns:1fr 1fr}}
 @media(min-width:900px){.c3{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:640px) and (max-width:899px){.c3{grid-template-columns:1fr 1fr}}
 
-.card{border:1px solid var(--rule);background:var(--surface);padding:clamp(18px,2.4vw,24px)}
-.card p{font-size:15.5px;color:var(--muted);margin:0 0 .8em}
+.card{border:1px solid var(--rule);background:var(--surface);padding:clamp(15px,2.4vw,24px)}
+.card p{font-size:var(--t-sm);color:var(--muted);margin:0 0 .8em}
 .card p:last-child{margin-bottom:0}
 .card p strong{color:var(--ink)}
 .card .lbl{margin-bottom:12px}
 
 .rules{list-style:none;margin:0;padding:0}
-.rules li{border-top:1px solid var(--rule);padding:16px 0;display:grid;gap:4px 20px;grid-template-columns:1fr}
+.rules li{border-top:1px solid var(--rule);padding:clamp(11px,2vw,16px) 0;display:grid;gap:4px 20px;grid-template-columns:1fr}
 @media(min-width:720px){.rules li{grid-template-columns:15.5em minmax(0,1fr)}}
 .rules li:last-child{border-bottom:1px solid var(--rule)}
-.rules .t{color:var(--ink);font-weight:550;font-size:16.5px}
-.rules .d{color:var(--muted);font-size:15.5px}
+.rules .t{color:var(--ink);font-weight:550;font-size:var(--t-md)}
+.rules .d{color:var(--muted);font-size:var(--t-sm)}
 
 .tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;padding:2px 7px;border:1px solid currentColor;border-radius:2px;vertical-align:1px;white-space:nowrap}
 .tag.no{color:var(--stop)}
@@ -247,7 +281,7 @@ h3{font-size:19px;margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacin
 
 /* ── Figures (drawn, not stock) ─────────────────────────────────────────── */
 figure{margin:0}
-.fig{border:1px solid var(--rule);background:var(--surface);padding:clamp(14px,2vw,20px)}
+.fig{border:1px solid var(--rule);background:var(--surface);padding:clamp(11px,2vw,20px)}
 .fig-scroll{overflow-x:auto;scrollbar-width:thin}
 /* The type inside an SVG scales with the viewBox. A figure squeezed into a
    320px viewport would drop its labels to ~6px — the sub-12px trap in vector
@@ -263,13 +297,13 @@ figure{margin:0}
 .fig .box{fill:var(--sink);stroke:var(--rule-2)}
 .fig .seal-fill{fill:var(--seal)}
 .fig .paper{fill:var(--surface);stroke:var(--rule-2)}
-figcaption{font-size:14px;color:var(--faint);margin-top:12px;line-height:1.5;max-width:62ch}
+figcaption{font-size:var(--t-xs);color:var(--faint);margin-top:9px;line-height:1.45;max-width:62ch}
 figcaption strong{color:var(--muted)}
 
 /* ── Ledger (jurisdiction map) ─────────────────────────────────────────── */
 .ledger-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--surface)}
-.ledger{width:100%;border-collapse:collapse;font-size:15px;min-width:640px}
-.ledger th,.ledger td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--rule);vertical-align:top}
+.ledger{width:100%;border-collapse:collapse;font-size:var(--t-sm);min-width:640px}
+.ledger th,.ledger td{text-align:left;padding:10px 16px;border-bottom:1px solid var(--rule);vertical-align:top}
 .ledger thead th{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--sink);border-bottom:1px solid var(--rule-2)}
 .ledger tbody tr:last-child td{border-bottom:0}
 .ledger .j{color:var(--ink);font-weight:550;width:26%}
@@ -283,7 +317,7 @@ figcaption strong{color:var(--muted)}
 .legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin:14px 0 0;font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase}
 
 /* ── Plates (screenshots) ──────────────────────────────────────────────── */
-.plates{display:grid;gap:clamp(18px,2.6vw,28px);grid-template-columns:1fr}
+.plates{display:grid;gap:clamp(14px,2.6vw,28px);grid-template-columns:1fr}
 @media(min-width:800px){.plates{grid-template-columns:1fr 1fr}}
 .plate-fig{border:1px solid var(--rule);background:var(--surface);padding:10px}
 .plate-fig img{width:100%;height:auto;border:0}
@@ -292,17 +326,17 @@ figcaption strong{color:var(--muted)}
 .hero-plate .shot{--shot-max:min(74vh,620px)}
 .plate-fig figcaption{margin:12px 4px 4px}
 .plate-fig .lbl{margin-bottom:6px}
-.hero-plate{margin-top:clamp(30px,4vw,44px)}
+.hero-plate{margin-top:clamp(20px,4vw,44px)}
 .phones{display:grid;gap:clamp(14px,2.4vw,24px);grid-template-columns:repeat(3,1fr)}
 @media(max-width:560px){.phones{grid-template-columns:1fr;max-width:300px;margin:0 auto}}
 .phones img{width:100%;height:auto;border:1px solid var(--rule)}
 
 /* ── Invitation ────────────────────────────────────────────────────────── */
-.invite{background:var(--surface);border:1px solid var(--rule-2);border-top:4px solid var(--seal);padding:clamp(24px,4vw,44px)}
+.invite{background:var(--surface);border:1px solid var(--rule-2);border-top:4px solid var(--seal);padding:clamp(17px,4vw,44px)}
 .invite h2{margin-top:0}
-.invite .prose{font-size:17px;color:var(--body)}
-.crit{width:100%;border-collapse:collapse;font-size:15.5px;margin:0}
-.crit th,.crit td{text-align:left;padding:12px 14px 12px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.invite .prose{font-size:var(--t-bd);color:var(--body)}
+.crit{width:100%;border-collapse:collapse;font-size:var(--t-sm);margin:0}
+.crit th,.crit td{text-align:left;padding:clamp(8px,1.6vw,12px) 14px clamp(8px,1.6vw,12px) 0;border-bottom:1px solid var(--rule);vertical-align:top}
 .crit th{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600}
 .crit td:first-child{color:var(--ink);font-weight:550;width:38%}
 .crit td:last-child{color:var(--muted)}
@@ -315,9 +349,9 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 .honest .t{display:block}
 
 /* ── Colophon ──────────────────────────────────────────────────────────── */
-.colophon{border-top:3px double var(--rule-3);padding:clamp(24px,3vw,32px) 0 clamp(26px,3.2vw,34px)}
+.colophon{border-top:3px double var(--rule-3);padding:clamp(18px,3vw,32px) 0 clamp(20px,3.2vw,34px)}
 .colo{display:flex;flex-wrap:wrap;gap:16px 30px;justify-content:space-between;align-items:center}
-.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;max-width:46ch}
+.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:var(--t-xs);max-width:46ch}
 .colo .who img{width:20px;height:20px;flex:none}
 .colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
 .colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
@@ -325,7 +359,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 /* The colophon line: one rule of meta items, not a paragraph. It used to be a
    single 70ch run-on that wrapped to four lines on a desktop and far more on a
    phone, which gave fine print more vertical weight than the links above it. */
-.fine{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule-1);
+.fine{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule);
   display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
 .fine span{display:inline-block}
 .fine span+span::before{content:"·";margin:0 .6em;color:var(--rule-3)}
@@ -474,7 +508,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </div>
       </div>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <figure class="fig">
         <div class="fig-scroll">
@@ -528,7 +562,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <figcaption><span class="lbl">Figure 1</span> Authority ranking is inbound citations weighted by the citing court's place in the hierarchy — an appellate judgment relying on a case says more about that case than a first-instance one does. <strong>Deliberately coarse:</strong> no constant captures a theory of precedent, and this one does not pretend to.</figcaption>
       </figure>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <ul class="rules">
         <li><span class="t">Works completely offline</span><span class="d">A node with a corpus on disk needs no peers, no relay and no internet. Pull the plug and it keeps serving the law. This is a hard guarantee, not a degraded mode — which is why peer-to-peer distribution will never be <em>required</em> to read the law.</span></li>
@@ -647,7 +681,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </figure>
       </div>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <ul class="rules">
         <li><span class="t">Judgment ids are hashes</span><span class="d">A judgment's id is the BLAKE3 hash of its canonical text. Alter a paragraph and the id no longer matches — which is what makes a judgment received from an untrusted peer safe to keep. Canonicalisation is aggressive on purpose: judgments arrive as RTF, PDF and HTML, and every converter disagrees about whitespace.</span></li>
@@ -711,7 +745,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </div>
       </div>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <span class="lbl">The map, as it actually stands</span>
       <div class="ledger-wrap">
@@ -742,7 +776,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <span class="s-stop"><span class="dot"></span>Off-limits by their policy</span>
       </div>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <div class="card">
         <span class="lbl">Where a community moves faster than a team</span>
@@ -805,7 +839,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </figure>
       </div>
 
-      <div style="height:clamp(22px,3vw,32px)"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <figure class="plate-fig">
         <span class="lbl">Plate VI · on a phone</span>
@@ -832,7 +866,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <p>Attestors should be institutions with an independent reason to care about the integrity of their jurisdiction's law, and no shared point of failure: <strong>university law faculties and their libraries, law societies and bar councils, legal-aid and public-interest litigation organisations, LII-network members and archives.</strong></p>
       </div>
 
-      <div style="height:20px"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <table class="crit">
         <thead><tr><th scope="col">What matters</th><th scope="col">Why</th></tr></thead>
@@ -845,7 +879,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </tbody>
       </table>
 
-      <div style="height:26px"></div>
+      <div style="height:var(--gap-block)"></div>
 
       <div class="cols c2">
         <div class="card">
