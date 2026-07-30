@@ -82,10 +82,10 @@ deliberate and are explained below.
 | `molao-core` | `DocId`, `canonicalise()`, `Judgment`, `Paragraph`, `Provenance`, `ProvenanceClass`, region profiles (court registry, loaded from TOML or compiled in), threshold-signed releases | Written, tested |
 | `molao-cite` | Deterministic citation extraction, profile-driven series registry, `EXTRACTOR_VERSION` | Written, tested |
 | `molao-corpus` | SQLite storage, FTS5 search, ingest | In progress |
-| `molao-graph` | Citation graph, authority scoring, treatment attestations | In progress; treatment attestations **designed, not built** |
+| `molao-graph` | Citation graph, authority scoring, treatment attestations | In progress; attestation machinery built and tested, but **nobody has attested anything** and there is no UI |
 | `molao-ingest` | Robots-respecting fetch, Akoma Ntoso / HTML / PDF ingest, witness corroboration, jurisdiction adapters | In progress; used by the node |
 | `molao-index` | Local rebuildable keyword+vector search cache, never part of a release ([RAG.md](RAG.md)) | In progress; used by the node |
-| `molao-dist` | Content-addressed release packaging, torrent v2 export, delta, transports | In progress; **nothing depends on it** — no node command publishes or fetches a release |
+| `molao-dist` | Content-addressed release packaging, torrent v2 export, delta, transports | In progress; reached from `molao release`, but **no release has ever moved through it** |
 | node binary | `axum` HTTP server, embedded UI | In progress |
 | `apps/web` | TypeScript + Vite + Preact UI, embedded into the binary | In progress |
 

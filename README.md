@@ -171,9 +171,11 @@ uses fewer forms simply matches fewer of them.
   corpus that does not know case A was overruled by case B will hand a lawyer
   dead authority. Mechanical citation edges are deterministic and verifiable, and
   those exist. Treatment labels (followed / distinguished / overruled) are
-  interpretation — they will be **signed attestations that may conflict, showing
-  disagreement rather than resolving it**, and they are **designed, not built**.
-  Until then, check currency yourself.
+  interpretation, and are modelled as **signed attestations that may conflict,
+  showing disagreement rather than resolving it**. That machinery is now built
+  and tested — signatures checked on ingest and again on every read, conflicts
+  displayed and never resolved — but **nobody has attested anything**, and
+  there is no UI for it. Check currency yourself.
 - **"No central server" is achievable; "no central authority" is not.** Somebody
   must attest that a hash is the real judgment. So the trust root is a quorum
   plus a public append-only log, not one operator. That is a large improvement
@@ -196,9 +198,10 @@ uses fewer forms simply matches fewer of them.
   is not yet live is moving a release peer-to-peer and having a public
   corpus to move. `molao-dist` (content-addressed packaging, a torrent
   export, a filesystem transport, and an iroh adapter behind `--features
-  iroh`) is in the workspace and tested, but **no node uses it**: it has no
-  dependents, and there is no `molao` command that publishes or fetches a
-  release. It does not by itself create a public corpus either.
+  iroh`) is reached from `molao release publish/sign/fetch/torrent`, and
+  `molao release fetch` writes nothing if verification fails. But **no
+  release has ever moved through it** — there is none to move, and nothing
+  has been seeded. It does not by itself create a public corpus either.
   [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)
 
 ## Screenshots

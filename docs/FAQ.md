@@ -81,8 +81,10 @@ screen.
 A corpus that does not know case A was overruled by case B will hand a lawyer
 dead authority. Mechanical citation edges — who cited whom, at which paragraph —
 are deterministic and verifiable, and those are built. Treatment labels
-(followed, distinguished, overruled) are interpretation, cannot be verified by
-recomputation, and are **designed, not built**.
+(followed, distinguished, overruled) are interpretation and cannot be verified
+by recomputation. The machinery for them is built and tested; **nobody has
+attested anything**, and there is no UI, so in practice you still get no
+treatment signal.
 
 When they land they will be modelled as **signed attestations that may
 conflict**, and the UI will show the disagreement rather than resolve it. Two
@@ -148,8 +150,8 @@ Re-verification against a release catches it.
 
 Completely. A node with a corpus on disk needs no peers, no relay, and no
 internet. This is a hard guarantee, not a degraded mode, and it is why P2P
-distribution — which is designed, not built — will never be a requirement for
-reading the law.
+distribution — which is built but has never carried a release — will never be a
+requirement for reading the law.
 
 ### Does it track me?
 
