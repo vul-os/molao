@@ -315,14 +315,26 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 .honest .t{display:block}
 
 /* ── Colophon ──────────────────────────────────────────────────────────── */
-.colophon{border-top:3px double var(--rule-3);padding:clamp(30px,4vw,44px) 0 clamp(40px,5vw,56px)}
-.colo{display:flex;flex-wrap:wrap;gap:20px 30px;justify-content:space-between;align-items:flex-start}
-.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14.5px;max-width:44ch}
+.colophon{border-top:3px double var(--rule-3);padding:clamp(24px,3vw,32px) 0 clamp(26px,3.2vw,34px)}
+.colo{display:flex;flex-wrap:wrap;gap:16px 30px;justify-content:space-between;align-items:center}
+.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;max-width:46ch}
 .colo .who img{width:20px;height:20px;flex:none}
-.colo .links{display:flex;flex-wrap:wrap;gap:10px 22px}
+.colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
 .colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .colo .links a:hover{color:var(--ink)}
-.fine{margin-top:22px;font-size:14px;color:var(--faint);max-width:70ch}
+/* The colophon line: one rule of meta items, not a paragraph. It used to be a
+   single 70ch run-on that wrapped to four lines on a desktop and far more on a
+   phone, which gave fine print more vertical weight than the links above it. */
+.fine{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule-1);
+  display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
+.fine span{display:inline-block}
+.fine span+span::before{content:"·";margin:0 .6em;color:var(--rule-3)}
+@media (max-width:560px){
+  /* Stacked on a phone, where a middot rule would wrap into orphans. */
+  .fine{display:block}
+  .fine span{display:block;margin-top:5px}
+  .fine span+span::before{content:none}
+}
 </style>
 </head>
 <body>
@@ -925,7 +937,11 @@ cargo run -p molao-node</code></pre>
         <a href="./LICENSE.txt">Licence</a>
       </div>
     </div>
-    <p class="fine">MIT or Apache-2.0 — © Molao contributors. The judgments themselves are not anyone's to license: they are public documents, the work of the courts. This page makes no outbound requests — the fonts, the mark and every figure on it are served from this origin, which is the same promise the node makes.</p>
+    <p class="fine">
+      <span>MIT or Apache-2.0 · © Molao contributors</span>
+      <span>The judgments are nobody's to license — they are the work of the courts</span>
+      <span>No outbound requests: fonts, mark and figures all served from this origin</span>
+    </p>
   </div>
 </footer>
 
