@@ -83,11 +83,11 @@
   --lh:1.66; --p-gap:1.05em;
   /* Vertical rhythm, phone → desktop. Named so the whole page tightens from
      one place rather than from thirty scattered clamps. */
-  --gap-chapter:clamp(30px,6.5vw,86px);   /* padding above/below a chapter   */
-  --gap-block:clamp(16px,3vw,32px);       /* the spacer between blocks       */
-  --gap-stand:clamp(15px,3vw,34px);       /* standfirst to the body below it */
+  --gap-chapter:clamp(25px,6.5vw,86px);   /* padding above/below a chapter   */
+  --gap-block:clamp(14px,3vw,32px);       /* the spacer between blocks       */
+  --gap-stand:clamp(12px,3vw,34px);       /* standfirst to the body below it */
 }
-@media(max-width:760px){:root{--lh:1.52;--p-gap:.85em}}
+@media(max-width:760px){:root{--lh:1.5;--p-gap:.8em}}
 @media (prefers-color-scheme: dark){
   :root{
     --paper:#100E0B; --paper-2:#16130F; --surface:#1A1713; --sink:#211D17;
@@ -193,12 +193,16 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 
    Applied only below 900px: above it the rail fits, and .rail-end is pushed to
    the right margin, where a fade would eat Docs and Source for no reason. */
-@media(max-width:900px){
-  .rail .rail-end{margin-left:0}
-  .rail-inner[data-fade="right"]{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
-  .rail-inner[data-fade="left"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px);mask-image:linear-gradient(to right,transparent,#000 28px)}
-  .rail-inner[data-fade="both"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent)}
-}
+@media(max-width:900px){.rail .rail-end{margin-left:0}}
+
+/* The shared sideways-scroll affordance, used by the index rail, the drawn
+   figures and the phone plates. data-fade is set by script to whichever edges
+   actually have content past them, so a scroller that fits is never dimmed and
+   the fade never claims there is more when there is not. No media query needed:
+   "does this overflow" is the only condition that matters. */
+.swipe[data-fade="right"]{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
+.swipe[data-fade="left"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px);mask-image:linear-gradient(to right,transparent,#000 28px)}
+.swipe[data-fade="both"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent)}
 
 :focus-visible{outline:2px solid var(--seal);outline-offset:3px;border-radius:2px}
 .skip{position:absolute;left:-9999px}
@@ -224,7 +228,7 @@ h1 .brk{display:block}
 .held{margin:0;font-size:var(--t-md);color:var(--body)}
 .held + .held{margin-top:.8em}
 .facts{list-style:none;margin:0;padding:0;font-size:var(--t-sm)}
-.facts li{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--rule);color:var(--muted)}
+.facts li{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--rule);color:var(--muted)}
 .facts li:last-child{border-bottom:0}
 .facts .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);flex:none;width:9.5em;padding-top:3px}
 .facts .v{color:var(--body);min-width:0}
@@ -271,8 +275,8 @@ h1 .brk{display:block}
 .gutter{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
 .gutter .no{display:block;color:var(--seal-ink);font-weight:600;font-size:13px;margin-bottom:6px}
 @media(max-width:1019px){.gutter{display:flex;gap:12px;align-items:baseline}.gutter .no{margin-bottom:0}}
-h2{font-size:clamp(23px,3.7vw,38px);line-height:1.14;margin:0 0 .45em;color:var(--ink);font-weight:450;letter-spacing:-.018em;font-variation-settings:"SOFT" 0;max-width:22ch}
-h3{font-size:var(--t-h3);margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacing:-.008em}
+h2{font-size:clamp(23px,3.7vw,38px);line-height:1.12;margin:0 0 .38em;color:var(--ink);font-weight:450;letter-spacing:-.018em;font-variation-settings:"SOFT" 0;max-width:22ch}
+h3{font-size:var(--t-h3);margin:0 0 .42em;color:var(--ink);font-weight:550;letter-spacing:-.008em}
 .stand{font-size:var(--t-bd);color:var(--muted);max-width:64ch;margin:0 0 var(--gap-stand)}
 .stand strong{color:var(--ink)}
 
@@ -282,14 +286,14 @@ h3{font-size:var(--t-h3);margin:0 0 .5em;color:var(--ink);font-weight:550;letter
 @media(min-width:900px){.c3{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:640px) and (max-width:899px){.c3{grid-template-columns:1fr 1fr}}
 
-.card{border:1px solid var(--rule);background:var(--surface);padding:clamp(15px,2.4vw,24px)}
+.card{border:1px solid var(--rule);background:var(--surface);padding:clamp(13px,2.4vw,24px)}
 .card p{font-size:var(--t-sm);color:var(--muted);margin:0 0 .8em}
 .card p:last-child{margin-bottom:0}
 .card p strong{color:var(--ink)}
 .card .lbl{margin-bottom:12px}
 
 .rules{list-style:none;margin:0;padding:0}
-.rules li{border-top:1px solid var(--rule);padding:clamp(11px,2vw,16px) 0;display:grid;gap:4px 20px;grid-template-columns:1fr}
+.rules li{border-top:1px solid var(--rule);padding:clamp(9px,2vw,16px) 0;display:grid;gap:4px 20px;grid-template-columns:1fr}
 @media(min-width:720px){.rules li{grid-template-columns:15.5em minmax(0,1fr)}}
 .rules li:last-child{border-bottom:1px solid var(--rule)}
 .rules .t{color:var(--ink);font-weight:550;font-size:var(--t-md)}
@@ -374,6 +378,36 @@ figcaption strong{color:var(--muted)}
 .phones{display:grid;gap:clamp(14px,2.4vw,24px);grid-template-columns:repeat(3,1fr)}
 @media(max-width:560px){.phones{grid-template-columns:1fr;max-width:300px;margin:0 auto}}
 .phones img{width:100%;height:auto;border:1px solid var(--rule)}
+.shot .full{display:block}
+/* A 2880px-wide capture shown 354px wide is a twelfth of scale — on a phone
+   these plates can establish that the interface exists and nothing more, and
+   the caption is what carries the meaning. So the crop gets shorter and the
+   plate links to the full-resolution file, which is the only way those pixels
+   are ever legible on a handset. Same origin, so the page still makes no
+   outbound request. */
+@media(max-width:760px){
+  .plate-fig .shot{--shot-max:225px}
+  .hero-plate .shot{--shot-max:290px}
+  .shot .full::after{
+    content:"Tap for full size";position:absolute;right:8px;bottom:8px;z-index:2;
+    font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;
+    padding:7px 11px;border:1px solid var(--rule-2);border-radius:2px;
+    background:var(--surface);color:var(--muted);
+  }
+}
+/* Three stacked phone captures cost 1,950px — 2.3 screens for one figure. As a
+   snapped swipe strip they cost one, at exactly the width they had before, so
+   nothing is made less legible. These are the captures that ARE readable on a
+   phone: 1170px wide shown at 300 is near their true size. */
+@media(max-width:560px){
+  .phones{
+    display:flex;grid-template-columns:none;max-width:none;gap:12px;
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    scroll-snap-type:x mandatory;overscroll-behavior-x:contain;padding-bottom:2px;
+  }
+  .phones::-webkit-scrollbar{display:none}
+  .phones img{flex:0 0 min(300px,78vw);width:min(300px,78vw);scroll-snap-align:center}
+}
 
 /* ── Invitation ────────────────────────────────────────────────────────── */
 .invite{background:var(--surface);border:1px solid var(--rule-2);border-top:4px solid var(--seal);padding:clamp(17px,4vw,44px)}
@@ -454,7 +488,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
 <nav class="rail" aria-label="Sections">
   <div class="sheet">
-    <div class="rail-inner">
+    <div class="rail-inner swipe">
       <a href="#access">Access to law</a>
       <a href="#trust">Trust</a>
       <a href="#jurisdictions">Jurisdictions</a>
@@ -534,7 +568,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
   </section>
 
   <figure class="plate-fig hero-plate">
-    <div class="shot"><img src="./screenshots/hero.png" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async"></div>
+    <div class="shot"><a class="full" href="./screenshots/hero.png"><img src="./screenshots/hero.png" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async"></a></div>
     <figcaption><span class="lbl">Plate I · search</span> Every result carries its court, neutral citation, provenance class and inbound-citation weight. <strong>All screenshots are of the demo corpus — synthetic judgments with a real citation graph between them. There is no bundled corpus yet.</strong></figcaption>
   </figure>
 </div>
@@ -562,7 +596,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <div style="height:var(--gap-block)"></div>
 
       <figure class="fig">
-        <div class="fig-scroll">
+        <div class="fig-scroll swipe">
           <svg viewBox="0 0 700 330" role="img" aria-labelledby="fig1t fig1d">
             <title id="fig1t">Authority ranking from inbound citations weighted by court tier</title>
             <desc id="fig1d">Four citing courts on the left — Apex weighted 1.00, Appellate 0.80, High Court 0.50 and Lower 0.10 — send citation edges of increasing thickness into a single judgment at the centre. On the right, the judgment's own outbound citations leave towards the cases it relies on.</desc>
@@ -635,7 +669,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
       <div class="cols">
         <figure class="fig">
-          <div class="fig-scroll">
+          <div class="fig-scroll swipe">
             <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig2t fig2d">
               <title id="fig2t">A release is signed by k of n independent organisations</title>
               <desc id="fig2d">A manifest naming the corpus root, graph root and previous release is signed by three of five independent signers; two have not signed. Below, a note records that a threshold of one is refused by the verifier even when every signature is valid.</desc>
@@ -686,7 +720,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         </figure>
 
         <figure class="fig">
-          <div class="fig-scroll">
+          <div class="fig-scroll swipe">
             <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig3t fig3d">
               <title id="fig3t">Releases chain by hash, so a fork is detectable</title>
               <desc id="fig3d">Three releases in sequence, each naming its predecessor's hash. A fourth, divergent release branches from the second and is marked as detectable against any known head.</desc>
@@ -873,19 +907,19 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
       <div class="plates">
         <figure class="plate-fig">
-          <div class="shot"><img src="./screenshots/judgment.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></div>
+          <div class="shot"><a class="full" href="./screenshots/judgment.png"><img src="./screenshots/judgment.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></a></div>
           <figcaption><span class="lbl">Plate II · a judgment</span> Numbered paragraphs as printed, with court, case number, coram, parallel reported citations, and the provenance class.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <div class="shot"><img src="./screenshots/citations.png" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async"></div>
+          <div class="shot"><a class="full" href="./screenshots/citations.png"><img src="./screenshots/citations.png" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async"></a></div>
           <figcaption><span class="lbl">Plate III · citations</span> Both directions, with the paragraph cited from and the pinpoint cited to. Unresolved citations appear as written rather than being dropped.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <div class="shot"><img src="./screenshots/graph.png" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async"></div>
+          <div class="shot"><a class="full" href="./screenshots/graph.png"><img src="./screenshots/graph.png" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async"></a></div>
           <figcaption><span class="lbl">Plate IV · the graph</span> The citation graph around one judgment, edges weighted by the citing court's tier.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <div class="shot"><img src="./screenshots/status.png" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async"></div>
+          <div class="shot"><a class="full" href="./screenshots/status.png"><img src="./screenshots/status.png" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async"></a></div>
           <figcaption><span class="lbl">Plate V · node status</span> Release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed — public on <code>/api/status</code>, so a federation's health is visible rather than assumed.</figcaption>
         </figure>
       </div>
@@ -894,7 +928,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
       <figure class="plate-fig">
         <span class="lbl">Plate VI · on a phone</span>
-        <div class="phones">
+        <div class="phones swipe">
           <img src="./screenshots/mobile-search.png" alt="Molao search results on a phone." loading="lazy" decoding="async">
           <img src="./screenshots/mobile-judgment.png" alt="A judgment displayed on a phone." loading="lazy" decoding="async">
           <img src="./screenshots/mobile-graph.png" alt="The citation graph on a phone." loading="lazy" decoding="async">
@@ -1038,22 +1072,24 @@ document.querySelectorAll('a[href^="http"]').forEach(function(a){
   a.rel = 'noopener';
 });
 
-// The index rail scrolls sideways on a phone. Mark which edges have content
-// beyond them so the stylesheet can fade exactly those, and none when the rail
-// fits. CSS alone cannot ask "is this element scrolled", and a fade that is
-// always on would lie about a rail with nothing past its edge.
+// Three things scroll sideways on a phone: the index rail, the drawn figures
+// and the phone plates. Mark which edges have content past them so the stylesheet
+// can fade exactly those, and none when the scroller fits. CSS alone cannot ask
+// "is this element scrolled", and a fade that was always on would claim there is
+// more to see when there is not.
 (function(){
-  var rail = document.querySelector('.rail-inner');
-  if (!rail) return;
-  function mark(){
-    var over = rail.scrollWidth - rail.clientWidth;
-    if (over <= 1) { rail.dataset.fade = 'none'; return; }
-    var left = rail.scrollLeft > 2, right = rail.scrollLeft < over - 2;
-    rail.dataset.fade = left && right ? 'both' : right ? 'right' : 'left';
+  var all = [].slice.call(document.querySelectorAll('.swipe'));
+  function mark(el){
+    var over = el.scrollWidth - el.clientWidth;
+    if (over <= 1) { el.dataset.fade = 'none'; return; }
+    var left = el.scrollLeft > 2, right = el.scrollLeft < over - 2;
+    el.dataset.fade = left && right ? 'both' : right ? 'right' : 'left';
   }
-  rail.addEventListener('scroll', mark, { passive: true });
-  window.addEventListener('resize', mark);
-  mark();
+  all.forEach(function(el){
+    el.addEventListener('scroll', function(){ mark(el); }, { passive: true });
+    mark(el);
+  });
+  window.addEventListener('resize', function(){ all.forEach(mark); });
 })();
 </script>
 </body>
