@@ -286,7 +286,10 @@ figcaption strong{color:var(--muted)}
 .plates{display:grid;gap:clamp(18px,2.6vw,28px);grid-template-columns:1fr}
 @media(min-width:800px){.plates{grid-template-columns:1fr 1fr}}
 .plate-fig{border:1px solid var(--rule);background:var(--surface);padding:10px}
-.plate-fig img{width:100%;height:auto;border:1px solid var(--rule)}
+.plate-fig img{width:100%;height:auto;border:0}
+.shot{position:relative;overflow:hidden;border:1px solid var(--rule);max-height:var(--shot-max,420px)}
+.shot::after{content:"";position:absolute;left:0;right:0;bottom:0;height:52px;pointer-events:none;background:linear-gradient(to bottom,transparent,var(--surface))}
+.hero-plate .shot{--shot-max:min(74vh,620px)}
 .plate-fig figcaption{margin:12px 4px 4px}
 .plate-fig .lbl{margin-bottom:6px}
 .hero-plate{margin-top:clamp(30px,4vw,44px)}
@@ -434,7 +437,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
   </section>
 
   <figure class="plate-fig hero-plate">
-    <img src="./screenshots/hero.png" width="2880" height="1800" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async">
+    <div class="shot"><img src="./screenshots/hero.png" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async"></div>
     <figcaption><span class="lbl">Plate I · search</span> Every result carries its court, neutral citation, provenance class and inbound-citation weight. <strong>All screenshots are of the demo corpus — synthetic judgments with a real citation graph between them. There is no bundled corpus yet.</strong></figcaption>
   </figure>
 </div>
@@ -773,19 +776,19 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
       <div class="plates">
         <figure class="plate-fig">
-          <img src="./screenshots/judgment.png" width="2880" height="1800" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async">
+          <div class="shot"><img src="./screenshots/judgment.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></div>
           <figcaption><span class="lbl">Plate II · a judgment</span> Numbered paragraphs as printed, with court, case number, coram, parallel reported citations, and the provenance class.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <img src="./screenshots/citations.png" width="2880" height="1800" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async">
+          <div class="shot"><img src="./screenshots/citations.png" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async"></div>
           <figcaption><span class="lbl">Plate III · citations</span> Both directions, with the paragraph cited from and the pinpoint cited to. Unresolved citations appear as written rather than being dropped.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <img src="./screenshots/graph.png" width="2880" height="1800" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async">
+          <div class="shot"><img src="./screenshots/graph.png" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async"></div>
           <figcaption><span class="lbl">Plate IV · the graph</span> The citation graph around one judgment, edges weighted by the citing court's tier.</figcaption>
         </figure>
         <figure class="plate-fig">
-          <img src="./screenshots/status.png" width="2880" height="1800" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async">
+          <div class="shot"><img src="./screenshots/status.png" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async"></div>
           <figcaption><span class="lbl">Plate V · node status</span> Release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed — public on <code>/api/status</code>, so a federation's health is visible rather than assumed.</figcaption>
         </figure>
       </div>
@@ -795,9 +798,9 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <figure class="plate-fig">
         <span class="lbl">Plate VI · on a phone</span>
         <div class="phones">
-          <img src="./screenshots/mobile-search.png" width="1170" height="2532" alt="Molao search results on a phone." loading="lazy" decoding="async">
-          <img src="./screenshots/mobile-judgment.png" width="1170" height="2532" alt="A judgment displayed on a phone." loading="lazy" decoding="async">
-          <img src="./screenshots/mobile-graph.png" width="1170" height="2532" alt="The citation graph on a phone." loading="lazy" decoding="async">
+          <img src="./screenshots/mobile-search.png" alt="Molao search results on a phone." loading="lazy" decoding="async">
+          <img src="./screenshots/mobile-judgment.png" alt="A judgment displayed on a phone." loading="lazy" decoding="async">
+          <img src="./screenshots/mobile-graph.png" alt="The citation graph on a phone." loading="lazy" decoding="async">
         </div>
         <figcaption>The same node, the same corpus, on a handset — because a great deal of legal research in the jurisdictions this matters most to happens on a phone.</figcaption>
       </figure>
