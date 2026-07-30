@@ -183,7 +183,7 @@ h3 {
 }
 
 .label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -210,7 +210,7 @@ h3 {
 }
 
 .chip__k {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -219,7 +219,7 @@ h3 {
 
 .chip__v {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.012em;
   overflow: hidden;
@@ -741,7 +741,7 @@ main {
 
 .tabs .count {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--dim);
 }
@@ -788,7 +788,7 @@ main {
 }
 
 .aside-card > h2 {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -852,7 +852,7 @@ main {
 .ledger .k {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -905,7 +905,7 @@ main {
 
 .para .num {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--dim);
   text-align: right;
@@ -946,9 +946,16 @@ a.cite:hover {
   border-bottom-color: var(--accent);
 }
 
+/* Unlike a resolved citation (always a short "[year] court n"), an unresolved
+   one is shown as written plus its "not in corpus" badge, and "as written"
+   can run long. Nowrap on that combination was pushing the whole page into
+   horizontal scroll on a narrow phone. The citation must stay visible, not
+   force a scrollbar to stay on one line, so it wraps like the surrounding
+   prose instead — this is the one `.cite` variant that opts back out. */
 span.cite.unresolved {
   color: var(--muted);
   border-bottom: 1px dotted var(--line-strong);
+  white-space: normal;
   cursor: help;
 }
 
@@ -958,7 +965,7 @@ span.cite.unresolved::after {
   padding: 1px 4px;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
-  font-size: 9.5px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--dim);
@@ -1104,7 +1111,7 @@ a.citerow:hover .name {
   gap: 7px;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* The phone rendering of the citation neighbourhood. Hidden on desktop, where
@@ -1120,7 +1127,7 @@ a.citerow:hover .name {
 
 .lane-caption {
   margin: 0 0 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -1183,7 +1190,7 @@ a.citerow:hover .name {
 }
 
 .lane-sub {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* Labels carry a halo in the surface colour so an edge passing behind one
@@ -1277,7 +1284,7 @@ a.citerow:hover .name {
   display: block;
   margin-top: 5px;
   color: var(--dim);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .section {
@@ -1315,7 +1322,7 @@ a.citerow:hover .name {
 
 .prov-hint {
   color: var(--dim);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -1365,7 +1372,7 @@ th {
   padding: 10px 15px;
   border-bottom: 1px solid var(--line-strong);
   background: var(--surface-2);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1501,7 +1508,7 @@ td.code a:hover {
 
   .footer {
     padding: 18px 14px 24px;
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
   .search-field {
@@ -1596,7 +1603,7 @@ td.code a:hover {
   }
 
   .tabs .count {
-    font-size: 10.5px;
+    font-size: 12px;
   }
 
   .para {
@@ -1643,6 +1650,28 @@ td.code a:hover {
 
   .state {
     padding: 40px 8px;
+  }
+}
+
+/* ---- narrowest phones (down to 320px) ------------------------------------
+   Brand and nav already fit at 320px; the demo-corpus disclosure did not —
+   the topbar forced the page into horizontal scroll to keep it on one line.
+   It never gets to disappear to fix that: it drops to a row of its own. */
+@media (max-width: 340px) {
+  .topbar-in {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 14px;
+    row-gap: 8px;
+  }
+
+  .topbar-in .spacer {
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .topbar .meta {
+    width: 100%;
   }
 }
 
