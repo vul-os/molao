@@ -151,9 +151,13 @@ These do not change without changing what Molao is:
 ## Part of VulOS
 
 Molao is part of [VulOS](https://vulos.org), which is free, open-source
-software — all of it, with no paid Vulos services. Reachability runs over
-**Ephor**, an open broker you self-host or point at a hosted one, and backup
-storage is your own bucket. **Molao bills nothing, hosts nothing, and has no
-paid tier.** It runs standalone and can also be hosted as an app by the Vulos
-OS. Nothing about the VulOS relationship gives any party — including VulOS — a
-vote in the signer set.
+software — all of it, with no paid Vulos services. Distribution runs over
+content-addressed transports you already control — a plain HTTP mirror today,
+with a torrent export and an optional, feature-gated peer-to-peer transport
+described in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) — and backup storage
+is your own bucket. No reachability broker is required for a node to
+function; Ephor is not part of Molao's default path and, as of 2026-07-30, is
+not itself ready for that role. **Molao bills nothing, hosts nothing, and has
+no paid tier.** It runs standalone and can also be hosted as an app by the
+Vulos OS. Nothing about the VulOS relationship gives any party — including
+VulOS — a vote in the signer set.
