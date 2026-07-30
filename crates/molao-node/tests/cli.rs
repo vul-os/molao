@@ -693,8 +693,8 @@ fn index_build_with_http_requires_an_endpoint() {
 /// clap's own metadata and fails, naming this constant, the moment a command is
 /// added or renamed.
 const TOP_LEVEL_COMMANDS: &[&str] = &[
-    "serve", "ingest", "demo", "verify", "release", "stats", "index", "fetch", "crawl", "sources",
-    "regions",
+    "serve", "ingest", "demo", "verify", "release", "attest", "stats", "index", "fetch", "crawl",
+    "sources", "regions",
 ];
 
 #[test]
@@ -707,11 +707,12 @@ fn every_documented_command_has_working_help() {
     for sub in ["publish", "sign", "fetch", "torrent", "attest"] {
         args.push(vec!["release", sub, "--help"]);
     }
+    args.push(vec!["attest", "import", "--help"]);
 
     // Covering nothing must not read as passing.
     assert_eq!(
         args.len(),
-        TOP_LEVEL_COMMANDS.len() + 8,
+        TOP_LEVEL_COMMANDS.len() + 9,
         "the help matrix lost entries"
     );
 

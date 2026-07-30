@@ -77,6 +77,16 @@ enum Command {
         /// Model name to request from `--rag-endpoint`.
         #[arg(long, requires = "rag_endpoint")]
         rag_model: Option<String>,
+        /// A trust policy: which attestation signers this reader weighs, and by
+        /// how much. JSON, as `molao_graph::treatment::TrustPolicy`.
+        ///
+        /// Omitted, the node names nobody: every attestation is still shown,
+        /// and none of them carries weight toward a currency warning. That is
+        /// the honest default — a node that silently trusted whoever signed
+        /// first would be deciding on the reader's behalf which scholar is
+        /// right, which is exactly what the citator refuses to do.
+        #[arg(long, value_name = "POLICY.JSON")]
+        trust: Option<PathBuf>,
     },
 
     /// Ingest judgments from a file or directory.
@@ -161,6 +171,21 @@ enum Command {
     Release {
         #[command(subcommand)]
         command: ReleaseCommand,
+    },
+
+    /// Import signed treatment attestations.
+    ///
+    /// An attestation is one signer's interpretive claim — followed,
+    /// distinguished, overruled, applied, questioned — about one citation edge.
+    /// It is **not** verified law: attestations may conflict, conflicts are
+    /// shown rather than resolved, and whether any of them counts is the
+    /// reader's decision (`molao serve --trust`).
+    ///
+    /// Nothing has been attested by anyone. There is no attestation to import
+    /// that this project did not invent for its own tests.
+    Attest {
+        #[command(subcommand)]
+        command: AttestCommand,
     },
 
     /// Report what this node holds.
@@ -270,6 +295,24 @@ enum EmbedderKind {
     /// An OpenAI-compatible `/v1/embeddings` endpoint you supply. This is how a
     /// real node gets semantic search: point it at your own local model.
     Http,
+}
+
+#[derive(Debug, Subcommand)]
+enum AttestCommand {
+    /// Import a bundle of attestations: JSON Lines, one per line.
+    ///
+    /// Every signature is checked before anything is stored, and a bad record
+    /// is refused and reported rather than aborting the import — a bundle from
+    /// a stranger is expected to contain junk, and one bad line must not deny a
+    /// reader forty good ones. The read path checks signatures again, so a
+    /// database edited behind this command's back does not become trusted.
+    Import {
+        /// The bundle file.
+        bundle: PathBuf,
+        /// Corpus database to import into.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -428,6 +471,7 @@ fn main() -> Result<()> {
             signers,
             rag_endpoint,
             rag_model,
+            trust,
         } => {
             let corpus = open(&db)?;
             let mut state = api::AppState::new(corpus).context("building the citation graph")?;
@@ -444,6 +488,23 @@ fn main() -> Result<()> {
             // Attach the sidecar index if one has been built. Its absence is not
             // an error: the node serves keyword search regardless, and
             // `/api/rag/search` reports plainly when no index is present.
+            if let Some(path) = &trust {
+                let text = std::fs::read_to_string(path)
+                    .with_context(|| format!("reading trust policy {}", path.display()))?;
+                let policy: molao_graph::treatment::TrustPolicy = serde_json::from_str(&text)
+                    .with_context(|| format!("parsing trust policy {}", path.display()))?;
+                println!(
+                    "loaded a trust policy naming {} signer(s); unlisted signers weigh {}",
+                    policy.signers.len(),
+                    policy.unlisted_weight
+                );
+                println!(
+                    "this weighs attestations for currency warnings. It does not hide, reorder \
+                     or resolve them — conflicting claims are still shown in full."
+                );
+                state = state.with_trust_policy(policy);
+            }
+
             let index_path = Index::sidecar_path(&db);
             if index_path.exists() {
                 match Index::open(&index_path) {
@@ -578,6 +639,8 @@ fn main() -> Result<()> {
         Command::Index { command } => run_index(command),
 
         Command::Release { command } => run_release(command),
+
+        Command::Attest { command } => run_attest(command),
 
         Command::Fetch {
             url,
@@ -824,6 +887,46 @@ fn run_index(command: IndexCommand) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// `molao attest import` — bring in a bundle of signed treatment attestations.
+fn run_attest(command: AttestCommand) -> Result<()> {
+    let AttestCommand::Import { bundle, db } = command;
+    let corpus = open(&db)?;
+    let report = molao_graph::treatment::ingest(&corpus, &bundle)
+        .with_context(|| format!("importing {}", bundle.display()))?;
+
+    println!("examined   {}", report.examined);
+    println!("accepted   {}", report.accepted);
+    println!("duplicates {}", report.duplicates);
+    println!("rejected   {}", report.rejected.len());
+    println!("malformed  {}", report.malformed.len());
+
+    // Report every refusal individually: "imported 40" with nothing else said
+    // hides both a bundle that was half rejected and one that was all
+    // duplicates, and a contributor needs to know which line to fix.
+    for (record, why) in &report.rejected {
+        eprintln!("  line {record}: {why}");
+    }
+    for record in &report.malformed {
+        eprintln!("  line {record}: not a JSON attestation");
+    }
+
+    println!();
+    println!(
+        "attestations are interpretive claims, not verified law. Two scholars may attest \
+         differently about the same judgment; this node shows both and resolves neither."
+    );
+    println!(
+        "none of them counts toward a currency warning until you say whose signatures you \
+         weigh — see `molao serve --trust`."
+    );
+    if !report.clean() {
+        // A silent partial import is how a citator quietly ends up missing the
+        // attestation that would have flagged dead authority.
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 /// `molao verify` — every step, printed one per line.
@@ -1720,8 +1823,8 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "serve", "ingest", "demo", "verify", "release", "stats", "index", "fetch",
-                "crawl", "sources", "regions"
+                "serve", "ingest", "demo", "verify", "release", "attest", "stats", "index",
+                "fetch", "crawl", "sources", "regions"
             ],
             "a subcommand was added or renamed without updating the docs, and \
              TOP_LEVEL_COMMANDS in tests/cli.rs"
