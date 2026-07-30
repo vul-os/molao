@@ -31,7 +31,9 @@ code, and releases chain by hash so history cannot be rewritten quietly. What
 this buys is that capturing the corpus means capturing several institutions
 across several jurisdictions and going undetected, rather than compromising one
 server. That is a large improvement and it is not the same thing as no
-authority.
+authority. [GOVERNANCE.md](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md) is the full answer, including who
+should hold a signing key, what signing does and does not commit an
+institution to, and how membership changes.
 
 ### Why not just use SAFLII?
 
