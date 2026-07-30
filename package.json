@@ -15,7 +15,9 @@
     "typecheck": "npm run typecheck --workspace apps/web",
     "lint": "npm run lint --workspace apps/web",
     "screenshots": "node scripts/screenshots.mjs",
-    "check-site": "node scripts/check-site.mjs"
+    "check-site": "node scripts/check-site.mjs",
+    "check-docs": "node scripts/check-docs.mjs",
+    "check-web": "npm run check-site && npm run check-docs"
   },
   "devDependencies": {
     "playwright": "^1.49.1"
