@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, open, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +26,43 @@ const THEME = process.env.MOLAO_SHOT_THEME === 'light' ? 'light' : 'dark';
 
 const DESKTOP = { viewport: { width: 1440, height: 900 }, scale: 2 };
 const MOBILE = { viewport: { width: 390, height: 844 }, scale: 3 };
+
+/**
+ * Tallest shape a DESKTOP screenshot may be, as height/width.
+ *
+ * This is a guard, not a preference. A previous pass switched every shot to
+ * full-page capture to stop elements being sliced, and silently produced
+ * 1:7.5 and 1:8.3 mobile images — correct in content, useless as pictures.
+ * Nothing in the pipeline noticed, because "is it blank?" was the only shape
+ * check there was. 1.6 comfortably admits a full desktop page (the tallest
+ * today is judgment at ~1:1.42) and rejects a scroll strip.
+ *
+ * Mobile is deliberately NOT subject to this: a phone frame is 1:2.16 by
+ * nature, and is pinned to its exact device dimensions instead.
+ */
+const MAX_RATIO = 1.6;
+
+/**
+ * Read a PNG's pixel dimensions from its IHDR chunk.
+ *
+ * Deliberately not a dependency: width and height are a fixed offset into
+ * every PNG (bytes 16..24, big-endian u32 each, immediately after the 8-byte
+ * signature and the IHDR length+type), and pulling an image library into a
+ * screenshot script to read eight bytes would be the wrong trade.
+ */
+async function sharpish(file) {
+  const fh = await open(file);
+  try {
+    const buf = Buffer.alloc(24);
+    const { bytesRead } = await fh.read(buf, 0, 24, 0);
+    if (bytesRead < 24 || buf.toString('ascii', 12, 16) !== 'IHDR') {
+      throw new Error(`${file} is not a PNG (no IHDR)`);
+    }
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  } finally {
+    await fh.close();
+  }
+}
 
 /** The featured judgment in the demo corpus: Nkosi v Minister of Police. */
 const FEATURED = '5941a989115f328d27731cd1c3e9b7eacae10638439bf862d3a9fb2d24f5c051';
@@ -138,22 +175,54 @@ async function main() {
           throw new Error(`${shot.name}: body scrolls horizontally by ${overflow}px`);
         }
 
-        // Full-page, not viewport-clipped: a fixed-height window cuts a tall
-        // panel (or the page itself) wherever it happens to end, and that has
-        // twice now sliced a UI element in half instead of framing it — the
-        // graph legend mid-glyph, a citation card and a graph-lane card with
-        // no closing edge. It also means the footer's honesty line ("fictional
-        // demo corpus — not law", "verifies bytes and signatures, not legal
-        // correctness") never made it into a single one of the eight shots,
-        // because it sits in normal flow below content that is taller than
-        // any fixed viewport. Capturing the whole scrollable page is the fix
-        // that cannot recur as the demo corpus grows: it has no fixed height
-        // to run past.
+        // Desktop is captured full-page; mobile is captured at the device frame.
+        //
+        // The asymmetry is deliberate, and both halves of it are bug fixes.
+        //
+        // Desktop was viewport-clipped, and a fixed-height window cuts a tall
+        // panel wherever it happens to end — which sliced the graph legend
+        // mid-glyph, and left a citation card and a graph-lane card with no
+        // closing edge. Full-page framing cannot recur as the demo corpus
+        // grows, because it has no fixed height to run past, and at 1:1 to
+        // 1:1.4 the result is still a usable image.
+        //
+        // Mobile must NOT be full-page. These are pictures of a phone, and a
+        // phone is 1170×2532. Full-page capture turned them into 1:7.5 and
+        // 1:8.3 scroll strips (mobile-judgment reached 1170×9675), which
+        // render as unreadable slivers wherever they are embedded and no
+        // longer look like a phone at all. A cut at the fold is not a defect
+        // here — it is what a phone screen is. The sticky header keeps the
+        // "demo corpus" chip in frame either way, which is what the
+        // disclosure rule actually protects; the footer's honesty line is a
+        // nice-to-have and is not worth a nine-thousand-pixel image.
         const file = join(OUT, `${shot.name}.png`);
-        await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
+        await page.screenshot({ path: file, fullPage: !set.mobile, animations: 'disabled' });
         const size = (await stat(file)).size;
         if (size < 12_000) throw new Error(`${shot.name}.png looks blank (${size} bytes)`);
-        console.log(`  ✓ docs/screenshots/${shot.name}.png  ${(size / 1024).toFixed(0)} kB`);
+
+        // Assert the shape, so neither failure mode can come back silently.
+        const { width: pxW, height: pxH } = await sharpish(file);
+        if (set.mobile) {
+          // A phone is 1:2.16 by nature, so a ratio ceiling is the wrong tool
+          // here — the exact device frame is both the intent and a stricter
+          // check than any ratio would be.
+          if (pxW !== 1170 || pxH !== 2532) {
+            throw new Error(
+              `${shot.name}.png is ${pxW}×${pxH}, expected the 1170×2532 device frame`,
+            );
+          }
+        } else {
+          const ratio = pxH / pxW;
+          if (ratio > MAX_RATIO) {
+            throw new Error(
+              `${shot.name}.png is ${pxW}×${pxH} (1:${ratio.toFixed(2)}) — taller than 1:${MAX_RATIO}. ` +
+                `A screenshot this shape renders as a sliver wherever it is embedded.`,
+            );
+          }
+        }
+        console.log(
+          `  ✓ docs/screenshots/${shot.name}.png  ${pxW}×${pxH}  ${(size / 1024).toFixed(0)} kB`,
+        );
         count += 1;
       }
       await context.close();
