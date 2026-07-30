@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Molao — the law, held in common</title>
 <meta name="description" content="A free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service. Verifiable by recomputation, published by quorum.">
   <link rel="canonical" href="https://vulos.org/projects/molao/">
@@ -23,430 +23,902 @@
   <meta property="og:image:alt" content="Molao — A free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service. Verifiable by recomputation, published by quorum.">
   <meta name="twitter:image" content="https://vulos.org/projects/molao/assets/og-card.png">
 <link rel="icon" href="./assets/brand/favicon.svg">
+<!-- Fonts are vendored (SIL OFL, see assets/fonts/LICENSES.md) and served from
+     this origin. A landing page that fetched a webfont from a CDN would break
+     the project's own "makes no outbound requests" claim in the first 200ms. -->
+<link rel="preload" href="./assets/fonts/fraunces-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="./assets/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:"Fraunces";src:url(./assets/fonts/fraunces-var.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Fraunces";src:url(./assets/fonts/fraunces-italic-var.woff2) format("woff2");font-weight:100 900;font-style:italic;font-display:swap}
+@font-face{font-family:"Plex Mono";src:url(./assets/fonts/plex-mono-400.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Plex Mono";src:url(./assets/fonts/plex-mono-600.woff2) format("woff2");font-weight:600;font-style:normal;font-display:swap}
+
 *,*::before,*::after{box-sizing:border-box}
+
 :root{
-  --accent:#E9A23B; --accent-2:#C9861F; --accent-ink:#E9A23B;
-  --bg:#0A0A0A; --bg-soft:#0E0E10; --panel:#131316; --panel-2:#18181B;
-  --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.15);
-  --text:#FAFAFA; --muted:#A1A1AA; --faint:#71717A; --body:#D4D4D8;
-  --radius:16px; --max:1120px;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  /* Light is the primary register: warm laid paper, as a law report is printed.
+     Dark is a full peer, not an afterthought — every rule, seal and figure is
+     drawn from these variables so both schemes are one drawing. */
+  --paper:#FAF6EC; --paper-2:#F4EEE0; --surface:#FFFDF7; --sink:#F0E9D9;
+  --ink:#1A1713; --body:#332E27; --muted:#5C544A; --faint:#776E62;
+  --rule:#E2D8C4; --rule-2:#CBBEA4; --rule-3:#A99879;
+  --seal:#E9A23B;        /* the brand amber: fills, rules, seals */
+  --seal-ink:#8A5606;    /* AA-safe amber for anything that is text on paper */
+  --seal-wash:#F7EAD2;
+  --ok:#2F6B45; --ok-dot:#3F8C5A;
+  --wait:#8A5606; --wait-dot:#D9982F;
+  --work:#2E5C86; --work-dot:#4A81B4;
+  --stop:#96311F; --stop-dot:#B84A34;
+  --serif:"Fraunces","Iowan Old Style","Palatino Linotype",Palatino,Charter,Georgia,"Times New Roman",serif;
+  --mono:"Plex Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sheet:1180px;
 }
-@media (prefers-color-scheme: light){
+@media (prefers-color-scheme: dark){
   :root{
-    --bg:#FAFAFA; --bg-soft:#F4F4F5; --panel:#FFFFFF; --panel-2:#F4F4F5;
-    --border:rgba(24,24,27,.10); --border-2:rgba(24,24,27,.17);
-    /* --accent (#E9A23B) is ~2.1:1 against this background as TEXT — fails the
-       WCAG AA 4.5:1 text floor. --accent-ink is a darkened shade (~5.9:1) for
-       anywhere the amber is a text/link color; --accent itself stays the true
-       brand color for backgrounds/borders, where only the ~3:1 non-text floor
-       applies (the dark theme keeps --accent-ink == --accent: ~9:1 there). */
-    --accent-ink:#8A5606;
-    --text:#18181B; --muted:#52525B; --faint:#71717A; --body:#26262B;
+    --paper:#100E0B; --paper-2:#16130F; --surface:#1A1713; --sink:#211D17;
+    --ink:#F6F1E5; --body:#DCD5C6; --muted:#ABA294; --faint:#8C8375;
+    --rule:#2E2921; --rule-2:#3F382D; --rule-3:#5A5142;
+    --seal:#E9A23B; --seal-ink:#EDAF54; --seal-wash:#2A2015;
+    --ok:#7FC496; --ok-dot:#5FAE7C;
+    --wait:#E0A94A; --wait-dot:#D9982F;
+    --work:#8FB6E4; --work-dot:#6E9BD0;
+    --stop:#E8907B; --stop-dot:#C9634A;
   }
 }
+
 html{scroll-behavior:smooth}
-body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.62;-webkit-font-smoothing:antialiased;font-size:16px}
-body::before{content:"";position:fixed;inset:0;z-index:-1;background:
-  radial-gradient(1100px 600px at 82% -12%, color-mix(in srgb,var(--accent) 12%, transparent), transparent 60%),
-  radial-gradient(900px 520px at -10% 6%, color-mix(in srgb,var(--accent-2) 9%, transparent), transparent 55%),
-  var(--bg);}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+
+body{
+  margin:0;background:var(--paper);color:var(--body);
+  font-family:var(--serif);font-size:17.5px;line-height:1.66;font-weight:400;
+  font-optical-sizing:auto;font-variation-settings:"SOFT" 6;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+/* Laid-paper tone: two very quiet washes, no image, no request. */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(1200px 620px at 88% -14%, var(--seal-wash), transparent 62%),
+    radial-gradient(900px 520px at -8% 4%, var(--paper-2), transparent 60%),
+    var(--paper);
+}
+
+/* THE BUG THIS RULE ONCE HAD: max-width:100% without height:auto. A responsive
+   width against an unconstrained intrinsic height stretches every screenshot
+   vertically — and it is invisible to visual review because the image still
+   *looks* like a screenshot. height:auto is load-bearing. */
+img,svg{max-width:100%;height:auto;display:block}
+
 a{color:inherit;text-decoration:none}
-img,svg{max-width:100%;display:block}
-.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
-.accent{color:var(--accent-ink)}
-code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--text) 8%, transparent);padding:2px 6px;border-radius:6px}
+p{margin:0 0 1.05em}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+.sheet{max-width:var(--sheet);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+.prose{max-width:66ch}
 
-/* Header */
-.site-header{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:color-mix(in srgb,var(--bg) 74%, transparent);border-bottom:1px solid var(--border)}
-.nav{display:flex;align-items:center;gap:18px;height:64px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:19px;letter-spacing:-.03em}
-.brand .tile{width:32px;height:32px;display:grid;place-items:center}
-.brand .tile img{width:100%;height:100%;object-fit:contain}
-.nav-spacer{flex:1}
-.nav-links{display:flex;align-items:center;gap:22px}
-.nav-links a{color:var(--muted);font-size:14.5px;font-weight:500;transition:color .15s}
-.nav-links a:hover{color:var(--text)}
-.vulos-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--border-2);border-radius:999px;font-size:13px;color:var(--muted);transition:.15s}
-.vulos-badge:hover{border-color:var(--accent);color:var(--text)}
-.vulos-badge img{width:16px;height:16px;border-radius:4px}
-@media(max-width:820px){.nav-links{display:none}}
+code,.mono{font-family:var(--mono);font-variation-settings:normal}
+code{font-size:.82em;background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);white-space:nowrap}
 
-/* Hero */
-.hero{padding:88px 0 64px;text-align:center}
-.hero>picture{display:block;width:86px;margin:0 auto 26px}
-.hero .mark{width:100%}
-.eyebrow{display:inline-flex;align-items:center;gap:9px;padding:6px 14px;border:1px solid var(--border-2);border-radius:999px;font-size:13px;color:var(--muted);margin-bottom:24px}
-.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
-h1{font-size:clamp(38px,6.2vw,62px);line-height:1.05;letter-spacing:-.04em;margin:0 0 20px;font-weight:650}
-.lede{font-size:clamp(17px,2.1vw,20px);color:var(--muted);max-width:660px;margin:0 auto 12px}
-.lede strong{color:var(--text);font-weight:600}
-.sub{font-size:15.5px;color:var(--faint);max-width:620px;margin:0 auto 34px}
-.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:11px;font-size:15px;font-weight:560;border:1px solid var(--border-2);transition:.15s}
-.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#18181B}
-.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+/* ── Masthead ──────────────────────────────────────────────────────────────
+   The old bar was a blurred pill-nav: a developer-tool signal. This is a
+   printed masthead — a rule strip of standing particulars, the name set large,
+   and a double rule under it, the way a law report's title page is set. */
+.masthead{background:transparent}
+.strip{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;
+  padding:9px 0;border-bottom:1px solid var(--rule);
+  font-family:var(--mono);font-size:12px;line-height:1.5;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);
+}
+.strip .sep{color:var(--rule-2)}
+.strip .now{color:var(--seal-ink);font-weight:600}
+.strip .push{margin-left:auto}
+@media(max-width:640px){.strip .push{margin-left:0}}
 
-/* Status banner */
-.status{margin:44px auto 0;max-width:820px;border:1px solid var(--border-2);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel);padding:18px 22px;text-align:left}
-.status .label{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent-ink);font-weight:650;margin-bottom:7px}
-.status p{margin:0;font-size:14.5px;color:var(--body)}
-.status p + p{margin-top:8px}
+.plate{display:flex;align-items:flex-end;gap:clamp(14px,3vw,26px);padding:clamp(22px,4vw,34px) 0 clamp(16px,2.6vw,22px);flex-wrap:wrap}
+.plate .mark{width:clamp(46px,7vw,62px);flex:none}
+.plate .mark img{width:100%;height:auto}
+.plate .names{display:flex;flex-direction:column;gap:4px;min-width:0}
+.plate .name{
+  font-size:clamp(38px,7.4vw,62px);line-height:.92;font-weight:500;color:var(--ink);
+  letter-spacing:-.018em;font-variation-settings:"SOFT" 0;
+}
+.plate .said{font-family:var(--mono);font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.plate .tag{margin-left:auto;text-align:right;max-width:26ch;color:var(--muted);font-size:15.5px;line-height:1.45;font-style:italic}
+@media(max-width:760px){.plate .tag{margin-left:0;text-align:left;max-width:none;font-size:15px}}
+.double{border-bottom:3px double var(--rule-3)}
 
-/* Sections */
-section{padding:72px 0;border-top:1px solid var(--border)}
-.section-head{max-width:720px;margin-bottom:42px}
-h2{font-size:clamp(27px,3.6vw,36px);letter-spacing:-.03em;margin:0 0 14px;font-weight:640}
-h3{font-size:18px;margin:0 0 9px;letter-spacing:-.01em;font-weight:620}
-.section-head p{color:var(--muted);font-size:16.5px;margin:0}
+/* Index rail — sticky, printed, and at 320px it scrolls sideways inside itself
+   rather than disappearing behind a hamburger the way the old nav did. */
+.rail{position:sticky;top:0;z-index:60;background:var(--paper);border-bottom:1px solid var(--rule);box-shadow:0 1px 0 var(--rule)}
+.rail-inner{display:flex;align-items:center;gap:clamp(14px,2.4vw,28px);height:46px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail-inner::-webkit-scrollbar{display:none}
+.rail a{
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.075em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap;padding:4px 0;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;
+}
+.rail a:hover,.rail a:focus-visible{color:var(--ink);border-bottom-color:var(--seal)}
+.rail .rail-end{margin-left:auto;display:flex;gap:clamp(14px,2.4vw,28px);align-items:center}
+.rail .rail-end a{color:var(--seal-ink)}
+@media(max-width:900px){.rail .rail-end{margin-left:0}}
 
-/* Cards */
-.grid{display:grid;gap:18px}
-/* A grid item defaults to min-width:auto, so it refuses to shrink below its
-   content. That made the code blocks inside these cells 508px wide in a
-   342px track — their own overflow-x:auto never engaged, and the whole page
-   scrolled sideways instead. min-width:0 lets the track win, so the pre
-   scrolls within its card the way it was always meant to. */
-.grid > *{min-width:0}
-.g3{grid-template-columns:repeat(3,1fr)}
-.g2{grid-template-columns:repeat(2,1fr)}
-@media(max-width:900px){.g3,.g2{grid-template-columns:1fr}}
-.card{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:24px}
-.card p{margin:0;color:var(--muted);font-size:14.8px}
-.card p + p{margin-top:10px}
-.card .glyph{font-size:20px;margin-bottom:12px;display:block}
+:focus-visible{outline:2px solid var(--seal);outline-offset:3px;border-radius:2px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{position:static;display:inline-block;margin:8px;font-family:var(--mono);font-size:13px}
 
-/* Roles table */
-.tbl{width:100%;border-collapse:collapse;font-size:14.5px;display:block;overflow-x:auto}
-.tbl th,.tbl td{border:1px solid var(--border-2);padding:11px 14px;text-align:left;vertical-align:top}
-.tbl th{background:var(--panel);font-weight:620;font-size:13px;letter-spacing:.02em}
-.tbl td{color:var(--muted)}
-.tbl td strong{color:var(--text)}
+/* ── Opening ─────────────────────────────────────────────────────────────── */
+.open{padding:clamp(40px,6vw,72px) 0 clamp(34px,5vw,56px)}
+h1{
+  font-size:clamp(34px,5.6vw,60px);line-height:1.06;margin:0 0 .5em;font-weight:450;
+  color:var(--ink);letter-spacing:-.02em;font-variation-settings:"SOFT" 0;max-width:19ch;
+}
+h1 .brk{display:block}
+.lede{font-size:clamp(18px,2.2vw,21.5px);line-height:1.55;color:var(--body);max-width:60ch;margin:0 0 1em}
+.lede strong{color:var(--ink)}
+.after{font-size:16.5px;color:var(--muted);max-width:62ch}
 
-/* Code block */
-pre{background:var(--panel);border:1px solid var(--border-2);border-radius:12px;padding:18px 20px;overflow:auto;margin:0}
-pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(--body)}
+/* Headnote — the block a law report puts above the judgment. */
+.headnote{margin:clamp(30px,4.4vw,44px) 0 0;border-top:3px double var(--rule-3);border-bottom:1px solid var(--rule);padding:22px 0 20px;display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:1fr}
+@media(min-width:840px){.headnote{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+.lbl{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--seal-ink);font-weight:600;margin:0 0 9px;display:block}
+.held{margin:0;font-size:16.5px;color:var(--body)}
+.held + .held{margin-top:.8em}
+.facts{list-style:none;margin:0;padding:0;font-size:15.5px}
+.facts li{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--rule);color:var(--muted)}
+.facts li:last-child{border-bottom:0}
+.facts .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);flex:none;width:9.5em;padding-top:3px}
+.facts .v{color:var(--body);min-width:0}
 
-/* Callout */
-.callout{border:1px solid var(--border-2);border-radius:var(--radius);background:var(--panel);padding:28px 30px}
-.callout h3{margin-top:0}
-.callout p{color:var(--muted);font-size:15px;margin:0 0 12px}
-.callout p:last-child{margin-bottom:0}
-.callout strong{color:var(--text)}
+.acts{display:flex;flex-wrap:wrap;gap:12px;margin-top:clamp(26px,3.6vw,34px)}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;padding:12px 20px;border-radius:2px;
+  font-family:var(--mono);font-size:13px;letter-spacing:.07em;text-transform:uppercase;
+  border:1px solid var(--rule-3);color:var(--ink);background:var(--surface);transition:.16s;
+}
+.btn:hover{border-color:var(--seal);transform:translateY(-1px)}
+.btn.seal{background:var(--seal);border-color:var(--seal);color:#1A1713;font-weight:600}
+.btn.seal:hover{background:#D8912C;border-color:#D8912C}
+.btn .arrow{font-size:15px;line-height:1}
 
-/* Not-built list */
-.honest li{color:var(--muted);font-size:15px;margin-bottom:11px}
-.honest li strong{color:var(--text)}
-.tag{display:inline-block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;padding:2px 8px;border-radius:5px;border:1px solid var(--border-2);color:var(--accent-ink);margin-right:8px;vertical-align:1px}
+/* ── Notice: the honest status, immediately after the opening ───────────── */
+.notice{border:1px solid var(--rule-2);border-left:4px solid var(--seal);background:var(--surface);padding:clamp(20px,3vw,28px);margin-top:clamp(30px,4vw,42px)}
+.notice h2{font-size:clamp(20px,2.6vw,25px);margin:0 0 12px;color:var(--ink);font-weight:500;letter-spacing:-.01em}
+.notice p{font-size:16px;color:var(--body);margin:0 0 .85em}
+.notice p:last-child{margin-bottom:0}
+.notice .cols{display:grid;gap:clamp(18px,2.6vw,32px);grid-template-columns:1fr;margin-top:6px}
+@media(min-width:820px){.notice .cols{grid-template-columns:1fr 1fr}}
+.notice .cols h3{font-family:var(--mono);font-size:12.5px;letter-spacing:.11em;text-transform:uppercase;margin:0 0 10px;font-weight:600}
+.notice .built h3{color:var(--ok)}
+.notice .unbuilt h3{color:var(--stop)}
+.tick{list-style:none;margin:0;padding:0;font-size:15.5px}
+.tick li{position:relative;padding:0 0 9px 22px;color:var(--muted)}
+.tick li strong{color:var(--ink)}
+.tick li::before{position:absolute;left:0;top:0;font-family:var(--mono);font-size:13px}
+.built .tick li::before{content:"✓";color:var(--ok)}
+.unbuilt .tick li::before{content:"—";color:var(--stop)}
 
-/* Footer */
-.site-footer{border-top:1px solid var(--border);padding:42px 0}
-.foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
-.foot .left{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
-.foot .left img{width:20px;height:20px;border-radius:5px}
-.foot .links{display:flex;gap:20px;flex-wrap:wrap}
-.foot .links a{color:var(--muted);font-size:14px}
-.foot .links a:hover{color:var(--text)}
+/* ── Chapters ───────────────────────────────────────────────────────────── */
+.chapter{border-top:3px double var(--rule-3);padding:clamp(46px,6.5vw,86px) 0}
+.chapter > .sheet{display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:1fr}
+@media(min-width:1020px){.chapter > .sheet{grid-template-columns:118px minmax(0,1fr)}}
+.gutter{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.gutter .no{display:block;color:var(--seal-ink);font-weight:600;font-size:13px;margin-bottom:6px}
+@media(max-width:1019px){.gutter{display:flex;gap:12px;align-items:baseline}.gutter .no{margin-bottom:0}}
+h2{font-size:clamp(26px,3.7vw,38px);line-height:1.14;margin:0 0 .45em;color:var(--ink);font-weight:450;letter-spacing:-.018em;font-variation-settings:"SOFT" 0;max-width:22ch}
+h3{font-size:19px;margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacing:-.008em}
+.stand{font-size:17.5px;color:var(--muted);max-width:64ch;margin:0 0 clamp(24px,3vw,34px)}
+.stand strong{color:var(--ink)}
+
+.cols{display:grid;gap:clamp(18px,2.4vw,30px);grid-template-columns:1fr}
+.cols > *{min-width:0}
+@media(min-width:760px){.c2{grid-template-columns:1fr 1fr}}
+@media(min-width:900px){.c3{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:640px) and (max-width:899px){.c3{grid-template-columns:1fr 1fr}}
+
+.card{border:1px solid var(--rule);background:var(--surface);padding:clamp(18px,2.4vw,24px)}
+.card p{font-size:15.5px;color:var(--muted);margin:0 0 .8em}
+.card p:last-child{margin-bottom:0}
+.card p strong{color:var(--ink)}
+.card .lbl{margin-bottom:12px}
+
+.rules{list-style:none;margin:0;padding:0}
+.rules li{border-top:1px solid var(--rule);padding:16px 0;display:grid;gap:4px 20px;grid-template-columns:1fr}
+@media(min-width:720px){.rules li{grid-template-columns:15.5em minmax(0,1fr)}}
+.rules li:last-child{border-bottom:1px solid var(--rule)}
+.rules .t{color:var(--ink);font-weight:550;font-size:16.5px}
+.rules .d{color:var(--muted);font-size:15.5px}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;padding:2px 7px;border:1px solid currentColor;border-radius:2px;vertical-align:1px;white-space:nowrap}
+.tag.no{color:var(--stop)}
+.tag.yes{color:var(--ok)}
+.tag.part{color:var(--wait)}
+
+/* ── Figures (drawn, not stock) ─────────────────────────────────────────── */
+figure{margin:0}
+.fig{border:1px solid var(--rule);background:var(--surface);padding:clamp(14px,2vw,20px)}
+.fig-scroll{overflow-x:auto;scrollbar-width:thin}
+/* The type inside an SVG scales with the viewBox. A figure squeezed into a
+   320px viewport would drop its labels to ~6px — the sub-12px trap in vector
+   form. min-width keeps the drawing at its designed size and lets the FIGURE
+   scroll instead of the page. */
+.fig-scroll > svg{min-width:600px;width:100%;height:auto;max-width:760px;margin:0 auto}
+.fig text{font-family:var(--mono);font-size:15px;fill:var(--muted)}
+.fig text.strong{fill:var(--ink);font-weight:600}
+.fig text.seal{fill:var(--seal-ink);font-weight:600}
+.fig text.big{font-size:17px;fill:var(--ink)}
+.fig .ln{stroke:var(--rule-2);fill:none}
+.fig .ln-2{stroke:var(--rule-3);fill:none}
+.fig .box{fill:var(--sink);stroke:var(--rule-2)}
+.fig .seal-fill{fill:var(--seal)}
+.fig .paper{fill:var(--surface);stroke:var(--rule-2)}
+figcaption{font-size:14px;color:var(--faint);margin-top:12px;line-height:1.5;max-width:62ch}
+figcaption strong{color:var(--muted)}
+
+/* ── Ledger (jurisdiction map) ─────────────────────────────────────────── */
+.ledger-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--surface)}
+.ledger{width:100%;border-collapse:collapse;font-size:15px;min-width:640px}
+.ledger th,.ledger td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--rule);vertical-align:top}
+.ledger thead th{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--sink);border-bottom:1px solid var(--rule-2)}
+.ledger tbody tr:last-child td{border-bottom:0}
+.ledger .j{color:var(--ink);font-weight:550;width:26%}
+.ledger td.s{white-space:nowrap;width:20%}
+.ledger .n{color:var(--muted)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.s-ok{color:var(--ok)}.s-ok .dot{background:var(--ok-dot)}
+.s-wait{color:var(--wait)}.s-wait .dot{background:var(--wait-dot)}
+.s-work{color:var(--work)}.s-work .dot{background:var(--work-dot)}
+.s-stop{color:var(--stop)}.s-stop .dot{background:var(--stop-dot)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin:14px 0 0;font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+
+/* ── Plates (screenshots) ──────────────────────────────────────────────── */
+.plates{display:grid;gap:clamp(18px,2.6vw,28px);grid-template-columns:1fr}
+@media(min-width:800px){.plates{grid-template-columns:1fr 1fr}}
+.plate-fig{border:1px solid var(--rule);background:var(--surface);padding:10px}
+.plate-fig img{width:100%;height:auto;border:1px solid var(--rule)}
+.plate-fig figcaption{margin:12px 4px 4px}
+.plate-fig .lbl{margin-bottom:6px}
+.hero-plate{margin-top:clamp(30px,4vw,44px)}
+.phones{display:grid;gap:clamp(14px,2.4vw,24px);grid-template-columns:repeat(3,1fr)}
+@media(max-width:560px){.phones{grid-template-columns:1fr;max-width:300px;margin:0 auto}}
+.phones img{width:100%;height:auto;border:1px solid var(--rule)}
+
+/* ── Invitation ────────────────────────────────────────────────────────── */
+.invite{background:var(--surface);border:1px solid var(--rule-2);border-top:4px solid var(--seal);padding:clamp(24px,4vw,44px)}
+.invite h2{margin-top:0}
+.invite .prose{font-size:17px;color:var(--body)}
+.crit{width:100%;border-collapse:collapse;font-size:15.5px;margin:0}
+.crit th,.crit td{text-align:left;padding:12px 14px 12px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.crit th{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.crit td:first-child{color:var(--ink);font-weight:550;width:38%}
+.crit td:last-child{color:var(--muted)}
+@media(max-width:560px){.crit td:first-child,.crit th:first-child{width:auto}.crit thead{position:absolute;left:-9999px}.crit tr{display:block;border-bottom:1px solid var(--rule);padding:10px 0}.crit td{display:block;border:0;padding:2px 0}}
+
+pre{background:var(--sink);border:1px solid var(--rule-2);padding:16px 18px;overflow-x:auto;margin:0;border-radius:2px}
+pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;color:var(--body);white-space:pre}
+
+.honest li{color:var(--muted)}
+.honest .t{display:block}
+
+/* ── Colophon ──────────────────────────────────────────────────────────── */
+.colophon{border-top:3px double var(--rule-3);padding:clamp(30px,4vw,44px) 0 clamp(40px,5vw,56px)}
+.colo{display:flex;flex-wrap:wrap;gap:20px 30px;justify-content:space-between;align-items:flex-start}
+.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14.5px;max-width:44ch}
+.colo .who img{width:20px;height:20px;flex:none}
+.colo .links{display:flex;flex-wrap:wrap;gap:10px 22px}
+.colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.colo .links a:hover{color:var(--ink)}
+.fine{margin-top:22px;font-size:14px;color:var(--faint);max-width:70ch}
 </style>
 </head>
 <body>
 
-<header class="site-header"><div class="wrap nav">
-  <a class="brand" href="./index.html"><span class="tile"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/logo-mark-light.svg">
-    <img src="./assets/brand/logo-mark.svg" alt="Molao mark">
-  </picture></span>molao</a>
-  <div class="nav-spacer"></div>
-  <nav class="nav-links">
-    <a href="#commons">A commons</a>
-    <a href="#regions">Any jurisdiction</a>
-    <a href="#verify">Verifiable</a>
-    <a href="#quorum">Quorum</a>
-    <a href="#distribute">Distribution</a>
-    <a href="#honest">Honest status</a>
-    <a href="./docs.html">Docs</a>
-    <a href="https://github.com/vul-os/molao">GitHub</a>
-  </nav>
-  <a class="vulos-badge" href="https://vulos.org" title="Part of VulOS">
-    <img src="./assets/vulos-logo.png" alt="VulOS">Part of VulOS
-  </a>
-</div></header>
+<a class="skip" href="#main">Skip to content</a>
 
-<main>
+<header class="masthead">
+  <div class="sheet">
+    <div class="strip">
+      <span>Free access to law</span><span class="sep">·</span>
+      <span>A commons, not a product</span><span class="sep">·</span>
+      <span class="now">Version 0.1.0 — early</span>
+      <span class="push">MIT or Apache-2.0</span>
+    </div>
+  </div>
+  <div class="sheet">
+    <div class="plate double">
+      <span class="mark">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/logo-mark-light.svg">
+          <img src="./assets/brand/logo-mark.svg" alt="The Molao mark: a ring of nodes joined by chords">
+        </picture>
+      </span>
+      <span class="names">
+        <span class="name">Molao</span>
+        <span class="said">Sotho and Tswana for <em>law</em></span>
+      </span>
+      <span class="tag">A free, decentralized commons of case law — for any jurisdiction.</span>
+    </div>
+  </div>
+</header>
 
-<div class="wrap hero">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/logo-mark-light.svg">
-    <img class="mark" src="./assets/brand/logo-mark.svg" alt="">
-  </picture>
-  <div class="eyebrow"><span class="dot"></span> Molao — Sotho and Tswana for <em>law</em></div>
-  <h1>The law,<br>held in common.</h1>
-  <p class="lede">A free, decentralized commons of case law — for <strong>any</strong> jurisdiction. <strong>No accounts, no billing, no hosted service.</strong> Universities, firms and individuals run nodes. Nobody bills anybody.</p>
-  <p class="sub">One binary, one SQLite file, works fully offline. Judgments are identified by the hash of their text, and releases are signed by a quorum of independent organisations — not published by any single party, including this project.</p>
-  <div class="cta">
-    <a class="btn primary" href="./docs.html#getting-started">Get started</a>
-    <a class="btn" href="./docs.html">Read the docs</a>
-    <a class="btn" href="https://github.com/vul-os/molao">GitHub</a>
+<nav class="rail" aria-label="Sections">
+  <div class="sheet">
+    <div class="rail-inner">
+      <a href="#access">Access to law</a>
+      <a href="#trust">Why trust it</a>
+      <a href="#jurisdictions">Any jurisdiction</a>
+      <a href="#sources">Where it comes from</a>
+      <a href="#screens">The interface</a>
+      <a href="#institutions">For institutions</a>
+      <a href="#limits">Limits</a>
+      <span class="rail-end">
+        <a href="./docs.html">Documentation</a>
+        <a href="https://github.com/vul-os/molao">Source</a>
+      </span>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+
+<div class="sheet open">
+  <h1><span class="brk">The law,</span> held in common.</h1>
+  <p class="lede">A judgment is a public document. Molao is the plainest possible way to keep a jurisdiction's case law <strong>readable, searchable and checkable by anyone</strong> — one binary, one file, working offline, owned by no one.</p>
+  <p class="after">It is not a product and not a business. There is no hosted service to sign up for, no subscription, and no plan to add one. Law faculties, law societies, legal-aid organisations and individuals run nodes. Nobody bills anybody.</p>
+
+  <div class="headnote">
+    <div>
+      <span class="lbl">Held</span>
+      <p class="held">That case law can be published <strong>without a single publisher</strong>. A judgment's identity is the BLAKE3 hash of its canonical text, so two nodes that have never exchanged a packet agree on what the judgment is. A release is valid only when a quorum of <strong>independent organisations</strong> has signed it — and a threshold below two signers is refused in code, including for this project.</p>
+      <p class="held">That this is a tradition, not an invention. The LII network — AustLII, BAILII, CanLII, NZLII, SAFLII, the AfricanLII members — has run free access to law for decades under the Free Access to Law Movement. Molao joins it, and adds content-addressed identity, threshold-signed releases, and a citator whose mechanical layer anyone can recompute.</p>
+    </div>
+    <div>
+      <span class="lbl">Particulars</span>
+      <ul class="facts">
+        <li><span class="k">A node is</span><span class="v">one executable over one SQLite file</span></li>
+        <li><span class="k">Network</span><span class="v">makes no outbound requests of its own</span></li>
+        <li><span class="k">Accounts</span><span class="v">none — and none planned</span></li>
+        <li><span class="k">Cost</span><span class="v">free, permanently; no hosted tier exists</span></li>
+        <li><span class="k">Jurisdiction</span><span class="v">none hardcoded; courts load from data</span></li>
+        <li><span class="k">Licence</span><span class="v">MIT or Apache-2.0</span></li>
+      </ul>
+    </div>
   </div>
 
-  <div class="status">
-    <div class="label">Honest status · 0.1.0 — decentralisation-ready, not decentralisation-running</div>
-    <p>The trust model is real, built and tested today: hash-identified judgments, threshold-signed releases, a citation graph verifiable by recomputation, and a node that runs standalone and fully offline. Court and law-report registries are <strong>loadable region profiles</strong>: <code>ZA</code> ships populated, <code>GENERIC</code> works anywhere, and <a href="https://github.com/vul-os/molao/tree/main/profiles" class="accent">adding a jurisdiction</a> means writing a TOML file, not changing code.</p>
-    <p><strong>There is no bundled corpus and no live peer-to-peer network yet.</strong> A node starts empty; <code>molao demo</code> seeds a synthetic corpus so you can see the software work, and releases still move as plain files today. Three crates are landing this session to close that: <strong>molao-ingest</strong> (a robots-respecting, collectively-witnessed corpus), <strong>molao-dist</strong> (content-addressed releases over iroh, torrent export and HTTP mirror), and <strong>molao-index</strong> (a local, rebuildable, unsigned search cache). None has run against real data yet. Treatment attestations remain <strong>designed, not built</strong>. Semantic search over a release is <strong>deliberately excluded</strong> — <a href="./docs.html#threat-model" class="accent">here is why</a> — a local rebuildable cache is a different thing and does not reopen that question.</p>
+  <div class="acts">
+    <a class="btn seal" href="#institutions">Hold a signing key <span class="arrow">→</span></a>
+    <a class="btn" href="./docs.html">Read the documentation</a>
+    <a class="btn" href="https://github.com/vul-os/molao">Source and issues</a>
   </div>
+
+  <section class="notice" aria-labelledby="status-h">
+    <span class="lbl">Practice note · status of the project</span>
+    <h2 id="status-h">Decentralisation-ready, not decentralisation-running.</h2>
+    <p>Version 0.1.0 is early, and the useful thing to say to a librarian or a dean is exactly which half is real. <strong>The trust model is built and tested. The corpus does not exist yet.</strong></p>
+    <div class="cols">
+      <div class="built">
+        <h3>Built and tested today</h3>
+        <ul class="tick">
+          <li>Hash-identified judgments — alter a paragraph and the id no longer matches</li>
+          <li>Threshold-signed releases, chained by hash so a fork is detectable</li>
+          <li>A citation graph <strong>verifiable by recomputation</strong> from a pinned extractor</li>
+          <li>A node that runs standalone and <strong>fully offline</strong></li>
+          <li>Region profiles loaded from TOML at run time, with fourteen compiled in as the fallback</li>
+        </ul>
+      </div>
+      <div class="unbuilt">
+        <h3>Not built, and said so plainly</h3>
+        <ul class="tick">
+          <li><strong>There is no bundled corpus — a node starts empty.</strong> <code>molao demo</code> seeds a synthetic one</li>
+          <li><strong>No public signed release exists yet.</strong> Releases move as plain files, mirrored by hand</li>
+          <li>Peer-to-peer distribution is not live. <code>molao-dist</code> is in the workspace and tested, but <strong>nothing depends on it</strong> — no command publishes or fetches a packaged release</li>
+          <li>Treatment attestations (followed / distinguished / overruled) are <strong>designed, not built</strong></li>
+          <li>The public append-only log is <strong>designed, not built</strong></li>
+          <li><code>molao-ingest</code> and <code>molao-index</code> are wired into the node, but <strong>none of the three has run against real data yet</strong></li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:1.1em">The node crate and web UI are in progress: the API contract is specified and the core crates are complete, but the server is still being written. Run <code>cargo run -p molao-node -- --help</code> to see what your clone actually offers. Full status in the <a href="./docs.html#roadmap" style="color:var(--seal-ink);text-decoration:underline;text-underline-offset:2px">roadmap</a>.</p>
+  </section>
+
+  <figure class="plate-fig hero-plate">
+    <img src="./screenshots/hero.png" width="2880" height="1800" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async">
+    <figcaption><span class="lbl">Plate I · search</span> Every result carries its court, neutral citation, provenance class and inbound-citation weight. <strong>All screenshots are of the demo corpus — synthetic judgments with a real citation graph between them. There is no bundled corpus yet.</strong></figcaption>
+  </figure>
 </div>
 
-<section id="commons">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>A commons, not a product</h2>
-      <p>There is nothing to sign up for and nothing to buy. There is no hosted Molao service, so there is nothing to be a customer of, and the release mechanism means this project could not take control of the corpus even if it later wanted to.</p>
-    </div>
-    <div class="grid g3">
-      <div class="card">
-        <span class="glyph">⚖️</span>
-        <h3>Free, forever</h3>
-        <p>No accounts, no telemetry, no licence check, no subscription tiers, no "free for individuals" asterisk. A node makes no outbound requests of its own.</p>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="access">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 1 ]</span> Access to law</div>
+    <div>
+      <h2>What it does for someone reading the law</h2>
+      <p class="stand">Before any of the cryptography matters, the thing has to be a usable law library. Search, a judgment set out as it was handed down, and citations that run both ways.</p>
+
+      <div class="cols c2">
+        <div class="card">
+          <h3>Search, then read as printed</h3>
+          <p>Full-text search across the corpus with court, year-from and year-to filters, and highlighted snippets. A judgment opens as a structured document — parties, court, case numbers, date, coram, parallel reported citations, and <strong>numbered paragraphs as printed</strong>, so a pinpoint reference means what it says.</p>
+        </div>
+        <div class="card">
+          <h3>Citations both ways</h3>
+          <p>Cases this judgment cites, and cases citing it — each with the paragraph it was cited from and the pinpoint it pointed at.</p>
+          <p><strong>Unresolved citations are shown as written, never hidden.</strong> A citator that quietly drops what it cannot resolve tells a lawyer the case cites less than it does. That is a commitment, not a default.</p>
+        </div>
       </div>
-      <div class="card">
-        <span class="glyph">🏛️</span>
-        <h3>Hosted by institutions</h3>
-        <p>Law faculties, law societies, legal-aid organisations and individuals run nodes. This is what the LII network — AustLII, CanLII, SAFLII, the AfricanLII members — has done for decades under the Free Access to Law Movement.</p>
-      </div>
-      <div class="card">
-        <span class="glyph">📴</span>
-        <h3>Offline by default</h3>
-        <p>A node with a corpus on disk needs no peers, no relay and no internet. Pull the plug and it keeps serving the law. This is a hard guarantee, not a degraded mode.</p>
-      </div>
+
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 700 330" role="img" aria-labelledby="fig1t fig1d">
+            <title id="fig1t">Authority ranking from inbound citations weighted by court tier</title>
+            <desc id="fig1d">Four citing courts on the left — Apex weighted 1.00, Appellate 0.80, High Court 0.50 and Lower 0.10 — send citation edges of increasing thickness into a single judgment at the centre. On the right, the judgment's own outbound citations leave towards the cases it relies on.</desc>
+
+            <text x="8" y="22" class="strong">Citing courts</text>
+            <text x="8" y="42">inbound — weighted by tier</text>
+
+            <!-- inbound rows -->
+            <g class="ln">
+              <path d="M175 84 C 300 84, 330 150, 402 160" stroke-width="7" stroke="var(--seal)" opacity=".95"/>
+              <path d="M175 134 C 300 134, 330 156, 402 164" stroke-width="5.2" stroke="var(--seal)" opacity=".72"/>
+              <path d="M175 184 C 300 184, 330 175, 402 172" stroke-width="3.2" stroke="var(--seal)" opacity=".5"/>
+              <path d="M175 234 C 300 234, 330 195, 402 180" stroke-width="1.2" stroke="var(--seal)" opacity=".42"/>
+            </g>
+
+            <g>
+              <rect x="8" y="66" width="167" height="36" rx="2" class="box"/>
+              <text x="20" y="89" class="strong">Apex</text><text x="122" y="89" class="seal">1.00</text>
+              <rect x="8" y="116" width="167" height="36" rx="2" class="box"/>
+              <text x="20" y="139" class="strong">Appellate</text><text x="122" y="139" class="seal">0.80</text>
+              <rect x="8" y="166" width="167" height="36" rx="2" class="box"/>
+              <text x="20" y="189" class="strong">High Court</text><text x="122" y="189" class="seal">0.50</text>
+              <rect x="8" y="216" width="167" height="36" rx="2" class="box"/>
+              <text x="20" y="239" class="strong">Lower</text><text x="122" y="239" class="seal">0.10</text>
+            </g>
+
+            <!-- the judgment -->
+            <circle cx="452" cy="168" r="48" class="paper" stroke-width="1.5"/>
+            <circle cx="452" cy="168" r="40" fill="none" stroke="var(--seal)" stroke-width="1.5" opacity=".65"/>
+            <text x="452" y="163" class="big" text-anchor="middle" style="fill:var(--ink)">This</text>
+            <text x="452" y="185" class="big" text-anchor="middle" style="fill:var(--ink)">judgment</text>
+
+            <!-- outbound -->
+            <g class="ln-2" stroke-dasharray="3 4">
+              <path d="M500 152 C 560 140, 580 118, 622 112"/>
+              <path d="M500 176 C 560 190, 580 208, 622 216"/>
+            </g>
+            <rect x="612" y="94" width="80" height="34" rx="2" class="box"/>
+            <text x="652" y="116" text-anchor="middle">cites</text>
+            <rect x="612" y="198" width="80" height="34" rx="2" class="box"/>
+            <text x="652" y="220" text-anchor="middle">cites</text>
+
+            <line x1="8" y1="278" x2="692" y2="278" stroke="var(--rule)" stroke-width="1"/>
+            <text x="8" y="302">Weights are constants in molao-core, shared by every jurisdiction.</text>
+            <text x="8" y="322">A region profile picks a court's tier; it cannot re-weight a tier.</text>
+          </svg>
+        </div>
+        <figcaption><span class="lbl">Figure 1</span> Authority ranking is inbound citations weighted by the citing court's place in the hierarchy — an appellate judgment relying on a case says more about that case than a first-instance one does. <strong>Deliberately coarse:</strong> no constant captures a theory of precedent, and this one does not pretend to.</figcaption>
+      </figure>
+
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
+      <ul class="rules">
+        <li><span class="t">Works completely offline</span><span class="d">A node with a corpus on disk needs no peers, no relay and no internet. Pull the plug and it keeps serving the law. This is a hard guarantee, not a degraded mode — which is why peer-to-peer distribution will never be <em>required</em> to read the law.</span></li>
+        <li><span class="t">Nothing to administer</span><span class="d">One executable, one SQLite file. No external database, no credentials, no certificates to rotate, no update check. Federations decay when the person running the node leaves; the defence is having nothing for them to have been maintaining.</span></li>
+        <li><span class="t">No telemetry, no phone-home</span><span class="d">There is no code to disable. One real limit, stated rather than glossed: a node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node — it is free and works offline.</span></li>
+      </ul>
     </div>
   </div>
 </section>
 
-<section id="regions">
-  <div class="wrap">
-    <div class="section-head">
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="trust">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 2 ]</span> Why trust it</div>
+    <div>
+      <h2>No single publisher — including this project</h2>
+      <p class="stand">“No central <em>server</em>” is achievable, and Molao achieves it. “No central <em>authority</em>” is not, and claiming it would be dishonest. Somebody must attest that a particular hash is the real judgment: content addressing proves bytes have not changed, but it cannot prove the bytes were ever the judgment.</p>
+      <p class="stand"><strong>So the trust root is a quorum of independent organisations plus a public append-only log, not one operator.</strong> That is a large improvement over one database with one administrator. It is not trustlessness, and this page will not call it that.</p>
+
+      <div class="cols c2">
+        <figure class="fig">
+          <div class="fig-scroll">
+            <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig2t fig2d">
+              <title id="fig2t">A release is signed by k of n independent organisations</title>
+              <desc id="fig2d">A manifest naming the corpus root, graph root and previous release is signed by three of five independent signers; two have not signed. Below, a note records that a threshold of one is refused by the verifier even when every signature is valid.</desc>
+
+              <rect x="8" y="60" width="210" height="128" rx="2" class="paper" stroke-width="1.5"/>
+              <text x="24" y="86" class="strong">Manifest</text>
+              <line x1="24" y1="98" x2="202" y2="98" stroke="var(--rule)"/>
+              <text x="24" y="122">corpus_root</text>
+              <text x="24" y="144">graph_root</text>
+              <text x="24" y="166">previous</text>
+
+              <g class="ln">
+                <path d="M218 100 C 280 84, 300 52, 356 46" stroke-width="1.5"/>
+                <path d="M218 112 C 280 104, 300 92, 356 90" stroke-width="1.5"/>
+                <path d="M218 124 C 280 128, 300 134, 356 134" stroke-width="1.5"/>
+                <path d="M218 136 C 280 152, 300 176, 356 178" stroke-width="1.5" stroke-dasharray="3 4"/>
+                <path d="M218 148 C 280 176, 300 218, 356 222" stroke-width="1.5" stroke-dasharray="3 4"/>
+              </g>
+
+              <!-- signed -->
+              <g>
+                <circle cx="384" cy="46" r="17" class="seal-fill"/><text x="384" y="52" text-anchor="middle" style="fill:#1A1713;font-weight:600">A</text>
+                <text x="412" y="52" class="strong">Law faculty</text>
+                <circle cx="384" cy="90" r="17" class="seal-fill"/><text x="384" y="96" text-anchor="middle" style="fill:#1A1713;font-weight:600">B</text>
+                <text x="412" y="96" class="strong">Bar council</text>
+                <circle cx="384" cy="134" r="17" class="seal-fill"/><text x="384" y="140" text-anchor="middle" style="fill:#1A1713;font-weight:600">C</text>
+                <text x="412" y="140" class="strong">LII member</text>
+              </g>
+              <!-- not signed -->
+              <g>
+                <circle cx="384" cy="178" r="17" fill="none" stroke="var(--rule-3)" stroke-width="1.5" stroke-dasharray="3 3"/><text x="384" y="184" text-anchor="middle">D</text>
+                <text x="412" y="184">Legal-aid body</text>
+                <circle cx="384" cy="222" r="17" fill="none" stroke="var(--rule-3)" stroke-width="1.5" stroke-dasharray="3 3"/><text x="384" y="228" text-anchor="middle">E</text>
+                <text x="412" y="228">Archive</text>
+              </g>
+
+              <path d="M660 30 L 672 30 L 672 150 L 660 150" class="ln-2" stroke-width="1.5"/>
+              <text x="612" y="96" class="seal">3 of 5</text>
+
+              <line x1="8" y1="268" x2="692" y2="268" stroke="var(--rule)"/>
+              <text x="8" y="296" class="strong">Refused in code, however valid the signatures:</text>
+              <text x="8" y="320">threshold &lt; 2 · threshold &gt; signers · duplicate keys in a set</text>
+              <text x="8" y="344">one key counts once, however many times it signs</text>
+              <text x="8" y="368">signatures from outside the set are ignored</text>
+            </svg>
+          </div>
+          <figcaption><span class="lbl">Figure 2</span> A threshold of one is a single point of authority wearing a quorum's clothes, so <code>verify()</code> refuses it. <strong>No single party can publish a release, including the project that wrote the code</strong> — that is not a policy statement, it is what the function does.</figcaption>
+        </figure>
+
+        <figure class="fig">
+          <div class="fig-scroll">
+            <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig3t fig3d">
+              <title id="fig3t">Releases chain by hash, so a fork is detectable</title>
+              <desc id="fig3d">Three releases in sequence, each naming its predecessor's hash. A fourth, divergent release branches from the second and is marked as detectable against any known head.</desc>
+
+              <g>
+                <rect x="12" y="54" width="196" height="86" rx="2" class="paper" stroke-width="1.5"/>
+                <text x="28" y="82" class="strong">release 1</text>
+                <text x="28" y="106">previous: —</text>
+                <text x="28" y="128">root: 8a88e3dd…</text>
+
+                <rect x="252" y="54" width="196" height="86" rx="2" class="paper" stroke-width="1.5"/>
+                <text x="268" y="82" class="strong">release 2</text>
+                <text x="268" y="106">previous: 8a88e3dd…</text>
+                <text x="268" y="128">root: 15fa1bff…</text>
+
+                <rect x="492" y="54" width="196" height="86" rx="2" class="paper" stroke-width="1.5"/>
+                <text x="508" y="82" class="strong">release 3</text>
+                <text x="508" y="106">previous: 15fa1bff…</text>
+                <text x="508" y="128">root: c40de2a1…</text>
+              </g>
+              <g class="ln-2">
+                <path d="M208 97 L 246 97" stroke-width="1.5" marker-end="url(#ar)"/>
+                <path d="M448 97 L 486 97" stroke-width="1.5" marker-end="url(#ar)"/>
+                <path d="M350 140 L 350 196" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+              </g>
+              <defs>
+                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="var(--rule-3)"/>
+                </marker>
+              </defs>
+
+              <rect x="252" y="204" width="196" height="86" rx="2" fill="none" stroke="var(--stop-dot)" stroke-width="1.5" stroke-dasharray="4 4"/>
+              <text x="268" y="232" style="fill:var(--stop);font-weight:600">divergent release</text>
+              <text x="268" y="256">previous: 8a88e3dd…</text>
+              <text x="268" y="278">root: 9911ee00…</text>
+
+              <line x1="12" y1="320" x2="688" y2="320" stroke="var(--rule)"/>
+              <text x="12" y="348">Two heads claiming the same predecessor is a fork,</text>
+              <text x="12" y="372">and it is detectable against any head you already hold.</text>
+            </svg>
+          </div>
+          <figcaption><span class="lbl">Figure 3</span> Chaining is implemented. What is <strong>designed, not built</strong> is the public append-only log — the independent record, monitored by non-signers, that would also catch a quorum quietly rewriting history. Until it exists, split-view detection is manual: compare your head against another node's.</figcaption>
+        </figure>
+      </div>
+
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
+      <ul class="rules">
+        <li><span class="t">Judgment ids are hashes</span><span class="d">A judgment's id is the BLAKE3 hash of its canonical text. Alter a paragraph and the id no longer matches — which is what makes a judgment received from an untrusted peer safe to keep. Canonicalisation is aggressive on purpose: judgments arrive as RTF, PDF and HTML, and every converter disagrees about whitespace.</span></li>
+        <li><span class="t">The citation graph can be rebuilt</span><span class="d">Citations are extracted by a pinned, versioned, deterministic extractor — no hash-map iteration order in output, no locale, no clock. Anyone can re-run that exact version over the same corpus and must get a byte-identical graph. Any change to extraction behaviour bumps <code>EXTRACTOR_VERSION</code>, including adding a court.</span></li>
+        <li><span class="t">Provenance is plural, and shown</span><span class="d">Contributed documents are corroborated by k-of-n independent re-fetch: witnesses fetch from the canonical source and sign the bytes they saw. One person's upload is not evidence. Every judgment shows its class — <em>Corroborated</em>, <em>Single source</em>, or <em>Manually entered</em> — because lawyers already reason in reported versus unreported terms.</span></li>
+        <li><span class="t">Embeddings are excluded from releases</span><span class="d">Float inference is not reproducible across hardware, so a contributed vector index could never be verified — only trusted. And a poisoned index is worse than a poisoned document: a tampered judgment fails its hash check immediately, while a tampered index leaves every judgment byte-perfect and simply never returns the case that would have lost you the argument. A node may build its own <strong>unsigned, rebuildable</strong> local cache; that is a different thing and does not reopen the question.</span></li>
+        <li><span class="t">The node verifies bytes and signatures — never legal correctness</span><span class="d">It will never say a judgment is verified law, on screen or anywhere else.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="jurisdictions">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 3 ]</span> Any jurisdiction</div>
+    <div>
       <h2>Regions are data, not code</h2>
-      <p>Molao is jurisdiction-neutral. <strong>No country is hardcoded.</strong> Court codes, court names, hierarchy tiers, authority weights and law-report series ship as <strong>region profiles</strong> — data a node picks, never an assumption baked into the parser.</p>
-    </div>
-    <div class="grid g2">
-      <div class="card">
-        <h3>One grammar, many jurisdictions</h3>
-        <p>The free-access-to-law world already converged on one citation convention: <code>[2020] UKSC 1</code> (BAILII), <code>[2020] HCA 1</code> (AustLII), <code>[2020] NZSC 1</code> (NZLII), <code>[1995] ZACC 3</code> (SAFLII).</p>
-        <p>Year, court code, number. Same grammar, different codes — which is exactly why the codes belong in data and the grammar belongs in code.</p>
-      </div>
-      <div class="card">
-        <h3>Generic on day one, ZA first</h3>
-        <p>A <strong>generic</strong> profile parses neutral citations anywhere before a dedicated profile exists, flagging every court code as unknown rather than dropping it. <strong>South Africa is the first fully-populated profile</strong>, never a special case.</p>
-        <p>Adding a jurisdiction means supplying a profile — court registry, tiers, weights, report series — and touching no core logic. Infrastructure any LII, law faculty or bar can stand up for its own corpus.</p>
+      <p class="stand"><strong>No jurisdiction is hardcoded.</strong> Court codes, court names, hierarchy tiers and law-report series ship as region profiles — data a node loads, never an assumption baked into the parser. Molao is infrastructure any LII, law faculty, bar council or ministry of justice can stand up for its own corpus.</p>
+
+      <div class="cols c2">
+        <div class="card">
+          <span class="lbl">One grammar</span>
+          <h3>The convention is already shared</h3>
+          <p>The free-access-to-law world converged long ago: <code>[2020] UKSC 1</code>, <code>[2020] HCA 1</code>, <code>[2020] NZSC 1</code>, <code>[1995] ZACC 3</code>. Year, court code, number.</p>
+          <p>Same grammar, different court codes — which is exactly why the codes belong in data and the grammar belongs in code. Adding a jurisdiction is a TOML file naming the courts and the law-report series. <strong>Correcting a court code is a file, not a rebuild.</strong></p>
+        </div>
+        <div class="card">
+          <span class="lbl">Honest caveat</span>
+          <h3>Generic anywhere, <code>ZA</code> populated</h3>
+          <p>Fourteen profiles ship both as <code>profiles/*.toml</code> and as compiled-in constants, held equal by a test. A loaded profile shadows the compiled-in one of the same code; the rest stay as the fallback.</p>
+          <p><strong>South Africa is the only fully-populated profile.</strong> <code>GENERIC</code> works anywhere from day one but finds only neutral citations and case numbers — reported citations need an enumerated report-series list, and a generic profile has none.</p>
+          <p>Nothing about that changes for Kenya, Nigeria, or any of the roughly sixteen AfricanLII member jurisdictions: the citation grammar is already shared continent-wide, and only the court registry differs.</p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="verify">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Verifiable by recomputation</h2>
-      <p>Nothing enters a release that cannot be rebuilt and compared. That single rule decides most of the architecture — including what is left out.</p>
-    </div>
-    <div class="grid g2">
-      <div class="card">
-        <h3>Judgment ids are hashes</h3>
-        <p>A judgment's id is the BLAKE3 hash of its canonical text. Alter a paragraph and the id no longer matches, which is what makes a judgment received from an untrusted peer safe to keep.</p>
-        <p>Canonicalisation is aggressive on purpose: judgments arrive as RTF, PDF and HTML, and every converter disagrees about whitespace. Without it, two honest nodes would compute different ids and the network would silently fork.</p>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="sources">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 4 ]</span> Where the law comes from</div>
+    <div>
+      <h2>Sourcing is an ethical position, not a technical one</h2>
+      <p class="stand">A July 2026 sweep of the free-access-to-law world found the honest shape of the problem: <strong>the LII aggregators are mostly closed to AI use.</strong> Most publish a <code>Content-Signal</code> of <code>ai-input=no</code>, or block AI crawlers, or say so in their terms.</p>
+      <p class="stand">Molao honours that. Its crawler reads the signal and, by default, will not ingest a source that declines AI input into the corpus — which feeds a retrieval index. It never disguises itself to get around a control: it always identifies as <code>molao-node</code>, always obeys <code>robots.txt</code>, and there is <strong>no browser-spoofing option</strong>. So the corpus comes from courts and official publishers directly, or under licence — the honest inversion of where you would instinctively start.</p>
+
+      <div class="cols c3">
+        <div class="card">
+          <h3>Courts and gazettes, directly</h3>
+          <p>The court that handed down the judgment is the canonical source, in any jurisdiction. Where a court only self-publishes, the way in is a polite, identified crawl at the rate of a careful clerk.</p>
+        </div>
+        <div class="card">
+          <h3>Licensed bulk, where it exists</h3>
+          <p>In Africa that is Laws.Africa / AfricanLII: machine-readable Akoma Ntoso, CC-BY-NC-SA by default. An agreed relationship, not a workaround.</p>
+        </div>
+        <div class="card">
+          <h3>An LII that declines is not scraped</h3>
+          <p>SAFLII made South African case law publicly accessible for two decades, largely unfunded. It is a <strong>citation-resolution target</strong> — somewhere to send a reader. A bulk SAFLII scraper will not be accepted into the repository.</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>The citation graph can be rebuilt</h3>
-        <p>Citations are extracted by a pinned, versioned, deterministic extractor. Any node can re-run that exact version over the same corpus and must get a byte-identical graph.</p>
-        <p>So a graph can be contributed by anyone and checked by everyone, with no trust in the contributor at all.</p>
+
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
+      <div class="ledger-wrap">
+        <table class="ledger">
+          <caption class="lbl" style="text-align:left;padding:14px 16px 0">The map, as it actually stands</caption>
+          <thead>
+            <tr><th scope="col">Jurisdiction</th><th scope="col">Status</th><th scope="col">Route and what it needs</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="j">Kenya</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n">Kenya Law, court-direct crawl; robots allows the path. Live-proven, though it may paywall.</td></tr>
+            <tr><td class="j">Scotland · Northern Ireland</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n">Court sites under the Open Government Licence, open robots, no AI carve-out. Worth confirming reuse in writing.</td></tr>
+            <tr><td class="j">Ireland</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n"><code>courts.ie</code>; CC-BY by default under public-sector information, robots allow-lists the judgments path.</td></tr>
+            <tr><td class="j">New Zealand</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judgments have <strong>no copyright at all</strong> (Copyright Act 1994 s27(g)) and robots is open — the cleanest source anywhere. It needs a court-direct parser.</td></tr>
+            <tr><td class="j">South Africa</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Constitutional Court and SCA directly. Judgments are <strong>public domain by statute</strong> — Copyright Act 1978 s12(8)(a) excludes official texts of a legal nature.</td></tr>
+            <tr><td class="j">Ghana</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judiciary e-Judgment portal: court-direct, open robots, no AI block.</td></tr>
+            <tr><td class="j">England &amp; Wales · UK Supreme Court</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">National Archives <em>Find Case Law</em>: an official API in Akoma Ntoso XML — the best-structured source anywhere. Computational use needs a <strong>free licence application</strong>.</td></tr>
+            <tr><td class="j">Australia</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Courts grant written scraping permission on request, or reuse the Open Australian Legal Corpus (CC-BY-4.0, permission pre-cleared).</td></tr>
+            <tr><td class="j">Canada (federal)</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Open reuse under the Reproduction of Federal Law Order, but the sites block crawling — so it is a bulk data request to the registry.</td></tr>
+            <tr><td class="j">Most of Africa, as bulk</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Laws.Africa, the upstream digitiser for the whole network. CC-BY-NC-SA by default; AI terms unpublished, so it is a licence conversation.</td></tr>
+            <tr><td class="j">EU · France · Netherlands · Germany · ECHR</td><td class="s s-work"><span class="dot"></span>Preliminary</td><td class="n">EUR-Lex/CURIA, Légifrance, <code>rechtspraak.nl</code>, <code>rechtsprechung-im-internet.de</code>, HUDOC. Open-data routes, still to be confirmed and adapter-built.</td></tr>
+            <tr><td class="j">BAILII · AustLII · NZLII · CanLII · SAFLII, and most African LII sites</td><td class="s s-stop"><span class="dot"></span>Off-limits</td><td class="n">Off-limits by <em>their</em> policy — terms, robots, or an explicit no-AI content signal. Molao honours that and uses them only to resolve citations.</td></tr>
+          </tbody>
+        </table>
       </div>
-      <div class="card">
-        <h3>Embeddings are excluded from releases</h3>
-        <p>Float inference is not reproducible across hardware, so a contributed vector index could never be verified — only trusted.</p>
-        <p>And a poisoned index is worse than a poisoned document: a tampered judgment fails its hash check immediately, while a tampered index leaves every judgment byte-perfect and simply never returns the case that would have lost you the argument. The text stays correct while retrieval quietly steers.</p>
-        <p>That doesn't rule out semantic search — a node may build its own local index and share it as an <strong>unsigned, rebuildable cache</strong>, never inside a release. The corpus stays the only signed truth. <code>molao-index</code> is landing this session.</p>
+      <div class="legend">
+        <span class="s-ok"><span class="dot"></span>Usable now</span>
+        <span class="s-work"><span class="dot"></span>Needs an adapter or verification</span>
+        <span class="s-wait"><span class="dot"></span>A (usually free) paperwork step away</span>
+        <span class="s-stop"><span class="dot"></span>Off-limits by their policy</span>
       </div>
+
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
       <div class="card">
-        <h3>Provenance is plural</h3>
-        <p>Contributed documents are corroborated by <strong>k-of-n independent re-fetch</strong>: witnesses fetch from the canonical source and sign the bytes they saw. One person's upload is not evidence.</p>
-        <p>Every judgment shows its class — <em>Corroborated</em>, <em>Single source</em>, or <em>Manually entered</em> — because lawyers already reason in reported versus unreported terms and will not accept a system that flattens the distinction.</p>
+        <span class="lbl">Where a community moves faster than a team</span>
+        <p>Every amber row is a <strong>licence or permission request a person files</strong> — drafted and ready in <code>paperwork/</code>. Filing one is the single biggest unlock in the project, and only a person can do it. Every blue row is a small court-direct adapter behind one trait. A new jurisdiction's court codes are a TOML profile and no code at all.</p>
+        <p><strong>Status:</strong> the sourcing rules are settled policy. <code>molao-ingest</code> — the robots-respecting crawler, the licensed-bulk importer and the witness signing — is written and wired into the node, but it <strong>has not ingested a real document yet</strong>.</p>
       </div>
     </div>
   </div>
 </section>
 
-<section id="quorum">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>No single publisher — including us</h2>
-      <p>"No central <em>server</em>" is achievable, and Molao achieves it. "No central <em>authority</em>" is not, and saying otherwise would be dishonest.</p>
-    </div>
-    <div class="callout">
-      <p>Somebody has to attest that a particular hash is the real judgment. Content addressing proves bytes have not changed; it cannot prove the bytes were ever the judgment in the first place.</p>
-      <p>So the trust root is a <strong>quorum plus a public append-only log</strong>, not one operator. A release is valid only when at least <code>threshold</code> distinct independent organisations have signed its manifest, and <code>threshold &lt; 2</code> is <strong>refused in code</strong> — a threshold of 1 is a single point of authority wearing a quorum's clothes.</p>
-      <p>Releases chain by hash, so a fork is detectable against any known head. What this buys is that capturing the corpus means capturing several institutions across several jurisdictions and going undetected, rather than compromising one server. That is a large improvement, and it is not the same thing as trustlessness.</p>
-    </div>
-
-    <div style="height:26px"></div>
-
-    <table class="tbl">
-      <thead><tr><th>Role</th><th>Does what</th><th>Ongoing effort</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Mirror</strong></td><td>Holds a release and serves it. Reading the law.</td><td>Nearly none. Fetch new releases.</td></tr>
-        <tr><td><strong>Witness</strong></td><td>Fetches judgments from canonical sources and signs the bytes it saw.</td><td>Low. Key custody, and noticing if it stops.</td></tr>
-        <tr><td><strong>Builder</strong></td><td>Assembles a release: canonicalises, extracts, computes roots.</td><td>Per release. Requires no trust — anyone can rebuild and compare.</td></tr>
-        <tr><td><strong>Attestor</strong></td><td>Holds a key in the signer set and signs manifests.</td><td>Per release, plus judgement — and a willingness to refuse.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section id="citator">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>The citator is the real prize</h2>
-      <p>A corpus that does not know case A was overruled by case B will hand a lawyer dead authority.</p>
-    </div>
-    <div class="grid g2">
-      <div class="card">
-        <h3>Mechanical edges — built</h3>
-        <p>Who cited whom, from which paragraph, pointing at which pinpoint. Deterministic, verifiable, and rebuildable by anyone.</p>
-        <p>Unresolved citations are shown <strong>as written</strong>, never hidden. A citator that quietly drops what it cannot resolve tells a lawyer the case cites less than it does.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tag">Designed, not built</span> Treatment</h3>
-        <p>Whether a case was <em>followed</em>, <em>distinguished</em> or <em>overruled</em> is interpretation. It cannot be verified by recomputation, so it will be modelled as <strong>signed attestations that may conflict</strong> — showing the disagreement rather than resolving it.</p>
-        <p>Two scholars can read the same judgments and differ. A system that picks a winner and hides the argument is lying about how law works. Until this lands, check currency yourself.</p>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="citator">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 5 ]</span> The citator</div>
+    <div>
+      <h2>The citator is the real prize, and half of it is not built</h2>
+      <p class="stand">A corpus that does not know case A was overruled by case B will hand a lawyer dead authority. This is the most important gap in the project and it is stated first, not last.</p>
+      <div class="cols c2">
+        <div class="card">
+          <span class="tag yes">Built</span>
+          <h3 style="margin-top:12px">Mechanical edges</h3>
+          <p>Who cited whom, from which paragraph, pointing at which pinpoint. Deterministic, verifiable, rebuildable by anyone, and pinned to an extractor version.</p>
+          <p>Unresolved citations appear <strong>as written</strong> rather than being dropped.</p>
+        </div>
+        <div class="card">
+          <span class="tag no">Designed, not built</span>
+          <h3 style="margin-top:12px">Treatment</h3>
+          <p>Whether a case was <em>followed</em>, <em>distinguished</em> or <em>overruled</em> is interpretation. It cannot be verified by recomputation, so it will be modelled as <strong>signed attestations that may conflict</strong>, with the mechanical edge remaining separate and verifiable underneath.</p>
+          <p>Two scholars can read the same judgments and differ. A system that silently picks a winner is lying about how law works, and it keeps Molao out of the business of deciding what the law means, which it has no standing to do. <strong>Until this lands, check currency yourself.</strong></p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section id="sourcing">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Where the corpus comes from</h2>
-      <p>Judgments are public documents and are not copyrightable. That settles the judgments. It does not settle everything.</p>
-    </div>
-    <div class="grid g3">
-      <div class="card">
-        <h3>Courts and gazettes, directly</h3>
-        <p>The court that handed down the judgment is the canonical source, in any jurisdiction. Going direct means the provenance record points where it should. Where a court only self-publishes, the way in is a <strong>polite, identified crawl</strong> — a named agent, <code>robots.txt</code> honoured without exception, a fetch rate like a careful clerk, not a data hoover.</p>
-      </div>
-      <div class="card">
-        <h3>Licensed bulk, where it exists</h3>
-        <p>In Africa that is Laws.Africa / AfricanLII: machine-readable Akoma Ntoso under CC-BY-NC-SA, with a commercial licence available. Elsewhere, the national LII or the courts’ own publisher. An agreed relationship, not a workaround.</p>
-      </div>
-      <div class="card">
-        <h3>SAFLII is not a scrape target</h3>
-        <p>Where an LII declines bulk supply, that settles it. SAFLII made South African case law publicly accessible for two decades, largely unfunded, and says plainly that it is not a bulk re-supplier — so Molao treats it as a <strong>citation-resolution target</strong>, somewhere to send a reader. A bulk SAFLII scraper will not be accepted into the repository.</p>
-      </div>
-    </div>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="screens">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 6 ]</span> The interface</div>
+    <div>
+      <h2>What a reader actually sees</h2>
+      <p class="stand">The web UI, served by the same binary, running against the <strong>demo corpus</strong> — synthetic judgments with a real citation graph between them. <strong>There is no bundled corpus yet, and no public signed release.</strong></p>
 
-    <div style="height:26px"></div>
+      <div class="plates">
+        <figure class="plate-fig">
+          <img src="./screenshots/judgment.png" width="2880" height="1800" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async">
+          <figcaption><span class="lbl">Plate II · a judgment</span> Numbered paragraphs as printed, with court, case number, coram, parallel reported citations, and the provenance class.</figcaption>
+        </figure>
+        <figure class="plate-fig">
+          <img src="./screenshots/citations.png" width="2880" height="1800" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async">
+          <figcaption><span class="lbl">Plate III · citations</span> Both directions, with the paragraph cited from and the pinpoint cited to. Unresolved citations appear as written rather than being dropped.</figcaption>
+        </figure>
+        <figure class="plate-fig">
+          <img src="./screenshots/graph.png" width="2880" height="1800" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async">
+          <figcaption><span class="lbl">Plate IV · the graph</span> The citation graph around one judgment, edges weighted by the citing court's tier.</figcaption>
+        </figure>
+        <figure class="plate-fig">
+          <img src="./screenshots/status.png" width="2880" height="1800" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async">
+          <figcaption><span class="lbl">Plate V · node status</span> Release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed — public on <code>/api/status</code>, so a federation's health is visible rather than assumed.</figcaption>
+        </figure>
+      </div>
 
-    <div class="callout">
-      <p>None of this depends on trusting whoever submits a document. The corpus is built <strong>collectively</strong>: independent witnesses fetch from these sources and sign the raw bytes they saw, and a document is <strong>corroborated</strong> only once k-of-n independent witnesses agree. One person's upload is never evidence on its own.</p>
-      <p><strong>Status:</strong> the sourcing rules are settled policy. The software that enacts them — a robots-respecting crawler, a licensed-bulk importer, and the witness-signing daemon — is <code>molao-ingest</code>, being written this session. It has not ingested a real document yet.</p>
+      <div style="height:clamp(22px,3vw,32px)"></div>
+
+      <figure class="plate-fig">
+        <span class="lbl">Plate VI · on a phone</span>
+        <div class="phones">
+          <img src="./screenshots/mobile-search.png" width="1170" height="2532" alt="Molao search results on a phone." loading="lazy" decoding="async">
+          <img src="./screenshots/mobile-judgment.png" width="1170" height="2532" alt="A judgment displayed on a phone." loading="lazy" decoding="async">
+          <img src="./screenshots/mobile-graph.png" width="1170" height="2532" alt="The citation graph on a phone." loading="lazy" decoding="async">
+        </div>
+        <figcaption>The same node, the same corpus, on a handset — because a great deal of legal research in the jurisdictions this matters most to happens on a phone.</figcaption>
+      </figure>
     </div>
   </div>
 </section>
 
-<section id="distribute">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Content-addressed, so the transport doesn't have to be trusted</h2>
-      <p>A release is a content-addressed file set plus a signed manifest. What it <em>is</em> doesn't depend on how it travels — so it can travel over anything, including a channel nobody has a reason to trust.</p>
-    </div>
-    <div class="grid g3">
-      <div class="card">
-        <h3>iroh — primary transport</h3>
-        <p>Direct node-to-node, content-addressed by design: asking a peer for a release is just asking for known hashes, which is the vocabulary Molao already speaks.</p>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="institutions">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 7 ]</span> The invitation</div>
+    <div class="invite">
+      <span class="lbl">An invitation to institutions</span>
+      <h2>Molao cannot cut its first release until independent organisations hold the keys.</h2>
+      <div class="prose">
+        <p>This is not a courtesy. A release is valid only when at least <code>threshold</code> distinct signers from the signer set have signed its manifest, and <strong><code>threshold &lt; 2</code> is refused in code</strong> — so until at least two independent organisations hold signing keys, there is no first release, and the project cannot manufacture one for itself.</p>
+        <p>Attestors should be institutions with an independent reason to care about the integrity of their jurisdiction's law, and no shared point of failure: <strong>university law faculties and their libraries, law societies and bar councils, legal-aid and public-interest litigation organisations, LII-network members and archives.</strong></p>
       </div>
-      <div class="card">
-        <h3>Torrent export — archival</h3>
-        <p>A release exported as a <code>.torrent</code> plus its files, so libraries and universities can seed it with tools they already run. The corpus can outlive this project whether or not the software does.</p>
-      </div>
-      <div class="card">
-        <h3>Plain HTTP mirror — fallback</h3>
-        <p>The simplest option, and the only one moving real bytes today: a directory of content-addressed files on any static host.</p>
-      </div>
-    </div>
 
-    <div style="height:26px"></div>
+      <div style="height:20px"></div>
 
-    <div class="callout">
-      <p>None of these transports has to be trusted, because verification isn't asking where the bytes came from — it's recomputing hashes from what actually arrived and checking a quorum's signatures over the manifest naming them. A torrent seeder or a stray iroh peer can waste your time by refusing to serve; it cannot make your node accept altered content.</p>
-      <p>Content addressing does not, on its own, catch <strong>split view</strong> — a transport showing two peers two different valid releases. That is what release chaining and a public append-only log are for, and the log is still designed, not built.</p>
-      <p><strong>Status:</strong> the model is settled. iroh and the torrent export are landing this session as <code>molao-dist</code>. Neither has carried a real release yet, because there is no public release yet — today a release is still a directory of files on a plain host, mirrored by hand. <a href="./docs.html#distribution" class="accent">Full story</a>.</p>
+      <table class="crit">
+        <thead><tr><th scope="col">What matters</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr><td>Institutional independence</td><td>A quorum of one organisation's departments is one organisation.</td></tr>
+          <tr><td>Jurisdictional spread</td><td>Attestors in one jurisdiction can be compelled together.</td></tr>
+          <tr><td>Key custody that survives people</td><td>The commonest failure is the person holding the key leaving.</td></tr>
+          <tr><td>Willingness to refuse</td><td>An attestor that has never declined to sign is a rubber stamp.</td></tr>
+          <tr><td>Capacity to rebuild</td><td>Signing a manifest you did not independently verify makes the quorum theatre. This is the substantive obligation: an attestor is not lending a signature, it is asserting that it rebuilt the release from the same inputs and got the same roots.</td></tr>
+        </tbody>
+      </table>
+
+      <div style="height:26px"></div>
+
+      <div class="cols c2">
+        <div class="card">
+          <h3>What it costs you</h3>
+          <p>Signing is per release, not per day. Below it, a <strong>mirror</strong> holds a release and serves it — nearly no ongoing effort — and a <strong>witness</strong> fetches judgments from canonical sources and signs the bytes it saw. There is no external database to run, nothing to rotate, and no service to pay for. The roles and their real costs are set out in the documentation.</p>
+        </div>
+        <div class="card">
+          <h3>What is honestly unfinished</h3>
+          <p>You would be signing into a project whose <strong>membership-change ceremony is designed, not built</strong> — the data model supports epochs, but the ceremony, its documentation and the tooling do not exist yet, and getting it right is a prerequisite for the first real release. The <strong>public append-only log is also designed, not built.</strong> Being asked to hold a key while those are named is the point: they are named.</p>
+        </div>
+      </div>
+
+      <div class="acts">
+        <a class="btn seal" href="https://github.com/vul-os/molao/issues/new">Open an issue to start the conversation <span class="arrow">→</span></a>
+        <a class="btn" href="./docs.html#governance">Read the governance document</a>
+        <a class="btn" href="./docs.html#running-a-node">The four node roles</a>
+      </div>
+      <p class="fine">Contact is deliberately in the open: the project has no private channel for this, because who holds a signing key should be a public fact from the first message. Nothing about Molao's place in VulOS gives any party — including VulOS — a vote in the signer set.</p>
     </div>
   </div>
 </section>
 
-<section id="start">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>Run it</h2>
-      <p>Rust 1.85+ and Node 20+. SQLite is bundled, so there is no database to install and no connection string to configure.</p>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="limits">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 8 ]</span> Limits</div>
+    <div>
+      <h2>The hard parts, stated plainly</h2>
+      <p class="stand">A project that only lists its wins is marketing. These are the limits, and none of them is fixed by cryptography.</p>
+      <ul class="rules honest">
+        <li><span class="t">A quorum can still collude</span><span class="d">If k of n signers agree to publish something false, every check passes. The defence is institutional independence and jurisdictional spread — not mathematics. It is the reason the signer set matters more than the code.</span></li>
+        <li><span class="t">Molao attests to what the source served, not to what the court meant</span><span class="d">If a court publishes the wrong file, witnesses will faithfully corroborate the wrong file.</span></li>
+        <li><span class="t">The node verifies bytes and signatures — never legal correctness</span><span class="d">Nothing here will ever be presented as “verified law”. Whether a judgment is still good law is a legal question the node does not answer, and until treatment attestations exist it does not attempt to.</span></li>
+        <li><span class="t">Federations decay when the person running the node leaves</span><span class="d">Every distributed academic network has watched nodes go dark because a postgraduate graduated. Hence a zero-maintenance single binary with nothing to rotate, and network health exposed publicly on <code>/api/status</code>.</span></li>
+        <li><span class="t">Reader privacy has a limit</span><span class="d">A node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node.</span></li>
+        <li><span class="t">Molao does not defend your machine against its own administrator</span><span class="d">Anyone with write access to the SQLite file can change what your node shows you. Re-verification against a release catches it.</span></li>
+        <li><span class="t">Decentralised in trust; not yet in distribution</span><span class="d">The built parts are the ones that matter most — content-addressed identity, threshold signatures, a recomputable graph, offline nodes. What is not live is moving a release peer-to-peer and having a public corpus to move. <code>molao-dist</code> (content-addressed packaging, a torrent export, a filesystem transport, and an iroh adapter behind a feature flag) is in the workspace and tested, but <strong>no node uses it: it has no dependents, and no <code>molao</code> command publishes or fetches a release.</strong> Today a plain file host, mirrored by hand, is the only transport moving bytes.</span></li>
+        <li><span class="t">Search is lexical, and that is a knowing limitation</span><span class="d">Semantic search over a release is deliberately excluded, for the reasons in the threat model. A local, rebuildable, unsigned index is a different thing and does not reopen that question.</span></li>
+      </ul>
     </div>
-    <div class="grid g2">
-      <div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+<section class="chapter" id="run">
+  <div class="sheet">
+    <div class="gutter"><span class="no">[ 9 ]</span> Running it</div>
+    <div>
+      <h2>For whoever in your institution runs the machine</h2>
+      <p class="stand">Rust 1.85 or newer and Node 20 or newer. Nothing else: SQLite is bundled, so there is no database to install and no connection string to configure. A node binds <code>127.0.0.1</code> — serving a network is a deliberate flag, not an accident.</p>
+      <div class="cols c2">
+        <div>
 <pre><code>git clone https://github.com/vul-os/molao
 cd molao
 
 cargo build --workspace
 cargo test --workspace
 
-npm ci
-npm run build
+npm ci &amp;&amp; npm run build
 
 cargo run -p molao-node</code></pre>
-      </div>
-      <div class="card">
-        <h3>What you get, honestly</h3>
-        <p>A working node: <code>serve</code>, <code>ingest</code>, <code>demo</code>, <code>verify</code> and <code>stats</code>, with full-text search, a citation graph and a web UI in one binary. Run <code>cargo run -p molao-node -- --help</code> to see what your clone offers.</p>
-        <p><strong>A node starts empty.</strong> There is no bundled corpus and no public signed release yet. <code>molao demo</code> seeds a synthetic corpus so search, judgments, citations and the graph have something to show.</p>
+        </div>
+        <div class="card">
+          <h3>What you get, honestly</h3>
+          <p>The tests are the fastest way to see what the project guarantees: that canonicalisation is idempotent, that tampering with a judgment breaks its id, that one signer cannot reach a quorum by signing repeatedly, and that ordinary prose extracts no citations.</p>
+          <p><strong>A node starts empty.</strong> There is no bundled corpus and no public signed release yet. <code>molao demo</code> seeds a small synthetic corpus so that search, judgments, citations and the graph have something to show.</p>
+          <p>To ingest real documents, read the sourcing document first — those rules are a deliberate ethical position, not a configuration default.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
-
-<section id="honest">
-  <div class="wrap">
-    <div class="section-head">
-      <h2>The hard parts, stated plainly</h2>
-      <p>A project that only lists its wins is marketing. These are the limits.</p>
-    </div>
-    <ul class="honest">
-      <li><strong>A quorum can still collude.</strong> If k of n signers agree to publish something false, every check passes. The defence is institutional independence and jurisdictional spread — not cryptography.</li>
-      <li><strong>Federations decay when the person running the node leaves.</strong> Every distributed academic network has watched nodes go dark because a postgraduate graduated. Hence a zero-maintenance single binary with nothing to rotate, and network health exposed publicly.</li>
-      <li><strong>Molao attests to what the source served, not to what the court meant.</strong> If a court publishes the wrong file, witnesses will faithfully corroborate the wrong file.</li>
-      <li><strong>The node verifies bytes and signatures — never legal correctness.</strong> Nothing here will ever be presented as "verified law".</li>
-      <li><strong>Reader privacy has a limit.</strong> A node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node — it is free and works offline.</li>
-      <li><strong>Decentralisation-ready, not decentralisation-running.</strong> The trust model — hashes, quorums, a recomputable graph — is built and tested. Peer-to-peer distribution (<code>molao-dist</code>: iroh plus a torrent export) is landing this session, but there is no public corpus yet for it to carry, and releases are still plain files mirrored by hand. P2P will never be <em>required</em> to read the law — a node with a corpus on disk needs no peers at all.</li>
-    </ul>
   </div>
 </section>
 
 </main>
 
-<footer class="site-footer"><div class="wrap foot">
-  <div class="left"><img src="./assets/vulos-logo.png" alt="VulOS"> <span>Part of <a href="https://vulos.org" style="color:var(--text)">VulOS</a> — open, self-hostable apps. Standalone by design.</span></div>
-  <div class="links">
-    <a href="./docs.html">Docs</a>
-    <a href="./docs.html#governance">Governance</a>
-    <a href="https://github.com/vul-os/molao">GitHub</a>
-    <a href="./LICENSE.txt">License</a>
-    <a href="https://vulos.org">vulos.org</a>
+<footer class="colophon">
+  <div class="sheet">
+    <div class="colo">
+      <div class="who">
+        <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
+        <span>Part of <a href="https://vulos.org" style="color:var(--ink)">VulOS</a> — open, self-hostable software. Molao runs standalone by design, and bills nothing, hosts nothing, and has no paid tier.</span>
+      </div>
+      <div class="links">
+        <a href="./docs.html">Documentation</a>
+        <a href="./docs.html#governance">Governance</a>
+        <a href="./docs.html#faq">FAQ</a>
+        <a href="./docs.html#roadmap">Roadmap</a>
+        <a href="https://github.com/vul-os/molao">Source</a>
+        <a href="./LICENSE.txt">Licence</a>
+      </div>
+    </div>
+    <p class="fine">MIT or Apache-2.0 — © Molao contributors. The judgments themselves are not anyone's to license: they are public documents, the work of the courts. This page makes no outbound requests — the fonts, the mark and every figure on it are served from this origin, which is the same promise the node makes.</p>
   </div>
-</div></footer>
+</footer>
 
 <script>
 // External links open in a new tab. Set here rather than inline so the markup
-// stays clean; no network requests are made by this page under any condition.
+// stays clean. No network request is made by this page under any condition.
 document.querySelectorAll('a[href^="http"]').forEach(function(a){
   a.target = '_blank';
   a.rel = 'noopener';
