@@ -100,7 +100,7 @@ em{font-style:italic}
 .prose{max-width:66ch}
 
 code,.mono{font-family:var(--mono);font-variation-settings:normal}
-code{font-size:.82em;background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);white-space:nowrap}
+code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);white-space:nowrap}
 
 /* ── Masthead ──────────────────────────────────────────────────────────────
    The old bar was a blurred pill-nav: a developer-tool signal. This is a
@@ -127,8 +127,8 @@ code{font-size:.82em;background:var(--sink);border:1px solid var(--rule);padding
   letter-spacing:-.018em;font-variation-settings:"SOFT" 0;
 }
 .plate .said{font-family:var(--mono);font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
-.plate .tag{margin-left:auto;text-align:right;max-width:26ch;color:var(--muted);font-size:15.5px;line-height:1.45;font-style:italic}
-@media(max-width:760px){.plate .tag{margin-left:0;text-align:left;max-width:none;font-size:15px}}
+.plate .motto{margin-left:auto;text-align:right;max-width:30ch;color:var(--muted);font-size:15.5px;line-height:1.45;font-style:italic}
+@media(max-width:760px){.plate .motto{margin-left:0;text-align:left;max-width:none;font-size:15px}}
 .double{border-bottom:3px double var(--rule-3)}
 
 /* Index rail — sticky, printed, and at 320px it scrolls sideways inside itself
@@ -203,6 +203,13 @@ h1 .brk{display:block}
 /* ── Chapters ───────────────────────────────────────────────────────────── */
 .chapter{border-top:3px double var(--rule-3);padding:clamp(46px,6.5vw,86px) 0}
 .chapter > .sheet{display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:1fr}
+/* A grid item defaults to min-width:auto, so it refuses to shrink below its
+   own min-content. The figure scrollers and the ledger declare a min-width, so
+   without this the CHAPTER grew to 660px inside a 320px viewport — and because
+   the overflow was clipped rather than scrolled, the right-hand end of every
+   drawing became unreachable. min-width:0 lets the track win and hands the
+   overflow back to the element that declared it. */
+.chapter > .sheet > *{min-width:0}
 @media(min-width:1020px){.chapter > .sheet{grid-template-columns:118px minmax(0,1fr)}}
 .gutter{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
 .gutter .no{display:block;color:var(--seal-ink);font-weight:600;font-size:13px;margin-bottom:6px}
@@ -231,7 +238,7 @@ h3{font-size:19px;margin:0 0 .5em;color:var(--ink);font-weight:550;letter-spacin
 .rules .t{color:var(--ink);font-weight:550;font-size:16.5px}
 .rules .d{color:var(--muted);font-size:15.5px}
 
-.tag{display:inline-block;font-family:var(--mono);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;padding:2px 7px;border:1px solid currentColor;border-radius:2px;vertical-align:1px;white-space:nowrap}
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;padding:2px 7px;border:1px solid currentColor;border-radius:2px;vertical-align:1px;white-space:nowrap}
 .tag.no{color:var(--stop)}
 .tag.yes{color:var(--ok)}
 .tag.part{color:var(--wait)}
@@ -244,7 +251,7 @@ figure{margin:0}
    320px viewport would drop its labels to ~6px — the sub-12px trap in vector
    form. min-width keeps the drawing at its designed size and lets the FIGURE
    scroll instead of the page. */
-.fig-scroll > svg{min-width:600px;width:100%;height:auto;max-width:760px;margin:0 auto}
+.fig-scroll > svg{min-width:600px;width:100%;height:auto;max-width:820px;margin:0 auto}
 .fig text{font-family:var(--mono);font-size:15px;fill:var(--muted)}
 .fig text.strong{fill:var(--ink);font-weight:600}
 .fig text.seal{fill:var(--seal-ink);font-weight:600}
@@ -338,7 +345,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <span class="name">Molao</span>
         <span class="said">Sotho and Tswana for <em>law</em></span>
       </span>
-      <span class="tag">A free, decentralized commons of case law — for any jurisdiction.</span>
+      <span class="motto">A free, decentralized commons of case law — for any jurisdiction.</span>
     </div>
   </div>
 </header>
@@ -523,7 +530,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <p class="stand">“No central <em>server</em>” is achievable, and Molao achieves it. “No central <em>authority</em>” is not, and claiming it would be dishonest. Somebody must attest that a particular hash is the real judgment: content addressing proves bytes have not changed, but it cannot prove the bytes were ever the judgment.</p>
       <p class="stand"><strong>So the trust root is a quorum of independent organisations plus a public append-only log, not one operator.</strong> That is a large improvement over one database with one administrator. It is not trustlessness, and this page will not call it that.</p>
 
-      <div class="cols c2">
+      <div class="cols">
         <figure class="fig">
           <div class="fig-scroll">
             <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig2t fig2d">
