@@ -114,16 +114,37 @@ pub struct Step {
     pub detail: String,
 }
 
-impl Step {
-    fn new(number: usize, name: &'static str, status: StepStatus, detail: String) -> Self {
-        Step {
-            number,
-            name,
-            status,
-            detail,
-        }
+/// A step's verdict before it is numbered.
+///
+/// Steps do not name or number themselves. They used to, and ten of them were
+/// silently wrong on their failure paths — a step that passed reported `5` and
+/// the same step failing reported `4`, because the number was hand-written at
+/// every `return` and the tests only ever exercised the passing branch. The
+/// numbering now comes from [`STEP_NAMES`] in [`verify`], in order, so the two
+/// cannot disagree and no future branch can carry the wrong label.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Finding {
+    pub status: StepStatus,
+    pub detail: String,
+}
+
+fn finding(status: StepStatus, detail: impl Into<String>) -> Finding {
+    Finding {
+        status,
+        detail: detail.into(),
     }
 }
+
+/// The steps, in order. The index is the step number minus one.
+const STEP_NAMES: [&str; STEP_COUNT] = [
+    "signer set",
+    "signer-set binding",
+    "signatures",
+    "chain",
+    "documents",
+    "corpus root",
+    "graph root",
+];
 
 /// The overall answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,7 +282,7 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path, what: &str) -> Result<
 /// whoever has to fix it than "the first one that did not".
 pub fn verify(inputs: &Inputs<'_>) -> Report {
     let manifest = &inputs.release.manifest;
-    let steps = vec![
+    let findings = [
         step_1_signer_set(inputs.signers),
         step_2_signer_set_binding(manifest, inputs.signers),
         step_3_signatures(inputs.release, inputs.signers),
@@ -272,7 +293,17 @@ pub fn verify(inputs: &Inputs<'_>) -> Report {
     ];
     Report {
         release: manifest.release,
-        steps,
+        steps: findings
+            .into_iter()
+            .zip(STEP_NAMES)
+            .enumerate()
+            .map(|(i, (f, name))| Step {
+                number: i + 1,
+                name,
+                status: f.status,
+                detail: f.detail,
+            })
+            .collect(),
     }
 }
 
@@ -280,7 +311,7 @@ pub fn verify(inputs: &Inputs<'_>) -> Report {
 // Step 1 — the signer set
 // ---------------------------------------------------------------------------
 
-fn step_1_signer_set(signers: &SignerSet) -> Step {
+fn step_1_signer_set(signers: &SignerSet) -> Finding {
     let fingerprint = signers.fingerprint();
     let detail = format!(
         "threshold {} of {} signer(s), epoch {}, set fingerprint {}",
@@ -293,14 +324,14 @@ fn step_1_signer_set(signers: &SignerSet) -> Step {
         Ok(()) => StepStatus::Pass,
         Err(e) => StepStatus::Fail(e.to_string()),
     };
-    Step::new(1, "signer set", status, detail)
+    finding(status, detail)
 }
 
 // ---------------------------------------------------------------------------
 // Step 2 — the release names this signer set
 // ---------------------------------------------------------------------------
 
-fn step_2_signer_set_binding(manifest: &Manifest, signers: &SignerSet) -> Step {
+fn step_2_signer_set_binding(manifest: &Manifest, signers: &SignerSet) -> Finding {
     let held = signers.fingerprint();
     let detail = format!(
         "release names signer set {}, this node holds {}",
@@ -314,7 +345,7 @@ fn step_2_signer_set_binding(manifest: &Manifest, signers: &SignerSet) -> Step {
         Ok(()) => StepStatus::Pass,
         Err(e) => StepStatus::Fail(e.to_string()),
     };
-    Step::new(2, "signer-set binding", status, detail)
+    finding(status, detail)
 }
 
 /// First 16 characters of a hex digest — enough to compare by eye, and the
@@ -327,20 +358,16 @@ fn short(hex: &str) -> &str {
 // Step 3 — a quorum signed this manifest
 // ---------------------------------------------------------------------------
 
-fn step_3_signatures(release: &SignedRelease, signers: &SignerSet) -> Step {
+fn step_3_signatures(release: &SignedRelease, signers: &SignerSet) -> Finding {
     match release.verify_signatures(signers) {
-        Ok(count) => Step::new(
-            3,
-            "signatures",
+        Ok(count) => finding(
             StepStatus::Pass,
             format!(
                 "{count} distinct valid signature(s) over the manifest, threshold {}",
                 signers.threshold
             ),
         ),
-        Err(e) => Step::new(
-            3,
-            "signatures",
+        Err(e) => finding(
             StepStatus::Fail(e.to_string()),
             format!(
                 "{} signature(s) offered, threshold {}",
@@ -355,7 +382,7 @@ fn step_3_signatures(release: &SignedRelease, signers: &SignerSet) -> Step {
 // Step 4 — the chain
 // ---------------------------------------------------------------------------
 
-fn step_4_chain(release: &SignedRelease, previous: Option<&Manifest>) -> Step {
+fn step_4_chain(release: &SignedRelease, previous: Option<&Manifest>) -> Finding {
     let m = &release.manifest;
     let describe = |p: &Manifest| format!("release {} onto release {}", m.release, p.release);
 
@@ -408,32 +435,25 @@ fn step_4_chain(release: &SignedRelease, previous: Option<&Manifest>) -> Step {
             ),
         ),
     };
-    Step::new(4, "chain", status, detail)
+    finding(status, detail)
 }
 
 // ---------------------------------------------------------------------------
 // Step 5 — every document re-hashes to its own id
 // ---------------------------------------------------------------------------
 
-fn step_5_documents(corpus: Option<&Corpus>) -> Step {
+fn step_5_documents(corpus: Option<&Corpus>) -> Finding {
     let Some(corpus) = corpus else {
-        return Step::new(5, "documents", skip_no_db(), "not examined".into());
+        return finding(skip_no_db(), "not examined");
     };
     match rehash_documents(corpus) {
-        Err(e) => Step::new(
-            4,
-            "documents",
-            StepStatus::Fail(format!("{e:#}")),
-            "not examined".into(),
-        ),
+        Err(e) => finding(StepStatus::Fail(format!("{e:#}")), "not examined"),
         Ok((examined, bad)) => {
             let detail = format!("{examined} document(s) re-hashed from their stored text");
             if bad.is_empty() {
-                Step::new(5, "documents", StepStatus::Pass, detail)
+                finding(StepStatus::Pass, detail)
             } else {
-                Step::new(
-                    4,
-                    "documents",
+                finding(
                     StepStatus::Fail(format!(
                         "{} document(s) do not hash to the id they are stored under, first: {}",
                         bad.len(),
@@ -475,28 +495,19 @@ fn rehash_documents(corpus: &Corpus) -> Result<(usize, Vec<DocId>)> {
 // Step 6 — corpus root
 // ---------------------------------------------------------------------------
 
-fn step_6_corpus_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
+fn step_6_corpus_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
     let Some(corpus) = corpus else {
-        return Step::new(6, "corpus root", skip_no_db(), "not examined".into());
+        return finding(skip_no_db(), "not examined");
     };
     let ids = match document_ids(corpus) {
         Ok(ids) => ids,
-        Err(e) => {
-            return Step::new(
-                5,
-                "corpus root",
-                StepStatus::Fail(format!("{e:#}")),
-                "not examined".into(),
-            )
-        }
+        Err(e) => return finding(StepStatus::Fail(format!("{e:#}")), "not examined"),
     };
     let computed = roots::corpus_root(&ids);
     let detail = format!("{} document(s), recomputed root {computed}", ids.len());
 
     if ids.len() as u64 != manifest.doc_count {
-        return Step::new(
-            5,
-            "corpus root",
+        return finding(
             StepStatus::Fail(format!(
                 "manifest claims {} document(s); this corpus holds {}",
                 manifest.doc_count,
@@ -506,9 +517,7 @@ fn step_6_corpus_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
         );
     }
     if computed != manifest.corpus_root {
-        return Step::new(
-            5,
-            "corpus root",
+        return finding(
             StepStatus::Fail(format!(
                 "manifest corpus_root is {}, this corpus computes {computed}",
                 manifest.corpus_root
@@ -516,7 +525,7 @@ fn step_6_corpus_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
             detail,
         );
     }
-    Step::new(6, "corpus root", StepStatus::Pass, detail)
+    finding(StepStatus::Pass, detail)
 }
 
 fn document_ids(corpus: &Corpus) -> Result<Vec<DocId>> {
@@ -535,48 +544,31 @@ fn document_ids(corpus: &Corpus) -> Result<Vec<DocId>> {
 // Step 7 — graph root, by re-running the pinned extractor
 // ---------------------------------------------------------------------------
 
-fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
-    let name = "graph root";
+fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
     // A binary that is not the pinned extractor cannot perform this step. It
     // must say so rather than compare roots anyway: agreeing by accident and
     // agreeing by reproduction are not the same claim.
     if manifest.extractor_version != molao_cite::EXTRACTOR_VERSION {
-        return Step::new(
-            6,
-            name,
+        return finding(
             StepStatus::Skip(format!(
                 "the manifest pins {}, this binary is {} — re-run with the pinned extractor",
                 manifest.extractor_version,
                 molao_cite::EXTRACTOR_VERSION
             )),
-            "not examined".into(),
+            "not examined",
         );
     }
     let Some(corpus) = corpus else {
-        return Step::new(7, name, skip_no_db(), "not examined".into());
+        return finding(skip_no_db(), "not examined");
     };
 
     let reextracted = match reextract_edges(corpus) {
         Ok(e) => e,
-        Err(e) => {
-            return Step::new(
-                6,
-                name,
-                StepStatus::Fail(format!("{e:#}")),
-                "not examined".into(),
-            )
-        }
+        Err(e) => return finding(StepStatus::Fail(format!("{e:#}")), "not examined"),
     };
     let stored = match stored_edges(corpus) {
         Ok(e) => e,
-        Err(e) => {
-            return Step::new(
-                6,
-                name,
-                StepStatus::Fail(format!("{e:#}")),
-                "not examined".into(),
-            )
-        }
+        Err(e) => return finding(StepStatus::Fail(format!("{e:#}")), "not examined"),
     };
 
     let computed = roots::graph_root(&reextracted);
@@ -593,9 +585,7 @@ fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
     // does not, the corpus has been edited underneath its own paragraphs, and
     // whichever of the two happens to match the manifest is not the point.
     if roots::graph_bytes(&stored) != roots::graph_bytes(&reextracted) {
-        return Step::new(
-            6,
-            name,
+        return finding(
             StepStatus::Fail(format!(
                 "the stored citation graph ({} edge(s), root {}) is not what re-running {} over \
                  this corpus's text produces ({} edge(s)) — the citation table and the paragraph \
@@ -609,9 +599,7 @@ fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
         );
     }
     if computed != manifest.graph_root {
-        return Step::new(
-            6,
-            name,
+        return finding(
             StepStatus::Fail(format!(
                 "manifest graph_root is {}, re-extraction computes {computed}",
                 manifest.graph_root
@@ -619,7 +607,7 @@ fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Step {
             detail,
         );
     }
-    Step::new(7, name, StepStatus::Pass, detail)
+    finding(StepStatus::Pass, detail)
 }
 
 /// Rebuild the citation edge set **from the paragraph text**, by running the
@@ -831,6 +819,177 @@ mod tests {
                 "graph root"
             ]
         );
+    }
+
+    /// Every step, driven into every branch it has, with the shape checked each
+    /// time.
+    ///
+    /// This exists because it did not, and ten steps were numbered wrongly on
+    /// their failure paths without one test noticing: the passing branch of a
+    /// step said `5` and its failing branch said `4`. Tests asserted
+    /// `steps[4]` by index and were happy, and `check_shape` — the guard that
+    /// would have caught it — was only ever called on a report where everything
+    /// passed. It surfaced when the real binary was run against a tampered
+    /// corpus, which is far too late for a verifier.
+    ///
+    /// Numbering is now assigned centrally from `STEP_NAMES` and cannot be
+    /// hand-written, so that class is gone. This covers the branches anyway,
+    /// because the real lesson is "the guard was never run on the interesting
+    /// input", and that can recur in any shape.
+    #[test]
+    fn every_branch_of_every_step_produces_a_well_formed_report() {
+        let (set, pairs) = signer_set();
+        let good = corpus();
+
+        // A corpus edited underneath its own ids: steps 5 and 7 both fail.
+        let broken = corpus();
+        let victim = corpus_ids(&broken)[0];
+        broken
+            .connection()
+            .execute(
+                "UPDATE paragraphs SET text = 'tampered' WHERE doc_id = ?1 AND idx = 0",
+                [victim.to_string()],
+            )
+            .unwrap();
+
+        // A corpus holding a different set of documents: intact, just not the
+        // one the manifest names. Editing text does not change the *id set*, so
+        // step 6 needs this rather than `broken`.
+        let mut smaller = Corpus::open_in_memory().unwrap();
+        smaller
+            .insert_judgment(
+                &judgment("ZACC", "[2020] ZACC 1", &["The appeal is upheld."]),
+                &[],
+            )
+            .unwrap();
+
+        let mut wrong_roster = set.clone();
+        wrong_roster.epoch = 42;
+        let mut unreachable = set.clone();
+        unreachable.threshold = 99;
+
+        let head = manifest_for(&good);
+        let mut successor = manifest_for(&good);
+        successor.release = 4;
+        successor.previous = Some("ab".repeat(32));
+        let mut forked = manifest_for(&good);
+        forked.release = 4;
+        forked.previous = Some("ff".repeat(32));
+        let mut old_extractor = manifest_for(&good);
+        old_extractor.extractor_version = "molao-cite@0.0.1".into();
+
+        let scenarios: Vec<(&str, Report)> = vec![
+            ("all pass", full(&good)),
+            (
+                // Non-genesis, no head supplied, no corpus: every skippable
+                // step skips at once.
+                "everything skippable skipped",
+                verify(&Inputs {
+                    release: &sign(&successor, &pairs, 2),
+                    signers: &set,
+                    previous: None,
+                    corpus: None,
+                }),
+            ),
+            (
+                "unusable signer set",
+                verify(&Inputs {
+                    release: &sign(&manifest_for(&good), &pairs, 2),
+                    signers: &unreachable,
+                    previous: None,
+                    corpus: Some(&good),
+                }),
+            ),
+            (
+                "wrong roster",
+                verify(&Inputs {
+                    release: &sign(&manifest_for(&good), &pairs, 2),
+                    signers: &wrong_roster,
+                    previous: None,
+                    corpus: Some(&good),
+                }),
+            ),
+            (
+                "too few signatures",
+                verify(&Inputs {
+                    release: &sign(&manifest_for(&good), &pairs, 1),
+                    signers: &set,
+                    previous: None,
+                    corpus: Some(&good),
+                }),
+            ),
+            (
+                "forked chain",
+                verify(&Inputs {
+                    release: &sign(&forked, &pairs, 2),
+                    signers: &set,
+                    previous: Some(&head),
+                    corpus: Some(&good),
+                }),
+            ),
+            (
+                "tampered corpus",
+                verify(&Inputs {
+                    release: &sign(&manifest_for(&good), &pairs, 2),
+                    signers: &set,
+                    previous: None,
+                    corpus: Some(&broken),
+                }),
+            ),
+            (
+                "a different corpus entirely",
+                verify(&Inputs {
+                    release: &sign(&manifest_for(&good), &pairs, 2),
+                    signers: &set,
+                    previous: None,
+                    corpus: Some(&smaller),
+                }),
+            ),
+            (
+                "extractor not pinned to this binary",
+                verify(&Inputs {
+                    release: &sign(&old_extractor, &pairs, 2),
+                    signers: &set,
+                    previous: None,
+                    corpus: Some(&good),
+                }),
+            ),
+        ];
+
+        // Covering nothing must not read as passing.
+        assert_eq!(scenarios.len(), 9, "the scenario matrix lost entries");
+
+        let mut seen_pass = [false; STEP_COUNT];
+        let mut seen_fail = [false; STEP_COUNT];
+        let mut seen_skip = [false; STEP_COUNT];
+        for (what, report) in &scenarios {
+            report
+                .check_shape()
+                .unwrap_or_else(|e| panic!("{what}: {e}"));
+            for (i, step) in report.steps.iter().enumerate() {
+                assert_eq!(step.number, i + 1, "{what}: step {i} mis-numbered");
+                assert_eq!(step.name, STEP_NAMES[i], "{what}: step {i} mis-named");
+                match step.status {
+                    StepStatus::Pass => seen_pass[i] = true,
+                    StepStatus::Fail(_) => seen_fail[i] = true,
+                    StepStatus::Skip(_) => seen_skip[i] = true,
+                }
+            }
+        }
+
+        // Every step must have been seen passing *and* failing somewhere above,
+        // or a branch went unexercised — which is exactly how the numbering bug
+        // survived.
+        for (i, seen) in seen_pass.iter().enumerate() {
+            assert!(seen, "step {} was never seen passing", i + 1);
+        }
+        for (i, seen) in seen_fail.iter().enumerate() {
+            assert!(seen, "step {} was never seen failing", i + 1);
+        }
+        // Steps 4 to 7 are the ones that can be skipped.
+        for (i, seen) in seen_skip.iter().enumerate().skip(3) {
+            assert!(seen, "step {} was never seen skipped", i + 1);
+        }
     }
 
     #[test]
