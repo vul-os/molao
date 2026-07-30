@@ -116,7 +116,7 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 .strip .sep{color:var(--rule-2)}
 .strip .now{color:var(--seal-ink);font-weight:600}
 .strip .push{margin-left:auto}
-@media(max-width:640px){.strip .push{margin-left:0}}
+@media(max-width:640px){.strip .push{margin-left:0}.strip .sep{display:none}}
 
 .plate{display:flex;align-items:flex-end;gap:clamp(14px,3vw,26px);padding:clamp(22px,4vw,34px) 0 clamp(16px,2.6vw,22px);flex-wrap:wrap}
 .plate .mark{width:clamp(46px,7vw,62px);flex:none}
@@ -134,14 +134,14 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 /* Index rail — sticky, printed, and at 320px it scrolls sideways inside itself
    rather than disappearing behind a hamburger the way the old nav did. */
 .rail{position:sticky;top:0;z-index:60;background:var(--paper);border-bottom:1px solid var(--rule);box-shadow:0 1px 0 var(--rule)}
-.rail-inner{display:flex;align-items:center;gap:clamp(14px,2.4vw,28px);height:46px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail-inner{display:flex;align-items:center;gap:clamp(13px,1.9vw,24px);height:46px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .rail-inner::-webkit-scrollbar{display:none}
 .rail a{
   font-family:var(--mono);font-size:12.5px;letter-spacing:.075em;text-transform:uppercase;
   color:var(--muted);white-space:nowrap;padding:4px 0;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;
 }
 .rail a:hover,.rail a:focus-visible{color:var(--ink);border-bottom-color:var(--seal)}
-.rail .rail-end{margin-left:auto;display:flex;gap:clamp(14px,2.4vw,28px);align-items:center}
+.rail .rail-end{margin-left:auto;display:flex;gap:clamp(13px,1.9vw,24px);align-items:center}
 .rail .rail-end a{color:var(--seal-ink)}
 @media(max-width:900px){.rail .rail-end{margin-left:0}}
 
@@ -150,7 +150,9 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 .skip:focus{position:static;display:inline-block;margin:8px;font-family:var(--mono);font-size:13px}
 
 /* ── Opening ─────────────────────────────────────────────────────────────── */
-.open{padding:clamp(40px,6vw,72px) 0 clamp(34px,5vw,56px)}
+/* padding-block only: the shorthand here also reset .sheet's horizontal
+   padding to 0, and the whole opening ran hard against the edge of a phone. */
+.open{padding-top:clamp(40px,6vw,72px);padding-bottom:clamp(34px,5vw,56px)}
 h1{
   font-size:clamp(34px,5.6vw,60px);line-height:1.06;margin:0 0 .5em;font-weight:450;
   color:var(--ink);letter-spacing:-.02em;font-variation-settings:"SOFT" 0;max-width:19ch;
@@ -354,14 +356,15 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
   <div class="sheet">
     <div class="rail-inner">
       <a href="#access">Access to law</a>
-      <a href="#trust">Why trust it</a>
-      <a href="#jurisdictions">Any jurisdiction</a>
-      <a href="#sources">Where it comes from</a>
-      <a href="#screens">The interface</a>
-      <a href="#institutions">For institutions</a>
+      <a href="#trust">Trust</a>
+      <a href="#jurisdictions">Jurisdictions</a>
+      <a href="#sources">Sourcing</a>
+      <a href="#citator">Citator</a>
+      <a href="#screens">Screens</a>
+      <a href="#institutions">Institutions</a>
       <a href="#limits">Limits</a>
       <span class="rail-end">
-        <a href="./docs.html">Documentation</a>
+        <a href="./docs.html">Docs</a>
         <a href="https://github.com/vul-os/molao">Source</a>
       </span>
     </div>
@@ -695,9 +698,9 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 
       <div style="height:clamp(22px,3vw,32px)"></div>
 
+      <span class="lbl">The map, as it actually stands</span>
       <div class="ledger-wrap">
         <table class="ledger">
-          <caption class="lbl" style="text-align:left;padding:14px 16px 0">The map, as it actually stands</caption>
           <thead>
             <tr><th scope="col">Jurisdiction</th><th scope="col">Status</th><th scope="col">Route and what it needs</th></tr>
           </thead>
