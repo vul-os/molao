@@ -168,16 +168,37 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 /* Index rail — sticky, printed, and at 320px it scrolls sideways inside itself
    rather than disappearing behind a hamburger the way the old nav did. */
 .rail{position:sticky;top:0;z-index:60;background:var(--paper);border-bottom:1px solid var(--rule);box-shadow:0 1px 0 var(--rule)}
-.rail-inner{display:flex;align-items:center;gap:clamp(13px,1.9vw,24px);height:46px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.rail-inner{
+  display:flex;align-items:stretch;gap:clamp(13px,1.9vw,24px);height:46px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;overscroll-behavior-x:contain;
+}
 .rail-inner::-webkit-scrollbar{display:none}
+/* Full-height rather than padded: the rail is the one control on the page a
+   thumb has to hit, and a 31px target on a phone is under every guideline. */
 .rail a{
+  display:flex;align-items:center;scroll-snap-align:start;
   font-family:var(--mono);font-size:12.5px;letter-spacing:.075em;text-transform:uppercase;
-  color:var(--muted);white-space:nowrap;padding:4px 0;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;
+  color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;
 }
 .rail a:hover,.rail a:focus-visible{color:var(--ink);border-bottom-color:var(--seal)}
-.rail .rail-end{margin-left:auto;display:flex;gap:clamp(13px,1.9vw,24px);align-items:center}
+.rail .rail-end{margin-left:auto;display:flex;gap:clamp(13px,1.9vw,24px);align-items:stretch}
 .rail .rail-end a{color:var(--seal-ink)}
-@media(max-width:900px){.rail .rail-end{margin-left:0}}
+/* THE BUG THIS FIXES: below ~880px the rail overflows its own box, and it did
+   so with no affordance at all — at 390px it rendered "…JURISDICTIONS SOURCI"
+   with the word sliced at the frame edge. That does not read as swipeable, it
+   reads as broken. A mask fades whichever edge has content beyond it, so the
+   clip becomes a gradient that says "there is more this way", and snap makes a
+   swipe land on a link instead of mid-word.
+
+   Applied only below 900px: above it the rail fits, and .rail-end is pushed to
+   the right margin, where a fade would eat Docs and Source for no reason. */
+@media(max-width:900px){
+  .rail .rail-end{margin-left:0}
+  .rail-inner[data-fade="right"]{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
+  .rail-inner[data-fade="left"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px);mask-image:linear-gradient(to right,transparent,#000 28px)}
+  .rail-inner[data-fade="both"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 34px),transparent)}
+}
 
 :focus-visible{outline:2px solid var(--seal);outline-offset:3px;border-radius:2px}
 .skip{position:absolute;left:-9999px}
@@ -356,6 +377,13 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 .colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
 .colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .colo .links a:hover{color:var(--ink)}
+/* On a phone these were 21px-high targets in a row of six. Give them the full
+   44px a thumb needs; the row gap goes to zero because the height now supplies
+   the separation. */
+@media(max-width:760px){
+  .colo .links{gap:0 18px}
+  .colo .links a{display:flex;align-items:center;min-height:44px}
+}
 /* The colophon line: one rule of meta items, not a paragraph. It used to be a
    single 70ch run-on that wrapped to four lines on a desktop and far more on a
    phone, which gave fine print more vertical weight than the links above it. */
@@ -986,6 +1014,24 @@ document.querySelectorAll('a[href^="http"]').forEach(function(a){
   a.target = '_blank';
   a.rel = 'noopener';
 });
+
+// The index rail scrolls sideways on a phone. Mark which edges have content
+// beyond them so the stylesheet can fade exactly those, and none when the rail
+// fits. CSS alone cannot ask "is this element scrolled", and a fade that is
+// always on would lie about a rail with nothing past its edge.
+(function(){
+  var rail = document.querySelector('.rail-inner');
+  if (!rail) return;
+  function mark(){
+    var over = rail.scrollWidth - rail.clientWidth;
+    if (over <= 1) { rail.dataset.fade = 'none'; return; }
+    var left = rail.scrollLeft > 2, right = rail.scrollLeft < over - 2;
+    rail.dataset.fade = left && right ? 'both' : right ? 'right' : 'left';
+  }
+  rail.addEventListener('scroll', mark, { passive: true });
+  window.addEventListener('resize', mark);
+  mark();
+})();
 </script>
 </body>
 </html>
