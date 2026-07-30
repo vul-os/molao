@@ -23,11 +23,23 @@ below for how it moves once it exists.
 | `doc_count` | How many judgments |
 | `graph_root` | Hash of the citation graph derived from this corpus |
 | `extractor_version` | Exact extractor that produced the graph, e.g. `molao-cite@0.1.0` |
+| `signer_set` | `SignerSet::fingerprint()` of the set this release was signed under |
 
 `extractor_version` is the field that makes the graph checkable. Anyone can run
 that version over that corpus and must get a byte-identical graph. It is the
 property embeddings can never have, which is why no embedding artifact is part
 of a release ([THREAT-MODEL.md](THREAT-MODEL.md)).
+
+`signer_set` is a **commitment to** the signer set, never the set itself. A
+release carrying the list of who may sign it would authorise itself; a release
+carrying a fingerprint of the list it was signed under lets a reader who
+supplies their own set discover, by name, that the two rosters differ. Without
+it a quorum of a rotated-out set verified silently against anyone still holding
+that set, and a signer had no way to say which roster they believed they were
+acting for. It is inside the signing bytes, so every signature covers it.
+
+It cannot tell you your set is *current*. Nothing in band can — the set is the
+trust root, and confirming it is the one step that stays human.
 
 ## Signing bytes
 
@@ -37,7 +49,7 @@ JSON field ordering and number formatting are not guaranteed stable across
 library versions, and a signature over a representation that can shift is a
 signature over nothing.
 
-The format is a fixed magic line `molao-release-v1\n`, then each field in fixed
+The format is a fixed magic line `molao-release-v2\n`, then each field in fixed
 order as an 8-byte big-endian length followed by the raw bytes. No escaping, no
 ambiguity, no optional whitespace.
 
@@ -49,6 +61,12 @@ signature would validate another. There is a test for exactly that:
 
 `Manifest::hash()` is BLAKE3 over those signing bytes, and it is what the next
 release names as `previous`.
+
+The tag is `v2`. `v1` had no `signer_set` field. Adding a field to a signed
+encoding is a breaking change and gets a new tag rather than a quiet append, so
+a v1 signature cannot accidentally validate a v2 manifest or the reverse.
+Nothing was ever published under v1 — there is no public signed release, which
+is exactly why the format could still be fixed.
 
 ## The signer set
 
@@ -76,6 +94,10 @@ claim, and it fails at load time rather than at publication time:
 `SignedRelease::verify(&SignerSet) -> Result<usize, ReleaseError>` returns the
 number of valid distinct signatures, and **fails closed at every step**:
 
+- the set is refused outright if it cannot deliver a quorum (`validate()`)
+- a release naming a *different* signer set is refused before any signature is
+  checked, as `SignerSetMismatch` rather than as a baffling `0 valid signatures`
+
 - signatures from keys not in the set are ignored, not counted, even when
   cryptographically valid
 - malformed keys and malformed signatures are ignored rather than treated as
@@ -86,7 +108,13 @@ number of valid distinct signatures, and **fails closed at every step**:
 
 Tampering with any manifest field invalidates every signature over it, so a
 swapped `corpus_root` does not arrive with two valid signatures and a missing
-one. It arrives with zero.
+one. It arrives with zero. That includes `signer_set`: rewriting the binding to
+match whatever roster a victim happens to hold kills every signature with it.
+
+`verify()` is deliberately the composition of two separately callable checks,
+`SignerSet::check_binds` and `SignedRelease::verify_signatures`, so that a
+step-by-step verifier can report which of the two failed — and so that neither
+can act as a backstop hiding a break in the other.
 
 ## Chaining
 
@@ -132,31 +160,59 @@ untrusted transport cannot smuggle in altered bytes, and what content
 addressing does *not* solve on its own (split view — see
 [THREAT-MODEL.md](THREAT-MODEL.md#distribution-content-addressed-release-over-an-untrusted-transport)).
 
-**Status:** the packaging model is settled, and `molao-dist` implements it —
-packaging, the torrent v2 export, a filesystem transport, an `iroh` adapter
-behind a feature flag. Nothing depends on that crate: no `molao` command
-publishes or fetches a packaged release, so none of it has carried a real one,
-and there is no public release for it to carry — today a release is a directory
-of files on a plain host, mirrored by hand.
+**Status:** the packaging model is settled, `molao-dist` implements it, and the
+node reaches it: `molao release publish` packages a corpus, `sign` adds one
+institution's signature, `fetch` pulls a release over a transport and refuses to
+keep one that does not verify, `torrent` writes the BEP 52 export, and `attest`
+prints the one line two builders compare to prove they built the same release.
+The `iroh` adapter stays behind its feature flag.
+
+**None of it has carried a real release.** There is no public signed release for
+it to carry. Today a release is a directory of files on a plain host, mirrored
+by hand.
 
 ## Verifying a release yourself
 
-The intended flow, in order:
+```
+molao verify release.json --signers signers.json --db molao.db \
+    --previous head-manifest.json
+```
 
-1. Fetch the signer set for the epoch the release names. Compare it against the
-   set published independently by the signing organisations. This step is
-   the trust root and cannot be automated away.
-2. Check `SignerSet::validate()` passes.
-3. Check `SignedRelease::verify()` reaches the threshold.
-4. Check the release chains onto the head you already trust.
-5. Recompute `corpus_root` over the documents.
-6. Re-run the pinned `extractor_version` over the corpus and compare
-   `graph_root` byte for byte.
+Seven steps, each reported `PASS`, `FAIL` or `SKIP` on its own line with what
+it examined:
 
-Steps 1 to 4 are implemented in `molao-core` and covered by tests. Steps 5 and
-6 need the corpus and graph crates, which are **in progress**. A single
-`molao verify` command that performs all six is on the roadmap and does not
-exist yet — do not expect it in this version.
+| # | Step | Needs |
+|---|---|---|
+| 1 | the signer set can deliver a quorum (`validate()`) | the signer set |
+| 2 | the release was signed under **this** signer set | release + signer set |
+| 3 | a quorum actually signed this manifest | release + signer set |
+| 4 | the release chains onto the head you already hold | `--previous`, or a genesis release |
+| 5 | every document re-hashes to the id it is stored under | `--db` |
+| 6 | `corpus_root` and `doc_count` match the documents held | `--db` |
+| 7 | re-running the pinned `extractor_version` reproduces `graph_root` | `--db` |
+
+**`SKIP` is not a pass.** Exit 0 means all seven passed; 1 means one failed; 2
+means the run was incomplete and the release has *not* been verified. Running
+three checks and printing OK is exactly the failure the per-step reporting and
+the third exit code exist to prevent.
+
+Step 7 is not a string comparison. It re-extracts every citation from the
+stored paragraph text, resolves them, rebuilds the edge set and recomputes the
+root — and separately requires the corpus's own citation table to agree with
+what the text produces, so a database whose citation rows were edited
+underneath its paragraphs fails rather than verifying against its own
+tampering. A binary that is not the pinned extractor reports `SKIP`; it does
+not compare roots anyway and call it a pass.
+
+**Step 1 has a half no software can do.** Confirming the signer set you hold is
+the set the signing organisations published is a human comparing two values out
+of band. `molao verify` prints the set's fingerprint so there is one short value
+to compare; it cannot tell you the set is the right one. Step 2 answers only the
+mechanical half — whether the roster you hold is the roster the signers said
+they were acting for.
+
+**No public signed release exists**, so nothing described here has been run
+against a real one.
 
 ## What a verified release does and does not mean
 

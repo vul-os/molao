@@ -17,12 +17,13 @@ HTTP mirror; see [docs/DISTRIBUTION.md](distribution.md)), and
 `molao-index` (a local, rebuildable, unsigned RAG cache — never part of a
 release; see [docs/THREAT-MODEL.md](threat-model.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)).
 
-`molao-ingest` and `molao-index` are wired into the node binary.
-**`molao-dist` is not: nothing depends on it**, and no `molao` command
-publishes or fetches a packaged release. None of the three has run against real
-data yet. They move the phases below from designed to in-progress; they do not
-produce a public corpus, a live P2P network, or a shared index by themselves —
-that is still ahead.
+All three are now wired into the node binary: `molao release
+publish/sign/fetch/torrent` reaches `molao-dist`, `molao index build` reaches
+`molao-index`, and `molao fetch` / `molao crawl` reach `molao-ingest`.
+**None of the three has run against real data.** They move the phases below
+from designed to in-progress; they do not produce a public corpus, a live P2P
+network, or a shared index by themselves — that is still ahead, and it is the
+part that is not a software problem.
 
 ## Phase 0 — Foundations · Done
 
@@ -100,16 +101,31 @@ This is `molao-index`. It is in the workspace, tested, and wired into the
 node (`molao index build`, `/api/rag/search`). It has not built an index over a
 real corpus yet, and the cache-sharing path is design, not a running feature.
 
-## Phase 2 — Verification end to end · Designed, not built
+## Phase 2 — Verification end to end · Built, never run on a real release
 
-Today `molao-core` can verify a quorum and a chain. It cannot yet check that the
-corpus and graph are what the manifest says they are.
+`molao verify` performs **seven** steps, each reporting PASS / FAIL / SKIP with
+the evidence it examined, and a SKIP is not a pass — the command exits 0 only
+when all seven pass, 1 on failure, and 2 on an incomplete run.
 
-- Corpus root computation over sorted document ids
-- Graph root computation, and re-running a pinned `EXTRACTOR_VERSION` to
-  compare byte for byte
-- A single `molao verify` command performing all six verification steps
-- Reproducible-build tooling so two builders can prove they agree
+- Corpus root computation over sorted document ids · **built**
+- Graph root computation, and re-running the pinned `EXTRACTOR_VERSION` to
+  compare byte for byte · **built** (step 7 also requires the corpus's own
+  citation table to agree with what the stored text produces, so a database
+  edited underneath its paragraphs fails rather than verifying against its
+  own tampering)
+- A single `molao verify` command performing every step · **built**
+- Signer-set binding: a manifest names the set that signed it
+  (`molao-release-v2`), so a roster mismatch is reported as such · **built**
+- Reproducible-build tooling so two builders can prove they agree · **not
+  built**
+
+`molao-core`'s roots are defined once and shared, rather than transcribed per
+crate as they were. The seven steps were each mutation-tested individually —
+including with backstops disabled, so that a guard sitting behind a broader
+integrity check could not read as live when it was dead.
+
+**What this does not mean:** no public release has ever been verified, because
+none exists. The command has only ever run against synthetic corpora.
 
 ## Phase 3 — The corpus · In progress
 
@@ -172,28 +188,42 @@ and the work is deliberately laid out as pick-up tasks in
   jurisdictions — see [GOVERNANCE.md](GOVERNANCE.md)
 - The first signed release — blocked on the above, not on `molao-ingest`
 
-## Phase 4 — The citator · Designed, not built
+## Phase 4 — The citator · Mechanism built, nobody has attested anything
 
 The real prize, and the thing that makes the difference between a document
 archive and a tool a lawyer can rely on.
 
 A corpus that does not know case A was overruled by case B will hand a lawyer
 dead authority. The mechanical layer — who cited whom, at which paragraph — is
-deterministic and verifiable, and it is built. The interpretive layer is not.
+deterministic and verifiable, and it was already built. The interpretive layer
+now has machinery too, but no content.
 
 - Treatment attestations: followed, distinguished, overruled, applied,
-  questioned
-- Attestations are **signed** and attributable
+  questioned · **built**
+- Attestations are **signed** and attributable · **built** — Ed25519, checked
+  on ingest *and again on every read*, because attestations are excluded from
+  the release root and so carry no outer signature over them
 - Attestations **may conflict**, and conflicts are **shown, not resolved**. Two
   scholars can read the same judgments and differ; a system that picks a winner
-  and hides the argument is lying about how law works
-- UI that separates the verifiable mechanical edge from the interpretive claim
-  on top of it
-- Currency warnings driven by attestations rather than by guesswork
+  and hides the argument is lying about how law works · **built**, and there is
+  no resolution function anywhere in the crate — a test greps the API payload
+  for `winner`, `preferred`, `consensus`, `majority` and `authoritative` to
+  keep it that way
+- A reader-side trust policy: which signers *this reader* weighs · **built**
+- API that separates the verifiable mechanical edge from the interpretive claim
+  on top of it · **built** — they are sibling objects with distinct `kind`
+  tags, never one list with a flag
+- Currency warnings driven by attestations rather than by guesswork · **built**,
+  and no signal variant means "good law"
+- **UI for any of the above · not built**
+- **Gossip and an authoring path · not built.** Attestations arrive only by
+  `molao attest import` against a local database
 
-Until this exists, **check currency yourself**. It is the most important gap in
-the project, and the documentation says so everywhere rather than in one
-footnote.
+**Nobody has ever attested anything.** The machinery is exercised entirely by
+fixtures. Until real attestors exist, **check currency yourself** — this
+remains the most important gap in the project, and building the mechanism did
+not close it. What it closed is the excuse for not having somewhere to put the
+answer.
 
 ## Phase 5 — Distribution · In progress
 
@@ -202,17 +232,20 @@ A release is a content-addressed file set plus a signed manifest
 below safe to leave untrusted. Full story in
 [docs/DISTRIBUTION.md](distribution.md).
 
-**Landing this session, as `molao-dist`:**
+**Built, as `molao-dist`, and reachable from `molao release`:**
 
-- Content-addressed release packaging
-- P2P release distribution over `iroh`, as the primary transport
+- Content-addressed release packaging · `molao release publish`
+- P2P release distribution over `iroh`, as the primary transport · behind its
+  feature flag
 - A torrent export for archival and fallback mirroring — universities and
   archives seed it with tools they already run, and the corpus can outlive
-  this project
+  this project · `molao release torrent`
+- Fetch with verification on receipt · `molao release fetch`, which **writes
+  nothing if verification fails**
 
-Neither transport has carried a real release yet, because there is no public
-release yet. Today the only transport actually in use is a plain HTTP mirror,
-fetched by hand.
+Neither transport has carried a real release, because there is no public
+release. Nothing has been seeded. The only transport ever actually used is a
+plain HTTP mirror, fetched by hand.
 
 **Still designed, not built:**
 

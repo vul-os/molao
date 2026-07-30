@@ -24,8 +24,8 @@ something nobody has a reason to trust.
 
 | Transport | Role | Status |
 |---|---|---|
-| **iroh** | Primary peer-to-peer transport. Direct node-to-node, NAT-punching, content-addressed by design — asking a peer for a release is just asking for known hashes, which is the vocabulary Molao already speaks. | **Being built this session** as `molao-dist`. |
-| **Torrent export** | Archival and fallback. A release exported as a `.torrent` plus its file set, so libraries, universities and archives can seed it with tools they already run, and the corpus can outlive this project whether or not `molao-dist` itself is still maintained. An **export you generate from a release**, not a mechanism the node runs on its own. | **Being built this session** as `molao-dist`. |
+| **iroh** | Primary peer-to-peer transport. Direct node-to-node, NAT-punching, content-addressed by design — asking a peer for a release is just asking for known hashes, which is the vocabulary Molao already speaks. | Adapter written in `molao-dist`, behind `--features iroh`. **Has never carried a release.** |
+| **Torrent export** | Archival and fallback. A release exported as a `.torrent` plus its file set, so libraries, universities and archives can seed it with tools they already run, and the corpus can outlive this project whether or not `molao-dist` itself is still maintained. An **export you generate from a release**, not a mechanism the node runs on its own. | `molao release torrent`. **Nothing has ever been seeded.** |
 | **Plain HTTP mirror** | The simplest possible option: a directory of content-addressed files and a manifest, served by any static host. | Works today — needs nothing but files on a server. The only transport actually moving bytes right now. |
 
 None of these is "the" way to get a release. A node fetches from whichever
@@ -46,7 +46,13 @@ over.
 2. The manifest's `corpus_root` and `graph_root` are recomputed from the
    files actually received, never taken on the transport's word.
 3. The manifest itself is only trusted once `threshold` independent
-   signatures verify over it ([RELEASES.md](RELEASES.md)).
+   signatures verify over it, **and** it names the signer set you supplied —
+   a quorum of a rotated-out roster is refused by name rather than accepted
+   ([RELEASES.md](RELEASES.md)).
+4. The graph file is checked too: the graph blob *is* the `graph_root`
+   preimage, so content-addressing it and checking `graph_root` are one
+   operation. A blob that is not in canonical form, or that cites documents
+   the release does not carry, is refused.
 
 So a torrent seeder, a compromised mirror, or a malicious iroh peer can waste
 your bandwidth or simply refuse to serve — denial, which multiple transports
@@ -98,6 +104,11 @@ and is described in full in
 4. Recompute `corpus_root` and `graph_root` from the files you received and
    compare them to what the manifest claims.
 
+`molao release fetch --from <dir> --into <dir> --signers <set.json>` does all
+of it and **writes nothing** if any check fails. To go further — to check the
+release against a corpus you hold, and to re-run the pinned extractor over its
+text — use `molao verify --db`, which reports seven steps individually.
+
 A release that fails any of these is rejected regardless of where it came
 from. Trusting a transport is never a substitute for this, and Molao does not
 offer a way to skip it.
@@ -109,12 +120,15 @@ transport-independent, iroh as the primary transport, a torrent export for
 archival seeding, a plain HTTP mirror as the simple fallback that always
 works.
 
-The **software** is the `molao-dist` crate: in the workspace, tested, and
-holding the packaging, the torrent v2 export, the delta, a filesystem transport,
-and an `iroh` adapter behind `--features iroh`.
+The **software** is the `molao-dist` crate: packaging, the torrent v2 export,
+the delta, a filesystem transport, and an `iroh` adapter behind
+`--features iroh`. The node reaches all of it — `molao release publish`,
+`sign`, `fetch`, `torrent`, `attest`.
 
-**Nothing depends on it.** No `molao` command publishes or fetches a packaged
-release, so it has not moved a real release — and there is no real release for
+**No release has travelled any of it.** There is no public signed release for
 it to move. Today the only transport in actual use is a plain file host,
-mirrored by hand: exactly the limitation this crate exists to remove, and has
-not yet removed.
+mirrored by hand: exactly the limitation this crate exists to remove, and
+writing the software is not the same as having removed it.
+
+P2P is never required. A node with a release on disk reads the law with no
+network, no peers and no permission from anyone, this project included.

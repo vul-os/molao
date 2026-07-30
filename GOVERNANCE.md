@@ -44,8 +44,16 @@ signer set have signed its manifest. Enforced in code, in
 - One key counts once no matter how many times it signs.
 - Signatures from keys outside the set are ignored, however valid.
 
-`epoch` is bumped whenever membership changes, so a node can tell an older set
-from a newer one rather than guessing.
+`epoch` is bumped whenever membership changes, and a manifest names the set it
+was signed under (`molao-release-v2` carries `SignerSet::fingerprint()`), so a
+release and a roster that do not match each other say so instead of failing as
+a baffling "0 valid signatures".
+
+Read that precisely: it is a **consistency** check between a release and the
+set you hold, **not an authority check**. It cannot tell you the set you hold
+is the current one — only the append-only log could, and that is designed, not
+built. The ceremony and tooling for actually changing membership do not exist
+either; see below.
 
 **No single party can publish a release, including the project that wrote this
 code.** That is not a policy statement; it is what `verify()` does.
@@ -103,6 +111,115 @@ keeps that scope deliberately narrow: an attestor is one of several
 independent parties vouching for a reproducible hash. It is not a sole
 publisher, not an editor of the underlying judgments, and not a certifier of
 their correctness.
+
+## When a court orders a judgment removed
+
+An LII will ask this first, because suppression is routine business for them
+and not an edge case. **Molao does not have a complete answer, and the
+incomplete one is stated here rather than discovered later.**
+
+**At acquisition, this is already handled.** The crawler honours `robots.txt`
+including the **per-judgment `Disallow` lines LIIs use for takedowns and
+privacy** ([docs/SOURCES.md](docs/SOURCES.md)). A judgment an LII has
+suppressed at source is not collected.
+
+**At publication, there is no mechanism at all.** No command removes a judgment
+from a published release, and none could without breaking the property the
+whole design rests on: a release is a content-addressed, immutable set of
+documents whose manifest a quorum has signed and whose identity *is* the hash
+of its contents.
+
+**So the honest position is: Molao can stop distributing a judgment; it cannot
+un-distribute one.** A subsequent release omits it, and that release is the one
+nodes fetch. Anyone already holding the earlier release keeps a complete,
+still-verifiable copy. Compliance is forward-looking — it changes what is
+published next, not what was published before.
+
+This is the same property a printed law report has. Once the volumes are on
+shelves, a later suppression order governs what the next volume prints. That
+observation is context, **not a legal argument, and not a defence** — whether
+"we omitted it from the next release" satisfies a particular order is a
+question of that court's law, and this project cannot answer it. **An
+institution whose own statutory or professional duty is to give effect to
+suppression orders should put this question to its counsel before signing, not
+after.**
+
+**What is genuinely unresolved, and is the largest open governance question in
+the project:** the obvious design — a separately-signed suppression list,
+distributed out of band from the release, that nodes honour by refusing to
+serve named ids — is **neither built nor designed**. It also cuts against the
+censorship-resistance the rest of the document claims, and reconciling those
+two is real work nobody has done. Raising it is welcome; it will not be
+hand-waved.
+
+## Data protection
+
+Judgments are public records of public proceedings, and most jurisdictions
+treat them accordingly. That does not dispose of the question.
+
+- A judgment contains personal data about real people — parties, witnesses,
+  minors, complainants. Some jurisdictions grant erasure rights that do not
+  stop at "it was already public". Against an immutable corpus the answer is
+  the forward-only one above, with the same caveat: whether that suffices is
+  for an institution's counsel, and POPIA and the GDPR are the two most likely
+  to be raised first.
+- **A signer set is public by design.** Institution names and public keys are
+  published, and the append-only log (designed, not built) would publish
+  signing activity over time. An institution should expect its participation to
+  be permanent, attributable and public — that is the point of it, and it is
+  not something the project could quietly walk back later.
+
+## Key compromise, rotation and loss
+
+**Not built, and the gap is wider than tooling.** A `Signer` is `{name, key}`
+and nothing else — no contact, no jurisdiction, no validity dates — so there is
+no in-band way to bind a key to the institution it belongs to, or to say when
+it was valid.
+
+There is no rotation ceremony, no defined response to a compromised key, and no
+stated position on the status of signatures that key already made.
+
+What *does* exist: a manifest now names the signer set it was signed under
+(`molao-release-v2` carries `SignerSet::fingerprint()`), so signatures can at
+least be scoped to the roster in force at the time rather than floating free.
+That is a consistency check, not an authority check — it can report a roster
+mismatch, but it cannot tell a reader that the set they hold is the current
+one. Only the append-only log could do that, and it is designed, not built.
+
+## Compulsion
+
+Jurisdictional spread is a signer-set criterion precisely so that no single
+legal system can compel the whole quorum. The protection is structural: with
+`threshold >= 2` enforced in code and one signer one vote, **compelling a
+single signer does not produce a valid release.**
+
+What is *not* stated anywhere is what a signer should do when ordered to sign,
+or to surrender a key. There is no canary, no defined disclosure practice, and
+no agreed expectation that a compelled signer will tell the others where
+permitted to. An institution that considers this a live risk in its
+jurisdiction should raise it before joining rather than assume a practice
+exists.
+
+## What you would be dealing with
+
+There is **no legal entity and no instrument.** Counsel's natural first
+question — "who are we contracting with?" — answers to: a public repository
+under MIT OR Apache-2.0, and whichever other institutions hold keys. There is
+no incorporated body, no foundation, no membership agreement, and nothing to
+countersign.
+
+That is defensible for a commons at this stage, and it may not survive contact
+with an institution's own procurement or risk process. It is stated here so it
+is negotiated deliberately rather than discovered halfway through an approval
+chain.
+
+## Review window and deadlock
+
+**Not defined.** How long a signer has to examine a release before signing, and
+what happens when a quorum splits and cannot reach its threshold, are both
+open. Today the answer is "whatever the signers agree at the time", which is
+workable among two or three institutions that know each other and will not
+scale past that.
 
 ## Changing membership
 
