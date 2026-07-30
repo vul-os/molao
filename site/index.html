@@ -423,10 +423,10 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <ul class="tick">
           <li><strong>There is no bundled corpus — a node starts empty.</strong> <code>molao demo</code> seeds a synthetic one</li>
           <li><strong>No public signed release exists yet.</strong> Releases move as plain files, mirrored by hand</li>
-          <li>Peer-to-peer distribution is not live. <code>molao-dist</code> is in the workspace and tested, but <strong>nothing depends on it</strong> — no command publishes or fetches a packaged release</li>
+          <li><strong>Peer-to-peer distribution is not live</strong>, and nothing in the packaging or transport path has carried a real release</li>
           <li>Treatment attestations (followed / distinguished / overruled) are <strong>designed, not built</strong></li>
           <li>The public append-only log is <strong>designed, not built</strong></li>
-          <li><code>molao-ingest</code> and <code>molao-index</code> are wired into the node, but <strong>none of the three has run against real data yet</strong></li>
+          <li><code>molao-ingest</code> and <code>molao-index</code> are wired into the node, but <strong>no corpus has been assembled with them — a node still starts empty</strong></li>
         </ul>
       </div>
     </div>
@@ -732,7 +732,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <div class="card">
         <span class="lbl">Where a community moves faster than a team</span>
         <p>Every amber row is a <strong>licence or permission request a person files</strong> — drafted and ready in <code>paperwork/</code>. Filing one is the single biggest unlock in the project, and only a person can do it. Every blue row is a small court-direct adapter behind one trait. A new jurisdiction's court codes are a TOML profile and no code at all.</p>
-        <p><strong>Status:</strong> the sourcing rules are settled policy. <code>molao-ingest</code> — the robots-respecting crawler, the licensed-bulk importer and the witness signing — is written and wired into the node, but it <strong>has not ingested a real document yet</strong>.</p>
+        <p><strong>Status:</strong> the sourcing rules are settled policy, and <code>molao-ingest</code> — the robots-respecting crawler, the licensed-bulk importer and the witness signing — is written and wired into the node. <strong>No corpus has been assembled with it. A node still starts empty, and there is no public signed release to hold what one would produce.</strong></p>
       </div>
     </div>
   </div>
@@ -867,7 +867,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
         <li><span class="t">Federations decay when the person running the node leaves</span><span class="d">Every distributed academic network has watched nodes go dark because a postgraduate graduated. Hence a zero-maintenance single binary with nothing to rotate, and network health exposed publicly on <code>/api/status</code>.</span></li>
         <li><span class="t">Reader privacy has a limit</span><span class="d">A node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node.</span></li>
         <li><span class="t">Molao does not defend your machine against its own administrator</span><span class="d">Anyone with write access to the SQLite file can change what your node shows you. Re-verification against a release catches it.</span></li>
-        <li><span class="t">Decentralised in trust; not yet in distribution</span><span class="d">The built parts are the ones that matter most — content-addressed identity, threshold signatures, a recomputable graph, offline nodes. What is not live is moving a release peer-to-peer and having a public corpus to move. <code>molao-dist</code> (content-addressed packaging, a torrent export, a filesystem transport, and an iroh adapter behind a feature flag) is in the workspace and tested, but <strong>no node uses it: it has no dependents, and no <code>molao</code> command publishes or fetches a release.</strong> Today a plain file host, mirrored by hand, is the only transport moving bytes.</span></li>
+        <li><span class="t">Decentralised in trust; not yet in distribution</span><span class="d">The built parts are the ones that matter most — content-addressed identity, threshold signatures, a recomputable graph, offline nodes. What is not live is moving a release peer-to-peer and having a public corpus to move. <code>molao-dist</code> — content-addressed packaging, a torrent export, a filesystem transport, and an iroh adapter behind a feature flag — is in the workspace and tested, and <strong>nothing there has carried a real release.</strong> Today a plain file host, mirrored by hand, is the only transport that has moved bytes.</span></li>
         <li><span class="t">Search is lexical, and that is a knowing limitation</span><span class="d">Semantic search over a release is deliberately excluded, for the reasons in the threat model. A local, rebuildable, unsigned index is a different thing and does not reopen that question.</span></li>
       </ul>
     </div>
