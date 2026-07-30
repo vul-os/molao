@@ -35,7 +35,19 @@ const say = (ok, msg) => { if (!ok) fail++; console.log(`${ok ? 'PASS' : 'FAIL'}
 const browser = await chromium.launch();
 for (const scheme of SCHEMES) {
   for (const w of BPS) {
-    const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, colorScheme: scheme, deviceScaleFactor: 1 });
+    // `reducedMotion: 'reduce'` is load-bearing, not politeness. The page sets
+    // `scroll-behavior: smooth`, which races the driver: a scroll issued and
+    // then measured immediately reports a position the browser is still
+    // animating towards, so sticky-element geometry comes back wrong and
+    // screenshots come back mid-scroll or blank. It cost a previous pass two
+    // bogus captures before the cause was found. Same class of trap as
+    // fast auto-scroll not firing IntersectionObserver.
+    const ctx = await browser.newContext({
+      viewport: { width: w, height: 900 },
+      colorScheme: scheme,
+      deviceScaleFactor: 1,
+      reducedMotion: 'reduce',
+    });
     const page = await ctx.newPage();
     const external = [];
     const failed = [];
