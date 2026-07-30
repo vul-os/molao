@@ -39,6 +39,17 @@ impl DocId {
         &self.0
     }
 
+    /// Reassemble an id from its 32 raw bytes.
+    ///
+    /// The inverse of [`DocId::as_bytes`], for decoding fixed-width binary
+    /// encodings such as the graph blob in [`crate::roots`]. It asserts
+    /// nothing: like [`std::str::FromStr`], which has always accepted any 32
+    /// bytes in hex, whether those bytes are the hash of any real document is
+    /// checked by [`Judgment::verify_id`], not here.
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        DocId(bytes)
+    }
+
     /// Short form for display — first 12 hex chars. Never use for equality.
     pub fn short(&self) -> String {
         hex::encode(&self.0[..6])

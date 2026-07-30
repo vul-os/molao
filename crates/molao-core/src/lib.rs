@@ -44,11 +44,13 @@ pub mod court;
 pub mod doc;
 pub mod region;
 pub mod release;
+pub mod roots;
 
 pub use court::{Court, Tier};
 pub use doc::{canonicalise, DocId, Judgment, Paragraph, Provenance, ProvenanceClass};
 pub use region::{LoadError, LoadedProfile, ProfileSet, RegionError, RegionProfile, Series};
 pub use release::{Manifest, SignedRelease, Signer, SignerSet};
+pub use roots::{corpus_root, graph_root, GraphEdge};
 
 /// Version of this crate, surfaced in release manifests and the node's
 /// `/api/version` so a reader can tell which code produced an artifact.
