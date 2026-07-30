@@ -12,34 +12,44 @@
 //!
 //! ## What gets verified here, and what does not
 //!
-//! [`corpus_root`] is a pure function of a sorted list of document ids, and
-//! this module reproduces it byte-for-byte from `molao_corpus::Corpus::corpus_root`
-//! (same domain separator, same length-prefixed encoding — there is a test
-//! locking the exact bytes). molao-dist has no dependency on molao-corpus
-//! (out of scope for this crate — see the crate root docs), so the two
-//! copies must be kept in sync by hand; that is a real, acknowledged cost of
-//! keeping this crate standalone, not an oversight.
+//! Both roots come from `molao_core::roots`, which is the single definition
+//! every crate in the workspace calls. This module used to carry its own
+//! transcription of `corpus_root`, kept in sync with molao-corpus's by hand;
+//! it no longer does, because two hand-synchronised hash definitions are two
+//! hash definitions.
 //!
-//! `graph_root`, by contrast, is **not** independently recomputed here. It is
-//! a structural hash over parsed citation edges (see `Graph::graph_root` in
-//! molao-graph), and reproducing it would require depending on molao-graph —
-//! also out of scope. This module treats `graph_root` as an opaque value the
-//! caller supplies (having computed it with molao-graph) and carries it
-//! through unchanged. What packaging *does* verify about the graph is
-//! ordinary content addressing: the graph blob a receiver fetches is
-//! byte-identical to the one that was packaged. Whether that blob is the
-//! *correct* graph for the corpus is a stronger claim — recomputing it needs
-//! the pinned extractor and molao-graph, exactly the step docs/RELEASES.md
-//! calls "in progress" for `molao verify`. This crate does not pretend
-//! otherwise.
+//! `graph_root` is now checked here, which it previously was not. That became
+//! possible when the graph blob was defined to *be* the `graph_root` preimage
+//! (`molao_core::roots::graph_bytes`): content-addressing the graph file and
+//! checking `graph_root` are the same operation, so this module gets the
+//! check for free and without depending on molao-graph. It also parses the
+//! blob and rejects a non-canonical encoding, and rejects a graph whose edges
+//! name documents the release does not carry.
+//!
+//! What that still does **not** prove is that the graph is the *correct*
+//! graph for this corpus. A graph that is internally consistent, canonically
+//! encoded, references only documents in the release, and is missing half the
+//! edges a real extraction would have produced passes everything here. Only
+//! re-running the pinned `extractor_version` over the documents and comparing
+//! catches that, and it needs molao-cite and a resolver — that is
+//! `molao verify` step 6 in molao-node, not this crate. See the test
+//! `a_semantically_wrong_but_well_formed_graph_still_passes_here`, which pins
+//! the remaining gap so it cannot silently widen.
 
 use molao_core::doc::DocId;
 use molao_core::release::Manifest;
+use molao_core::roots::{self, GraphEdge};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::layout::{self, LayoutError};
+
+/// Root hash over a set of document ids.
+///
+/// Re-exported from `molao_core::roots` so callers holding only molao-dist do
+/// not have to reach past it, and so there is exactly one implementation.
+pub use molao_core::roots::corpus_root;
 
 /// One document going into a release: its id and the exact canonical bytes
 /// that must hash to it.
@@ -56,13 +66,18 @@ pub struct DocumentInput {
     pub bytes: Vec<u8>,
 }
 
-/// The derived citation graph, as an opaque blob plus the root the caller
-/// (molao-graph) computed for it. See the module docs for why this crate
-/// cannot check that root itself.
-#[derive(Debug, Clone)]
+/// The derived citation graph going into a release, as edges.
+///
+/// Edges rather than a blob-plus-a-root, deliberately: when the caller
+/// supplied both, nothing stopped it supplying a root that did not belong to
+/// the bytes, and a manifest naming a `graph_root` no file in the release
+/// hashes to is unverifiable by anyone. [`pack`] derives both the blob and
+/// the root from these edges, so the two cannot disagree. A caller holding an
+/// already-encoded blob decodes it with `molao_core::roots::parse_graph_bytes`
+/// first — which is the validation it should be doing regardless.
+#[derive(Debug, Clone, Default)]
 pub struct GraphInput {
-    pub bytes: Vec<u8>,
-    pub graph_root: String,
+    pub edges: Vec<GraphEdge>,
 }
 
 /// Everything [`pack`] needs to build one release.
@@ -86,10 +101,12 @@ pub struct CorpusInput {
 pub struct FileEntry {
     /// BLAKE3 hash of the file's bytes, hex-encoded — the content address.
     pub hash: String,
-    /// Path relative to the release root, e.g. `documents/<hash>` or
-    /// `graph/<hash>`. Never trusted on its own: [`verify_file_set`] only
-    /// uses it to classify an entry as a document or the graph, never as a
-    /// substitute for the hash.
+    /// Path relative to the release root: exactly `documents/<hash>` or
+    /// `graph/<hash>`. Never trusted, and never used to classify anything —
+    /// [`verify_file_set`] decides what a file is from its content address and
+    /// then checks the path *against* that, so an index that files a document
+    /// under some other prefix to keep it out of the corpus-root computation is
+    /// rejected rather than obeyed.
     pub path: String,
     pub size: u64,
 }
@@ -131,8 +148,14 @@ pub enum IntegrityError {
     DocCountMismatch { manifest: u64, actual: u64 },
     #[error("manifest corpus_root does not match the root recomputed from the document files")]
     CorpusRootMismatch,
-    #[error("release contains no graph file")]
+    #[error("release contains no file hashing to the manifest's graph_root")]
     MissingGraph,
+    #[error("the graph file is not a canonical graph blob: {0}")]
+    GraphNotCanonical(String),
+    #[error("the graph cites document {0}, which this release does not contain")]
+    GraphReferencesUnknownDocument(DocId),
+    #[error("file {hash} is filed at {path}, not at the layout path its content requires")]
+    UnexpectedPath { hash: String, path: String },
 }
 
 /// A packaged release, held in memory: the manifest packaging computed, the
@@ -210,13 +233,16 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
         ids.push(doc.id);
     }
 
-    let graph_hash = hex::encode(blake3::hash(&corpus.graph.bytes).as_bytes());
+    // The graph blob *is* the graph_root preimage, so its content address and
+    // the manifest's graph_root are one value, not two that have to agree.
+    let graph_bytes = roots::graph_bytes(&corpus.graph.edges);
+    let graph_root = roots::root_of_graph_bytes(&graph_bytes);
     files.push(FileEntry {
-        hash: graph_hash.clone(),
-        path: format!("graph/{graph_hash}"),
-        size: corpus.graph.bytes.len() as u64,
+        hash: graph_root.clone(),
+        path: format!("graph/{graph_root}"),
+        size: graph_bytes.len() as u64,
     });
-    blobs.insert(graph_hash, corpus.graph.bytes.clone());
+    blobs.insert(graph_root.clone(), graph_bytes);
 
     let manifest = Manifest {
         release: corpus.release,
@@ -224,7 +250,7 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
         created_at: corpus.created_at.clone(),
         corpus_root: corpus_root(&ids),
         doc_count: ids.len() as u64,
-        graph_root: corpus.graph.graph_root.clone(),
+        graph_root,
         extractor_version: corpus.extractor_version.clone(),
     };
 
@@ -235,27 +261,6 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
     })
 }
 
-/// Root hash over a sorted list of document ids.
-///
-/// Byte-for-byte identical to `molao_corpus::Corpus::corpus_root` — same
-/// `"molao-corpus-root-v1\n"` domain separator, same sorted,
-/// length-prefixed encoding of each id's hex string — so a receiver that
-/// only has molao-dist can still check a manifest's `corpus_root` against a
-/// file set without depending on molao-corpus. See the module docs for why
-/// this is a reproduction rather than a shared function.
-pub fn corpus_root(ids: &[DocId]) -> String {
-    let mut sorted: Vec<&DocId> = ids.iter().collect();
-    sorted.sort();
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"molao-corpus-root-v1\n");
-    for id in sorted {
-        let s = id.to_string();
-        hasher.update(&(s.len() as u64).to_be_bytes());
-        hasher.update(s.as_bytes());
-    }
-    hex::encode(hasher.finalize().as_bytes())
-}
-
 /// The shared core of "does this file set actually match this manifest?" —
 /// used both by [`PackagedRelease::verify_integrity`] (packaging-time
 /// self-check) and by [`crate::verify::verify_received`] (receiver-side,
@@ -264,20 +269,37 @@ pub fn corpus_root(ids: &[DocId]) -> String {
 ///
 /// Checks, in order:
 /// 1. every entry's bytes are present and hash to its declared address
-/// 2. the release contains at least one graph file
-/// 3. `manifest.doc_count` matches the number of document files
-/// 4. `manifest.corpus_root` matches [`corpus_root`] recomputed from the
+/// 2. the release contains a file hashing to `manifest.graph_root`, and that
+///    file decodes as a canonical graph blob
+/// 3. every other entry is a document, filed at exactly `documents/<hash>`
+/// 4. `manifest.doc_count` matches the number of document files
+/// 5. `manifest.corpus_root` matches [`corpus_root`] recomputed from the
 ///    document files' ids
+/// 6. every document the graph cites is one this release carries
 ///
-/// `manifest.graph_root` is deliberately not checked here — see the module
-/// docs for why this crate cannot verify it without molao-graph.
+/// Nothing here trusts `path`. A path is checked *against* the content
+/// address, never used in place of it — an index that files a document under
+/// some other prefix to hide it from the corpus-root computation is rejected
+/// rather than quietly obeyed.
+///
+/// What this still does not prove: that the graph is the *right* graph for
+/// these documents. See the module docs.
 pub(crate) fn verify_file_set(
     manifest: &Manifest,
     index: &FileIndex,
     fetch: impl Fn(&str) -> Option<Vec<u8>>,
 ) -> Result<(), IntegrityError> {
-    let mut doc_ids = Vec::new();
-    let mut has_graph = false;
+    // Cheapest check first, and the one whose absence would otherwise surface
+    // as a confusing path error: the index must contain the graph the manifest
+    // names. Everything below classifies files by content address, so a release
+    // with no file at `graph_root` would leave the real graph file looking like
+    // a document filed under the wrong prefix.
+    if !index.files.iter().any(|f| f.hash == manifest.graph_root) {
+        return Err(IntegrityError::MissingGraph);
+    }
+
+    let mut doc_ids: Vec<DocId> = Vec::new();
+    let mut graph_edges: Option<Vec<GraphEdge>> = None;
 
     for entry in &index.files {
         let bytes = fetch(&entry.hash).ok_or_else(|| IntegrityError::Missing {
@@ -298,18 +320,42 @@ pub(crate) fn verify_file_set(
             });
         }
 
-        if let Some(rest) = entry.path.strip_prefix("documents/") {
-            if let Ok(id) = rest.parse::<DocId>() {
-                doc_ids.push(id);
+        // The graph is identified by its content address matching the signed
+        // graph_root — not by its path, which nobody has any reason to trust.
+        if entry.hash == manifest.graph_root {
+            if entry.path != format!("graph/{}", entry.hash) {
+                return Err(IntegrityError::UnexpectedPath {
+                    hash: entry.hash.clone(),
+                    path: entry.path.clone(),
+                });
             }
-        } else if entry.path.starts_with("graph/") {
-            has_graph = true;
+            let edges = roots::parse_graph_bytes(&bytes)
+                .map_err(|e| IntegrityError::GraphNotCanonical(e.to_string()))?;
+            graph_edges = Some(edges);
+            continue;
         }
+
+        if entry.path != format!("documents/{}", entry.hash) {
+            return Err(IntegrityError::UnexpectedPath {
+                hash: entry.hash.clone(),
+                path: entry.path.clone(),
+            });
+        }
+        // A document's content address and its DocId are the same value, so a
+        // hash that does not parse as an id cannot be a document.
+        let id = entry
+            .hash
+            .parse::<DocId>()
+            .map_err(|_| IntegrityError::UnexpectedPath {
+                hash: entry.hash.clone(),
+                path: entry.path.clone(),
+            })?;
+        doc_ids.push(id);
     }
 
-    if !has_graph {
+    let Some(edges) = graph_edges else {
         return Err(IntegrityError::MissingGraph);
-    }
+    };
 
     if doc_ids.len() as u64 != manifest.doc_count {
         return Err(IntegrityError::DocCountMismatch {
@@ -320,6 +366,15 @@ pub(crate) fn verify_file_set(
 
     if corpus_root(&doc_ids) != manifest.corpus_root {
         return Err(IntegrityError::CorpusRootMismatch);
+    }
+
+    let held: BTreeSet<DocId> = doc_ids.into_iter().collect();
+    for edge in &edges {
+        for id in [edge.from, edge.to] {
+            if !held.contains(&id) {
+                return Err(IntegrityError::GraphReferencesUnknownDocument(id));
+            }
+        }
     }
 
     Ok(())
@@ -337,16 +392,20 @@ mod tests {
     }
 
     fn toy_corpus() -> CorpusInput {
+        let documents = vec![
+            doc("appeal upheld\n"),
+            doc("appeal dismissed\n"),
+            doc("appeal postponed\n"),
+        ];
+        // A graph over exactly the documents in the release: anything else is
+        // now a rejection, which is the point.
+        let edges = vec![
+            GraphEdge::new(documents[0].id, documents[1].id, 2),
+            GraphEdge::new(documents[2].id, documents[0].id, 1),
+        ];
         CorpusInput {
-            documents: vec![
-                doc("appeal upheld\n"),
-                doc("appeal dismissed\n"),
-                doc("appeal postponed\n"),
-            ],
-            graph: GraphInput {
-                bytes: b"edge-list-bytes".to_vec(),
-                graph_root: "gg".repeat(32),
-            },
+            documents,
+            graph: GraphInput { edges },
             release: 1,
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),
@@ -455,32 +514,141 @@ mod tests {
         assert!(matches!(err, IntegrityError::DocCountMismatch { .. }));
     }
 
-    /// Pins a real, acknowledged structural limitation (see the module docs'
-    /// "What gets verified here, and what does not" section): `graph_root` is
-    /// carried through opaque and is not checked against anything, not even
-    /// against the graph blob this same release carries. A release whose
-    /// citation graph is missing an edge (or a whole subgraph) relative to
-    /// the corpus it claims to derive from — the same *shape* of defect as
-    /// the small brand marks that shipped with one of five citation chords
-    /// missing (fixed in c7de10c) — would pass `verify_integrity` and
-    /// `verify_received` without complaint, because nothing here recomputes
-    /// or cross-checks the graph. Catching that class of defect needs
-    /// `molao-graph` (to recompute `graph_root` from the pinned extractor
-    /// version), which this crate deliberately does not depend on. This test
-    /// is not a check that graph corruption is caught — it is a check that it
-    /// is *not*, so the gap cannot silently close (or silently widen) without
-    /// this test forcing the change to be looked at.
+    /// `graph_root` used to be carried through opaque and checked against
+    /// nothing, not even against the graph blob the same release carried; the
+    /// test that stood here pinned that gap open. It is now checked, because
+    /// the graph blob was defined to *be* the `graph_root` preimage — so this
+    /// is the same assertion inverted.
     #[test]
-    fn graph_root_corruption_is_not_caught_here_this_crate_cannot_do_it() {
+    fn a_manifest_naming_a_graph_root_no_file_hashes_to_is_rejected() {
         let mut packaged = pack(&toy_corpus()).unwrap();
         packaged.manifest.graph_root = "ff".repeat(32); // arbitrary, matches nothing
+        assert_eq!(
+            packaged.verify_integrity().unwrap_err(),
+            IntegrityError::MissingGraph,
+            "a graph_root naming no file in the release must not verify"
+        );
+    }
+
+    #[test]
+    fn a_tampered_graph_blob_is_rejected() {
+        let packaged = pack(&toy_corpus()).unwrap();
+        let graph_hash = packaged.manifest.graph_root.clone();
+        let original = packaged.blob(&graph_hash).unwrap().to_vec();
+        // Same length, so the cheap length guard cannot be what catches it.
+        let mut tampered = original.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0x01; // one paragraph count off by one
+        assert_eq!(tampered.len(), original.len());
+        let err = verify_file_set(&packaged.manifest, &packaged.index, |h| {
+            if h == graph_hash {
+                Some(tampered.clone())
+            } else {
+                packaged.blob(h).map(<[u8]>::to_vec)
+            }
+        })
+        .unwrap_err();
+        assert!(matches!(err, IntegrityError::HashMismatch { .. }));
+    }
+
+    /// The remaining, real gap, pinned so it cannot silently widen: a graph
+    /// that is canonically encoded, references only documents in the release,
+    /// and is simply **wrong** — here, missing an edge a real extraction would
+    /// have produced — passes everything this crate can check. Nothing in
+    /// molao-dist re-runs the extractor, so nothing here can tell a complete
+    /// graph from a truncated one. That is `molao verify` step 6 in
+    /// molao-node, which re-extracts from the document text and compares.
+    #[test]
+    fn a_semantically_wrong_but_well_formed_graph_still_passes_here() {
+        let mut input = toy_corpus();
+        input.graph.edges.pop(); // silently drop a citation edge
+        let packaged = pack(&input).unwrap();
         assert!(
             packaged.verify_integrity().is_ok(),
-            "if this now fails, either verify_integrity started checking \
-             graph_root (update this test and the module docs to describe \
-             how) or something else broke — it is not a regression to fix by \
-             re-adding a graph_root check that only compares two opaque \
-             strings, since that would still not verify the graph is correct"
+            "if this now fails, molao-dist gained a way to tell a correct graph \
+             from an incomplete one — describe how in the module docs; do not \
+             restore the old opaque-string graph_root check to make it pass"
+        );
+        // And it is genuinely a different release from the complete one.
+        assert_ne!(
+            packaged.manifest.graph_root,
+            pack(&toy_corpus()).unwrap().manifest.graph_root
+        );
+    }
+
+    #[test]
+    fn a_graph_citing_a_document_the_release_does_not_carry_is_rejected() {
+        let mut input = toy_corpus();
+        let stranger = DocId::of_canonical("a judgment held by nobody\n");
+        input
+            .graph
+            .edges
+            .push(GraphEdge::new(input.documents[0].id, stranger, 1));
+        let packaged = pack(&input).unwrap();
+        assert_eq!(
+            packaged.verify_integrity().unwrap_err(),
+            IntegrityError::GraphReferencesUnknownDocument(stranger)
+        );
+    }
+
+    #[test]
+    fn a_non_canonically_encoded_graph_blob_is_rejected() {
+        // Hand-encode the same edges in the wrong order. It is a perfectly
+        // valid content address for its own bytes; it is not a graph blob.
+        let input = toy_corpus();
+        let mut edges = input.graph.edges.clone();
+        edges.sort();
+        edges.reverse();
+        let mut blob = Vec::from(molao_core::roots::GRAPH_ROOT_DOMAIN);
+        for e in &edges {
+            blob.extend_from_slice(e.from.as_bytes());
+            blob.extend_from_slice(e.to.as_bytes());
+            blob.extend_from_slice(&e.paragraph_count.to_be_bytes());
+        }
+        let hash = molao_core::roots::root_of_graph_bytes(&blob);
+
+        let packaged = pack(&input).unwrap();
+        let mut manifest = packaged.manifest.clone();
+        let old_root = manifest.graph_root.clone();
+        manifest.graph_root = hash.clone();
+        let mut index = packaged.index.clone();
+        for f in &mut index.files {
+            if f.hash == old_root {
+                f.hash = hash.clone();
+                f.path = format!("graph/{hash}");
+                f.size = blob.len() as u64;
+            }
+        }
+        let err = verify_file_set(&manifest, &index, |h| {
+            if h == hash {
+                Some(blob.clone())
+            } else {
+                packaged.blob(h).map(<[u8]>::to_vec)
+            }
+        })
+        .unwrap_err();
+        assert!(matches!(err, IntegrityError::GraphNotCanonical(_)), "{err}");
+    }
+
+    #[test]
+    fn a_document_hidden_under_another_path_prefix_is_rejected() {
+        // Renaming a document's path is how an index would try to drop it from
+        // the corpus-root computation while still shipping the bytes.
+        let packaged = pack(&toy_corpus()).unwrap();
+        let mut index = packaged.index.clone();
+        let victim = index
+            .files
+            .iter_mut()
+            .find(|f| f.path.starts_with("documents/"))
+            .unwrap();
+        victim.path = format!("attachments/{}", victim.hash);
+        let err = verify_file_set(&packaged.manifest, &index, |h| {
+            packaged.blob(h).map(<[u8]>::to_vec)
+        })
+        .unwrap_err();
+        assert!(
+            matches!(err, IntegrityError::UnexpectedPath { .. }),
+            "{err}"
         );
     }
 
@@ -494,6 +662,27 @@ mod tests {
         })
         .unwrap_err();
         assert_eq!(err, IntegrityError::MissingGraph);
+    }
+
+    #[test]
+    fn packing_is_deterministic_so_two_builders_can_compare_one_line() {
+        // The reproducibility claim, at the packaging layer: same inputs, same
+        // manifest, same index, same bytes — no timestamps, no map iteration
+        // order, nothing else leaking in.
+        let a = pack(&toy_corpus()).unwrap();
+        let mut shuffled = toy_corpus();
+        shuffled.documents.reverse();
+        shuffled.graph.edges.reverse();
+        let b = pack(&shuffled).unwrap();
+        assert_eq!(a.manifest, b.manifest);
+        let mut a_files = a.index.files.clone();
+        let mut b_files = b.index.files.clone();
+        a_files.sort_by(|x, y| x.hash.cmp(&y.hash));
+        b_files.sort_by(|x, y| x.hash.cmp(&y.hash));
+        assert_eq!(a_files, b_files);
+        for f in &a_files {
+            assert_eq!(a.blob(&f.hash), b.blob(&f.hash));
+        }
     }
 
     #[test]

@@ -86,12 +86,15 @@ mod tests {
                 .collect(),
         };
 
+        let documents = vec![doc("first judgment\n"), doc("second judgment\n")];
+        let edges = vec![molao_core::roots::GraphEdge::new(
+            documents[0].id,
+            documents[1].id,
+            1,
+        )];
         let corpus = CorpusInput {
-            documents: vec![doc("first judgment\n"), doc("second judgment\n")],
-            graph: GraphInput {
-                bytes: b"edges".to_vec(),
-                graph_root: "gg".repeat(32),
-            },
+            documents,
+            graph: GraphInput { edges },
             release: 1,
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),

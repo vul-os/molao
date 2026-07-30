@@ -35,19 +35,25 @@
 //!
 //! ## Scope
 //!
-//! This crate depends on `molao-core`'s release types (read-only) and on
-//! files. It does **not** depend on `molao-corpus` or `molao-graph` — see
-//! [`package`]'s module docs for what that means concretely for
-//! `corpus_root` and `graph_root` verification, and where the honest
-//! boundary is.
+//! This crate depends on `molao-core` (its release types and its `roots`
+//! definitions) and on files. It does **not** depend on `molao-corpus` or
+//! `molao-graph`, and does not need to: both roots a manifest pins are
+//! recomputable from the release's own files. See [`package`]'s module docs
+//! for exactly where the honest boundary is — in short, this crate can prove
+//! a release is *intact*, and cannot prove its citation graph is *correct*.
 //!
-//! ## Nothing depends on this crate yet
+//! ## What depends on this crate
 //!
-//! It is a member of the `molao` workspace, and `cargo test --workspace`
-//! builds and tests it — but no other crate lists it as a dependency and no
-//! `molao` command publishes or fetches a packaged release. Everything here is
-//! exercised by its own tests and by nothing else. Read a status claim about
-//! distribution with that in mind.
+//! `molao-node`: `molao release publish` packages a corpus into the layout
+//! [`layout`] describes, `molao release fetch` pulls one through a
+//! [`Transport`] and refuses to keep it unless [`verify_received`] passes, and
+//! `molao release torrent` writes the [`torrent`] export. Those commands are
+//! how this code runs at all.
+//!
+//! **No release has travelled any of it.** There is no public signed release
+//! to carry, so neither the filesystem transport nor the iroh adapter has ever
+//! moved a real one, and the torrent export has never been seeded. Writing the
+//! software is not the same as having run it.
 
 #![forbid(unsafe_code)]
 
@@ -60,9 +66,10 @@ pub mod transport;
 pub mod verify;
 
 pub use delta::{delta, ReleaseDelta};
+pub use molao_core::roots::{graph_bytes, parse_graph_bytes, GraphEdge};
 pub use package::{
-    pack, CorpusInput, DocumentInput, FileEntry, FileIndex, GraphInput, IntegrityError,
-    PackageError, PackagedRelease,
+    corpus_root, pack, CorpusInput, DocumentInput, FileEntry, FileIndex, GraphInput,
+    IntegrityError, PackageError, PackagedRelease,
 };
 pub use transport::Transport;
 pub use verify::{verify_received, VerifiedRelease, VerifyError};
