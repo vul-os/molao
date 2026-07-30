@@ -138,8 +138,19 @@ async function main() {
           throw new Error(`${shot.name}: body scrolls horizontally by ${overflow}px`);
         }
 
+        // Full-page, not viewport-clipped: a fixed-height window cuts a tall
+        // panel (or the page itself) wherever it happens to end, and that has
+        // twice now sliced a UI element in half instead of framing it — the
+        // graph legend mid-glyph, a citation card and a graph-lane card with
+        // no closing edge. It also means the footer's honesty line ("fictional
+        // demo corpus — not law", "verifies bytes and signatures, not legal
+        // correctness") never made it into a single one of the eight shots,
+        // because it sits in normal flow below content that is taller than
+        // any fixed viewport. Capturing the whole scrollable page is the fix
+        // that cannot recur as the demo corpus grows: it has no fixed height
+        // to run past.
         const file = join(OUT, `${shot.name}.png`);
-        await page.screenshot({ path: file, animations: 'disabled' });
+        await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
         const size = (await stat(file)).size;
         if (size < 12_000) throw new Error(`${shot.name}.png looks blank (${size} bytes)`);
         console.log(`  ✓ docs/screenshots/${shot.name}.png  ${(size / 1024).toFixed(0)} kB`);
