@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
 <title>Molao docs</title>
-<meta name="description" content="Molao documentation — a free, decentralized commons of South African case law.">
+<meta name="description" content="Molao documentation — a free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service.">
 <link rel="icon" href="./assets/brand/favicon.svg">
 <style>
 *,*::before,*::after{box-sizing:border-box}
 :root{
-  --accent:#E9A23B; --accent-2:#C9861F;
+  --accent:#E9A23B; --accent-2:#C9861F; --accent-ink:#E9A23B;
   --bg:#0A0A0A; --bg-soft:#0E0E10; --panel:#131316; --panel-2:#18181B;
   --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.15);
   --text:#FAFAFA; --muted:#A1A1AA; --faint:#71717A; --body:#D4D4D8;
@@ -25,6 +25,12 @@
     --border:rgba(24,24,27,.10); --border-2:rgba(24,24,27,.17);
     --text:#18181B; --muted:#52525B; --faint:#71717A; --body:#26262B;
     --code-bg:#F4F4F5;
+    /* --accent (#E9A23B) is ~2.1:1 against this background as TEXT — fails the
+       WCAG AA 4.5:1 text floor. --accent-ink is a darkened shade (~5.9:1) for
+       anywhere the amber is a text/link color; --accent itself stays the true
+       brand color for backgrounds/borders, where only the ~3:1 non-text floor
+       applies (the dark theme keeps --accent-ink == --accent: ~9:1 there). */
+    --accent-ink:#8A5606;
   }
 }
 html{scroll-behavior:smooth}
@@ -56,7 +62,7 @@ img{max-width:100%;display:block}
 .docs-shell{display:grid;grid-template-columns:252px 1fr;gap:36px;align-items:start;padding:34px 0 70px}
 @media(max-width:880px){.docs-shell{grid-template-columns:1fr}}
 .docs-nav{position:sticky;top:84px;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:14px}
-.docs-nav .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:6px 10px}
+.docs-nav .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:6px 10px}
 .docs-nav .label + .label{margin-top:10px;border-top:1px solid var(--border);padding-top:12px}
 .docs-nav a{display:block;padding:8px 11px;border-radius:9px;color:var(--muted);font-size:14.5px;font-weight:500;transition:.15s}
 .docs-nav a:hover{background:color-mix(in srgb,var(--text) 5%, transparent);color:var(--text)}
@@ -75,7 +81,7 @@ img{max-width:100%;display:block}
 .markdown h3{font-size:19px;margin:1.4em 0 .5em}
 .markdown h4{font-size:16px;margin:1.3em 0 .4em}
 .markdown p,.markdown li{color:var(--body)}
-.markdown a{color:var(--accent)}
+.markdown a{color:var(--accent-ink)}
 .markdown a:hover{text-decoration:underline}
 .markdown code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--text) 8%, transparent);padding:2px 6px;border-radius:6px}
 .markdown pre{background:var(--code-bg);border:1px solid var(--border-2);border-radius:12px;padding:16px 18px;overflow:auto}

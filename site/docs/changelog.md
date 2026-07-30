@@ -80,6 +80,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: build, test, clippy with warnings denied, format check, and the web UI
   build and typecheck
 
+### Fixed
+
+- **The mini-site's `--accent` (`#E9A23B`) is ~2.1:1 against a light background
+  as text** — below the WCAG AA 4.5:1 floor for body text, though it clears the
+  ~3:1 floor for the non-text (background/border) uses it was mostly used for.
+  `site/index.html`'s `.accent` links (in the honest-status paragraphs, e.g.
+  "adding a jurisdiction", "here is why"), `.status .label` and `.tag`, and
+  `site/docs.html`'s `.markdown a` (every link in the rendered docs) all used
+  `--accent` directly as a text color. Added `--accent-ink`, a token distinct
+  from the decorative `--accent`: in dark mode it equals `--accent` (~9:1,
+  already fine); the light-mode override darkens it to `#8A5606` (~5.9:1).
+  Backgrounds/borders keep reading `--accent` unchanged. (`apps/web` — the
+  actual product UI — already had this exact pattern via `--accent-strong`,
+  which is what the site pages should have matched from the start.)
+- `.docs-nav .label` (site/docs.html) and `.status .label` / `.tag`
+  (site/index.html) were 11px, one pixel under this suite's 12px type floor.
+- `site/docs.html`'s `<meta name="description">` still said "a free,
+  decentralized commons of **South African** case law", left over from before
+  the region-profile work made jurisdictions data rather than code. Every
+  other surface (README, `site/index.html`, `apps/web/index.html`) already
+  states the corpus is jurisdiction-general with South Africa as the first
+  fully-populated profile; this was the one inconsistent, narrower claim, not
+  a new one — corrected to match, not inflated.
+
 ### Changed
 
 - **Region profiles now load at run time.** `molao --profiles <DIR>` reads a

@@ -10,7 +10,7 @@
 <style>
 *,*::before,*::after{box-sizing:border-box}
 :root{
-  --accent:#E9A23B; --accent-2:#C9861F;
+  --accent:#E9A23B; --accent-2:#C9861F; --accent-ink:#E9A23B;
   --bg:#0A0A0A; --bg-soft:#0E0E10; --panel:#131316; --panel-2:#18181B;
   --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.15);
   --text:#FAFAFA; --muted:#A1A1AA; --faint:#71717A; --body:#D4D4D8;
@@ -22,6 +22,12 @@
   :root{
     --bg:#FAFAFA; --bg-soft:#F4F4F5; --panel:#FFFFFF; --panel-2:#F4F4F5;
     --border:rgba(24,24,27,.10); --border-2:rgba(24,24,27,.17);
+    /* --accent (#E9A23B) is ~2.1:1 against this background as TEXT — fails the
+       WCAG AA 4.5:1 text floor. --accent-ink is a darkened shade (~5.9:1) for
+       anywhere the amber is a text/link color; --accent itself stays the true
+       brand color for backgrounds/borders, where only the ~3:1 non-text floor
+       applies (the dark theme keeps --accent-ink == --accent: ~9:1 there). */
+    --accent-ink:#8A5606;
     --text:#18181B; --muted:#52525B; --faint:#71717A; --body:#26262B;
   }
 }
@@ -34,7 +40,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;background:
 a{color:inherit;text-decoration:none}
 img,svg{max-width:100%;display:block}
 .wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
-.accent{color:var(--accent)}
+.accent{color:var(--accent-ink)}
 code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--text) 8%, transparent);padding:2px 6px;border-radius:6px}
 
 /* Header */
@@ -70,7 +76,7 @@ h1{font-size:clamp(38px,6.2vw,62px);line-height:1.05;letter-spacing:-.04em;margi
 
 /* Status banner */
 .status{margin:44px auto 0;max-width:820px;border:1px solid var(--border-2);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel);padding:18px 22px;text-align:left}
-.status .label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);font-weight:650;margin-bottom:7px}
+.status .label{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent-ink);font-weight:650;margin-bottom:7px}
 .status p{margin:0;font-size:14.5px;color:var(--body)}
 .status p + p{margin-top:8px}
 
@@ -118,7 +124,7 @@ pre code{background:none;padding:0;font-size:13.5px;line-height:1.75;color:var(-
 /* Not-built list */
 .honest li{color:var(--muted);font-size:15px;margin-bottom:11px}
 .honest li strong{color:var(--text)}
-.tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;padding:2px 8px;border-radius:5px;border:1px solid var(--border-2);color:var(--accent);margin-right:8px;vertical-align:1px}
+.tag{display:inline-block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;padding:2px 8px;border-radius:5px;border:1px solid var(--border-2);color:var(--accent-ink);margin-right:8px;vertical-align:1px}
 
 /* Footer */
 .site-footer{border-top:1px solid var(--border);padding:42px 0}
