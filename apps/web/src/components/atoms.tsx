@@ -13,6 +13,7 @@ export function Mark({ size = 24 }: { size?: number }): JSX.Element {
         <path d="M20 5 L9.39 30.61" />
         <path d="M30.61 9.39 L5 20" />
         <path d="M9.39 9.39 L20 35" />
+        <path d="M35 20 L9.39 30.61" />
       </g>
       <g fill="currentColor">
         <circle cx="30.61" cy="9.39" r="2.5" />
