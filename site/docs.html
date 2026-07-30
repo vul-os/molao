@@ -3,283 +3,1051 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
-<title>Molao docs</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Molao — documentation</title>
 <meta name="description" content="Molao documentation — a free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service.">
   <link rel="canonical" href="https://vulos.org/projects/molao/docs.html">
   <meta name="color-scheme" content="dark light">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="molao">
-  <meta property="og:title" content="Molao docs">
+  <meta property="og:title" content="Molao — documentation">
   <meta property="og:description" content="Molao documentation — a free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service.">
   <meta property="og:url" content="https://vulos.org/projects/molao/docs.html">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Molao docs">
+  <meta name="twitter:title" content="Molao — documentation">
   <meta name="twitter:description" content="Molao documentation — a free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service.">
   <meta property="og:image" content="https://vulos.org/projects/molao/assets/og-card.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Molao docs — Molao documentation — a free, decentralized commons of case law, for any jurisdiction. No accounts, no billing, no hosted service.">
+  <meta property="og:image:alt" content="Molao documentation — a free, decentralized commons of case law, for any jurisdiction.">
   <meta name="twitter:image" content="https://vulos.org/projects/molao/assets/og-card.png">
 <link rel="icon" href="./assets/brand/favicon.svg">
+<!-- Fonts are vendored (SIL OFL, see assets/fonts/LICENSES.md) and served from
+     this origin — the same set the landing page uses, so the documentation is
+     visibly the same publication. A docs page that fetched a webfont from a CDN
+     would break the project's own "makes no outbound requests" claim. -->
+<link rel="preload" href="./assets/fonts/fraunces-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="./assets/fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:"Fraunces";src:url(./assets/fonts/fraunces-var.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Fraunces";src:url(./assets/fonts/fraunces-italic-var.woff2) format("woff2");font-weight:100 900;font-style:italic;font-display:swap}
+@font-face{font-family:"Plex Mono";src:url(./assets/fonts/plex-mono-400.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Plex Mono";src:url(./assets/fonts/plex-mono-600.woff2) format("woff2");font-weight:600;font-style:normal;font-display:swap}
+
 *,*::before,*::after{box-sizing:border-box}
+
 :root{
-  --accent:#E9A23B; --accent-2:#C9861F; --accent-ink:#E9A23B;
-  --bg:#0A0A0A; --bg-soft:#0E0E10; --panel:#131316; --panel-2:#18181B;
-  --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.15);
-  --text:#FAFAFA; --muted:#A1A1AA; --faint:#71717A; --body:#D4D4D8;
-  --code-bg:#0C0C0E;
-  --radius:16px; --max:1120px;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  /* Same tokens as the landing page. Light is the primary register: warm laid
+     paper, as a law report is printed. Dark is a full peer. */
+  --paper:#FAF6EC; --paper-2:#F4EEE0; --surface:#FFFDF7; --sink:#F0E9D9;
+  --ink:#1A1713; --body:#332E27; --muted:#5C544A; --faint:#776E62;
+  --rule:#E2D8C4; --rule-2:#CBBEA4; --rule-3:#A99879;
+  --seal:#E9A23B;        /* the brand amber: fills, rules, seals */
+  --seal-ink:#8A5606;    /* AA-safe amber for anything that is text on paper */
+  --seal-wash:#F7EAD2;
+  --ok:#2F6B45; --wait:#8A5606; --work:#2E5C86; --stop:#96311F;
+  --serif:"Fraunces","Iowan Old Style","Palatino Linotype",Palatino,Charter,Georgia,"Times New Roman",serif;
+  --mono:"Plex Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sheet:1440px;
+  --rail-h:46px;
 }
-@media (prefers-color-scheme: light){
+@media (prefers-color-scheme: dark){
   :root{
-    --bg:#FAFAFA; --bg-soft:#F4F4F5; --panel:#FFFFFF; --panel-2:#F4F4F5;
-    --border:rgba(24,24,27,.10); --border-2:rgba(24,24,27,.17);
-    --text:#18181B; --muted:#52525B; --faint:#71717A; --body:#26262B;
-    --code-bg:#F4F4F5;
-    /* --accent (#E9A23B) is ~2.1:1 against this background as TEXT — fails the
-       WCAG AA 4.5:1 text floor. --accent-ink is a darkened shade (~5.9:1) for
-       anywhere the amber is a text/link color; --accent itself stays the true
-       brand color for backgrounds/borders, where only the ~3:1 non-text floor
-       applies (the dark theme keeps --accent-ink == --accent: ~9:1 there). */
-    --accent-ink:#8A5606;
+    --paper:#100E0B; --paper-2:#16130F; --surface:#1A1713; --sink:#211D17;
+    --ink:#F6F1E5; --body:#DCD5C6; --muted:#ABA294; --faint:#8C8375;
+    --rule:#2E2921; --rule-2:#3F382D; --rule-3:#5A5142;
+    --seal:#E9A23B; --seal-ink:#EDAF54; --seal-wash:#2A2015;
+    --ok:#7FC496; --wait:#E0A94A; --work:#8FB6E4; --stop:#E8907B;
   }
 }
-html{scroll-behavior:smooth}
-body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.62;-webkit-font-smoothing:antialiased;font-size:16px}
-body::before{content:"";position:fixed;inset:0;z-index:-1;background:
-  radial-gradient(1100px 600px at 82% -12%, color-mix(in srgb,var(--accent) 10%, transparent), transparent 60%),
-  radial-gradient(900px 520px at -10% 6%, color-mix(in srgb,var(--accent-2) 7%, transparent), transparent 55%),
-  var(--bg);}
+
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--rail-h) + 18px)}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+
+body{
+  margin:0;background:var(--paper);color:var(--body);
+  font-family:var(--serif);font-size:17.5px;line-height:1.66;font-weight:400;
+  font-optical-sizing:auto;font-variation-settings:"SOFT" 6;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(1200px 620px at 88% -14%, var(--seal-wash), transparent 62%),
+    radial-gradient(900px 520px at -8% 4%, var(--paper-2), transparent 60%),
+    var(--paper);
+}
+/* height:auto is load-bearing: max-width:100% alone stretches every screenshot
+   vertically, and it is invisible to visual review because the image still
+   *looks* like a screenshot. */
+img,svg{max-width:100%;height:auto;display:block}
 a{color:inherit;text-decoration:none}
-img{max-width:100%;display:block}
-.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--seal);outline-offset:3px;border-radius:2px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{position:static;display:inline-block;margin:8px;font-family:var(--mono);font-size:13px}
+.sheet{max-width:var(--sheet);margin:0 auto;padding:0 clamp(16px,3.4vw,40px)}
+.double{border-bottom:3px double var(--rule-3)}
 
-/* Header */
-.site-header{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:color-mix(in srgb,var(--bg) 74%, transparent);border-bottom:1px solid var(--border)}
-.nav{display:flex;align-items:center;gap:18px;height:64px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:19px;letter-spacing:-.03em}
-.brand .tile{width:32px;height:32px;display:grid;place-items:center}
-.brand .tile img{width:100%;height:100%;object-fit:contain}
-.nav-spacer{flex:1}
-.nav-links{display:flex;align-items:center;gap:22px}
-.nav-links a{color:var(--muted);font-size:14.5px;font-weight:500;transition:color .15s}
-.nav-links a:hover{color:var(--text)}
-.vulos-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--border-2);border-radius:999px;font-size:13px;color:var(--muted);transition:.15s}
-.vulos-badge:hover{border-color:var(--accent);color:var(--text)}
-.vulos-badge img{width:16px;height:16px;border-radius:4px}
-@media(max-width:820px){.nav-links{display:none}}
+/* ── Masthead ─────────────────────────────────────────────────────────────
+   A printed masthead, not a blurred pill-nav. Deliberately short: on a phone
+   every pixel here is a pixel of prose the reader has to scroll past. */
+.strip{
+  display:flex;flex-wrap:wrap;align-items:center;gap:5px 16px;
+  padding:8px 0;border-bottom:1px solid var(--rule);
+  font-family:var(--mono);font-size:12px;line-height:1.5;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);
+}
+.strip .sep{color:var(--rule-2)}
+.strip .now{color:var(--seal-ink);font-weight:600}
+.strip .push{margin-left:auto;display:flex;gap:16px}
+.strip a:hover{color:var(--ink)}
+@media(max-width:700px){.strip .push{margin-left:0}.strip .sep,.strip .hide-s{display:none}}
 
-/* Docs shell */
-.docs-shell{display:grid;grid-template-columns:252px 1fr;gap:36px;align-items:start;padding:34px 0 70px}
-@media(max-width:880px){.docs-shell{grid-template-columns:1fr}}
-.docs-nav{position:sticky;top:84px;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);padding:14px}
-.docs-nav .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:6px 10px}
-.docs-nav .label + .label{margin-top:10px;border-top:1px solid var(--border);padding-top:12px}
-.docs-nav a{display:block;padding:8px 11px;border-radius:9px;color:var(--muted);font-size:14.5px;font-weight:500;transition:.15s}
-.docs-nav a:hover{background:color-mix(in srgb,var(--text) 5%, transparent);color:var(--text)}
-.docs-nav a.active{background:color-mix(in srgb,var(--accent) 16%, transparent);color:var(--text)}
-@media(max-width:880px){.docs-nav{position:static}}
-.docs-main{min-width:0}
-.docs-title{font-size:13px;color:var(--faint);margin-bottom:6px}
-.docs-error{color:#FCA5A5;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);padding:14px 16px;border-radius:10px}
-@media (prefers-color-scheme: light){.docs-error{color:#991B1B}}
+.plate{display:flex;align-items:center;gap:clamp(11px,2vw,20px);padding:clamp(10px,2vw,26px) 0 clamp(9px,1.6vw,18px);flex-wrap:wrap}
+.plate .mark{width:clamp(30px,5vw,54px);flex:none}
+.plate .names{display:flex;flex-direction:column;gap:1px;min-width:0}
+.plate .name{font-size:clamp(26px,4.6vw,50px);line-height:1;font-weight:500;color:var(--ink);letter-spacing:-.018em;font-variation-settings:"SOFT" 0}
+.plate .said{font-family:var(--mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.plate .motto{margin-left:auto;text-align:right;max-width:34ch;color:var(--muted);font-size:15px;line-height:1.45;font-style:italic}
+@media(max-width:900px){.plate .motto{display:none}}
 
-/* Markdown */
-.markdown{font-size:16px}
-.markdown>*:first-child{margin-top:0}
-.markdown h1{font-size:34px;letter-spacing:-.03em;margin:.2em 0 .5em;border-bottom:1px solid var(--border);padding-bottom:.3em}
-.markdown h2{font-size:25px;letter-spacing:-.02em;margin:1.6em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.25em}
-.markdown h3{font-size:19px;margin:1.4em 0 .5em}
-.markdown h4{font-size:16px;margin:1.3em 0 .4em}
-.markdown p,.markdown li{color:var(--body)}
-.markdown a{color:var(--accent-ink)}
-.markdown a:hover{text-decoration:underline}
-.markdown code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--text) 8%, transparent);padding:2px 6px;border-radius:6px}
-.markdown pre{background:var(--code-bg);border:1px solid var(--border-2);border-radius:12px;padding:16px 18px;overflow:auto}
-.markdown pre code{background:none;padding:0;font-size:13.5px;line-height:1.7;color:var(--body)}
-.markdown blockquote{margin:1em 0;padding:.4em 1em;border-left:3px solid var(--accent);background:color-mix(in srgb,var(--text) 3%, transparent);color:var(--muted);border-radius:0 8px 8px 0}
-.markdown table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:14.5px;display:block;overflow:auto}
-.markdown th,.markdown td{border:1px solid var(--border-2);padding:9px 12px;text-align:left}
-.markdown th{background:var(--panel);font-weight:620}
-.markdown img{border-radius:10px;margin:1em 0;border:1px solid var(--border)}
-.markdown hr{border:none;border-top:1px solid var(--border);margin:2em 0}
-.markdown .mermaid{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin:1.2em 0;text-align:center;overflow:auto}
+/* ── Rail — the docs control bar. Sticky, and on a phone it is the ONLY nav
+   chrome above the prose: a Contents button, the chapter you are in, and
+   search. The full index is a drawer, so the reader never scrolls past
+   sixteen links to reach a sentence. ───────────────────────────────────── */
+.rail{position:sticky;top:0;z-index:60;background:var(--paper);border-bottom:1px solid var(--rule);box-shadow:0 1px 0 var(--rule)}
+.rail-inner{display:flex;align-items:center;gap:12px;height:var(--rail-h);min-width:0}
+.crumb{display:flex;align-items:center;gap:8px;min-width:0;font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.crumb .now{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumb .of{color:var(--faint);white-space:nowrap}
+.crumb .div{color:var(--rule-3);flex:none}
+@media(max-width:640px){.crumb .grp{display:none}}
 
-/* Footer */
-.site-footer{border-top:1px solid var(--border);padding:40px 0}
-.foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
-.foot .left{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
-.foot .left img{width:20px;height:20px;border-radius:5px}
-.foot .links{display:flex;gap:20px;flex-wrap:wrap}
-.foot .links a{color:var(--muted);font-size:14px}
-.foot .links a:hover{color:var(--text)}
+.railbtn{
+  display:inline-flex;align-items:center;gap:7px;flex:none;
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink);border:1px solid var(--rule-2);background:var(--surface);
+  padding:6px 11px;border-radius:2px;transition:border-color .15s,color .15s;
+}
+.railbtn:hover{border-color:var(--seal)}
+.railbtn[disabled]{opacity:.35;cursor:default}
+.railbtn[disabled]:hover{border-color:var(--rule-2)}
+.rail-end{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+.burger{display:none}
+.only-wide{display:none}
+@media(min-width:1020px){
+  .only-wide{display:inline-flex}
+  .rail-search{display:none}
+}
+@media(max-width:1019px){
+  .burger{display:inline-flex}
+  .pager-rail{display:none}
+}
+/* Below 480px the two buttons and the running head compete for 358px, and the
+   chapter name — the thing that tells you where you are once you have scrolled
+   past the masthead — is what loses. The search button drops to its glyph. */
+@media(max-width:479px){.rail-search .btn-word{display:none}}
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+.shell{display:grid;grid-template-columns:1fr;gap:0;padding-bottom:clamp(40px,6vw,80px)}
+.shell > *{min-width:0}
+@media(min-width:1020px){
+  .shell{grid-template-columns:264px minmax(0,1fr);gap:clamp(28px,3.4vw,52px);padding-top:26px}
+}
+@media(min-width:1340px){
+  .shell{grid-template-columns:264px minmax(0,1fr) 216px}
+}
+
+/* ── Index: a static column on a desk, a drawer on a phone ─────────────── */
+.index{min-width:0}
+.index-inner{display:flex;flex-direction:column;gap:14px}
+.search-wrap{position:relative}
+.search{
+  width:100%;font-family:var(--mono);font-size:13px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--rule-2);border-radius:2px;
+  padding:9px 30px 9px 11px;
+}
+.search::placeholder{color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-size:12px}
+.search:focus{border-color:var(--seal);outline:none}
+/* Chrome draws its own clear affordance in its own blue. Suppress it and use
+   one that belongs to this palette. */
+.search::-webkit-search-cancel-button,.search::-webkit-search-decoration{-webkit-appearance:none;appearance:none}
+.search-kbd{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:12px;color:var(--faint);pointer-events:none}
+.search:focus ~ .search-kbd,.search:not(:placeholder-shown) ~ .search-kbd{display:none}
+.search-clear{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:4px 7px;border:1px solid var(--rule-2);border-radius:2px;background:var(--paper)}
+.search-clear:hover{color:var(--ink);border-color:var(--seal)}
+.search-clear[hidden]{display:none}
+
+.idx-group{margin:0 0 4px}
+.idx-label{
+  font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--seal-ink);font-weight:600;padding:14px 0 7px;border-bottom:1px solid var(--rule);margin-bottom:4px;
+}
+.idx-group:first-child .idx-label{padding-top:0}
+.idx a{
+  display:flex;align-items:baseline;gap:9px;padding:6px 9px 6px 10px;
+  font-size:15.5px;color:var(--muted);border-left:2px solid transparent;transition:color .13s,border-color .13s,background .13s;
+}
+.idx a:hover{color:var(--ink);background:var(--sink)}
+.idx a .no{font-family:var(--mono);font-size:12px;color:var(--faint);flex:none;width:2.1em}
+.idx a[aria-current="page"]{color:var(--ink);font-weight:550;border-left-color:var(--seal);background:var(--sink)}
+.idx a[aria-current="page"] .no{color:var(--seal-ink);font-weight:600}
+.idx-empty{font-size:15px;color:var(--muted);padding:14px 0;font-style:italic}
+
+/* Search results replace the index list while a query is live.
+   Scoped as `.idx a.hit`, not `.hit`: the chapter-list rule `.idx a` is
+   display:flex at equal specificity and, being later in the sheet, won it —
+   which laid every result's chapter label BESIDE its snippet instead of above. */
+.idx a.hit{display:block;padding:9px 10px;border-bottom:1px solid var(--rule);color:var(--muted);font-size:15px}
+.hit:hover{background:var(--sink)}
+.hit .where{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--seal-ink);margin-bottom:3px}
+.hit .what{display:block;color:var(--ink)}
+.hit .snip{display:block;font-size:14px;color:var(--muted);margin-top:3px;line-height:1.45}
+.hit mark{background:var(--seal-wash);color:var(--ink);padding:0 2px;border-radius:2px}
+.hit-count{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:8px 0 4px;border-bottom:1px solid var(--rule)}
+
+@media(min-width:1020px){
+  .index{position:sticky;top:calc(var(--rail-h) + 20px);max-height:calc(100vh - var(--rail-h) - 40px);overflow-y:auto;scrollbar-width:thin;padding-bottom:20px}
+}
+/* Below 1020px the index is a drawer over the page — closed by default, so the
+   first thing on screen is the chapter, not the table of contents. */
+@media(max-width:1019px){
+  .index{
+    position:fixed;inset:0 auto 0 0;width:min(88vw,340px);z-index:120;
+    background:var(--surface);border-right:1px solid var(--rule-2);
+    padding:16px clamp(14px,3vw,20px) 28px;overflow-y:auto;
+    transform:translateX(-102%);transition:transform .22s ease;visibility:hidden;
+    box-shadow:0 0 0 100vmax transparent;
+  }
+  body.nav-open .index{transform:none;visibility:visible}
+  .drawer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;margin-bottom:4px;border-bottom:3px double var(--rule-3)}
+  .scrim{position:fixed;inset:0;z-index:110;background:rgba(16,14,11,.5);opacity:0;pointer-events:none;transition:opacity .22s ease}
+  body.nav-open .scrim{opacity:1;pointer-events:auto}
+}
+@media(min-width:1020px){.drawer-head,.scrim{display:none}}
+.drawer-title{font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.drawer-close{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule-2);padding:5px 10px;border-radius:2px}
+.drawer-close:hover{color:var(--ink);border-color:var(--seal)}
+
+/* ── Chapter ────────────────────────────────────────────────────────────── */
+.main{min-width:0;padding-top:20px}
+@media(min-width:1020px){.main{padding-top:2px}}
+.chap-head{border-bottom:3px double var(--rule-3);padding-bottom:14px;margin-bottom:clamp(18px,2.4vw,26px)}
+.chap-eyebrow{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.chap-eyebrow .grp{color:var(--seal-ink);font-weight:600}
+.chap-eyebrow .src{color:var(--faint)}
+.chap-eyebrow .src:hover{color:var(--ink)}
+/* The chapter's own H1 is lifted out of the article and set here, above the
+   double rule. It costs nothing and it buys the phone the thing that was
+   actually wrong before: the title of what you are reading is the first thing
+   on the screen, not the sixteenth link in a stacked sidebar. */
+.chap-title{
+  font-size:clamp(29px,4.2vw,44px);line-height:1.1;margin:0;color:var(--ink);
+  font-weight:450;letter-spacing:-.02em;font-variation-settings:"SOFT" 0;max-width:22ch;
+}
+
+/* On-page table of contents. Rendered twice — inline for narrow viewports,
+   in a right-hand rail at ≥1340px — because a grid sibling cannot be moved
+   into the middle of the article flow by CSS alone. */
+.toc-inline{margin:0 0 clamp(20px,2.6vw,28px);border:1px solid var(--rule);background:var(--surface)}
+.toc-inline > summary{
+  cursor:pointer;list-style:none;padding:11px 14px;
+  font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--seal-ink);font-weight:600;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.toc-inline > summary::-webkit-details-marker{display:none}
+.toc-inline > summary::after{content:"+";font-size:15px;color:var(--muted)}
+.toc-inline[open] > summary::after{content:"–"}
+.toc-inline .toc-body{padding:2px 14px 14px;border-top:1px solid var(--rule)}
+.toc-rail{display:none}
+@media(min-width:1340px){
+  .toc-rail{display:block;position:sticky;top:calc(var(--rail-h) + 20px);max-height:calc(100vh - var(--rail-h) - 40px);overflow-y:auto;scrollbar-width:thin;padding-bottom:20px}
+  .toc-inline{display:none}
+}
+.toc-rail .toc-title{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--seal-ink);font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.toc a{display:block;padding:5px 0 5px 11px;border-left:2px solid var(--rule);color:var(--muted);font-size:14.5px;line-height:1.4;transition:color .13s,border-color .13s}
+.toc a:hover{color:var(--ink);border-left-color:var(--rule-3)}
+.toc a.lvl-3{padding-left:22px;font-size:14px}
+.toc a.is-here{color:var(--ink);border-left-color:var(--seal);font-weight:550}
+.toc-none{font-size:14.5px;color:var(--faint);font-style:italic;padding:4px 0}
+
+/* ── Markdown, set as a law report ─────────────────────────────────────── */
+/* overflow-wrap is load-bearing, not cosmetic: prose written by developers is
+   full of long unbreakable tokens (`molao --profile=…`, bare URLs) and one of
+   them inside a list item pushed the whole page 8px wide at 390px. The table
+   and code scrollers cannot catch it, because the leak is in running text. */
+.md{font-size:17px;line-height:1.68;max-width:74ch;overflow-wrap:break-word}
+.md > *:first-child{margin-top:0}
+.md h2{
+  font-size:clamp(23px,2.9vw,30px);line-height:1.2;margin:1.9em 0 .6em;color:var(--ink);
+  font-weight:450;letter-spacing:-.016em;font-variation-settings:"SOFT" 0;
+  border-top:3px double var(--rule-3);padding-top:.62em;max-width:26ch;
+}
+.md h3{font-size:19.5px;margin:1.7em 0 .5em;color:var(--ink);font-weight:600;letter-spacing:-.008em}
+.md h4{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:1.6em 0 .5em;color:var(--seal-ink);font-weight:600}
+.md h5,.md h6{font-size:16px;margin:1.4em 0 .4em;color:var(--ink);font-weight:600}
+.md p{margin:0 0 1.05em}
+.md strong{font-weight:600;color:var(--ink)}
+.md em{font-style:italic}
+.md ul,.md ol{margin:0 0 1.1em;padding-left:1.35em}
+.md li{margin-bottom:.42em}
+.md li::marker{color:var(--rule-3)}
+.md a{color:var(--seal-ink);text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:2.5px}
+.md a:hover{text-decoration-color:var(--seal)}
+.md hr{border:0;border-top:3px double var(--rule-3);margin:2.2em 0}
+
+.md code{font-family:var(--mono);font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);font-variation-settings:normal;overflow-wrap:anywhere}
+.md pre{background:var(--sink);border:1px solid var(--rule-2);padding:15px 17px;overflow-x:auto;margin:0;border-radius:2px}
+.md pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;color:var(--body);white-space:pre}
+
+/* Code figure: a bordered plate with a copy control, so a long shell block
+   scrolls inside itself instead of widening the page at 320px. */
+.codefig{position:relative;margin:0 0 1.3em}
+.copy{
+  position:absolute;top:7px;right:7px;opacity:0;transition:opacity .14s;
+  font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);background:var(--surface);border:1px solid var(--rule-2);padding:3px 8px;border-radius:2px;
+}
+.codefig:hover .copy,.copy:focus-visible{opacity:1}
+.copy:hover{color:var(--ink);border-color:var(--seal)}
+.copy.done{color:var(--ok);border-color:var(--ok);opacity:1}
+@media(hover:none){.copy{opacity:1}}
+
+.md blockquote{
+  margin:1.4em 0;padding:14px 18px;border:1px solid var(--rule);border-left:4px solid var(--seal);
+  background:var(--surface);color:var(--muted);font-size:16.5px;
+}
+.md blockquote > *:last-child{margin-bottom:0}
+.md blockquote strong{color:var(--ink)}
+
+/* Tables are wrapped in a scroller after render: `display:block` on the table
+   itself (the old rule) throws away column sizing to get the same effect. */
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);background:var(--surface);margin:0 0 1.4em}
+.md table{width:100%;border-collapse:collapse;font-size:15px;min-width:min(560px,100%);margin:0}
+.md th,.md td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+.md thead th{
+  font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);font-weight:600;background:var(--sink);border-bottom:1px solid var(--rule-2);white-space:nowrap;
+}
+.md tbody tr:last-child td{border-bottom:0}
+/* Inside the table scroller the cell can stay wide — it scrolls in its own box
+   — so a code token there keeps its integrity rather than breaking mid-flag. */
+.md td code{white-space:nowrap;overflow-wrap:normal}
+
+.md .plate-fig{border:1px solid var(--rule);background:var(--surface);padding:10px;margin:1.5em 0}
+.md .plate-fig img{width:100%;height:auto;border:1px solid var(--rule)}
+.md .plate-fig figcaption{font-size:14px;color:var(--faint);margin:11px 4px 3px;line-height:1.5}
+.md img{border:1px solid var(--rule);margin:1.4em 0}
+
+/* Deep-linkable headings: the anchor is a section mark in the margin, quiet
+   until the heading is hovered or focused. */
+.md :is(h2,h3,h4){position:relative}
+/* A fixed size, not `em`: at .62em the section mark inside the 13px h4 rendered
+   at ~8px — the sub-12px trap, hiding in a decoration nobody reads. */
+.anchor{
+  font-family:var(--mono);font-size:12.5px;color:var(--rule-3);text-decoration:none;
+  margin-left:.45em;opacity:0;transition:opacity .13s;vertical-align:.1em;
+}
+.md :is(h2,h3,h4):hover .anchor,.anchor:focus-visible{opacity:1;color:var(--seal-ink)}
+@media(hover:none){.anchor{opacity:.5}}
+:target{scroll-margin-top:calc(var(--rail-h) + 20px)}
+
+/* Mermaid: rendered only for the one chapter that has a diagram, and the
+   3.5 MB renderer is fetched only then. */
+.diagram{border:1px solid var(--rule);background:var(--surface);padding:clamp(12px,2vw,18px);margin:1.5em 0;overflow-x:auto}
+.diagram svg{max-width:none;margin:0 auto}
+.diagram-note{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 0 9px}
+
+.notice-err{border:1px solid var(--rule-2);border-left:4px solid var(--stop);background:var(--surface);padding:18px 20px;color:var(--body);font-size:16px}
+.notice-err strong{color:var(--stop)}
+.loading{font-family:var(--mono);font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);padding:20px 0}
+
+/* ── Pager ──────────────────────────────────────────────────────────────── */
+.pager{display:grid;gap:12px;grid-template-columns:1fr;margin-top:clamp(34px,4.6vw,56px);border-top:3px double var(--rule-3);padding-top:20px}
+@media(min-width:640px){.pager{grid-template-columns:1fr 1fr}}
+.pager a{border:1px solid var(--rule);background:var(--surface);padding:14px 16px;transition:border-color .15s}
+.pager a:hover{border-color:var(--seal)}
+.pager .dir{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.pager .to{display:block;color:var(--ink);font-size:17px;font-weight:550;line-height:1.3}
+.pager .next{text-align:right}
+.pager .spacer{border:0;background:none}
+
+/* ── Colophon ───────────────────────────────────────────────────────────── */
+.colophon{border-top:3px double var(--rule-3);padding:clamp(22px,3vw,30px) 0 clamp(24px,3.2vw,34px)}
+.colo{display:flex;flex-wrap:wrap;gap:14px 30px;justify-content:space-between;align-items:center}
+.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;max-width:46ch}
+.colo .who img{width:20px;height:20px;flex:none}
+.colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
+.colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.colo .links a:hover{color:var(--ink)}
+.fine{margin:15px 0 0;padding-top:13px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
+.fine span+span::before{content:"·";margin:0 .6em;color:var(--rule-3)}
+@media(max-width:560px){.fine{display:block}.fine span{display:block;margin-top:5px}.fine span+span::before{content:none}}
+
+@media print{
+  .rail,.index,.scrim,.toc-inline,.toc-rail,.pager,.copy,.anchor,.strip{display:none!important}
+  body::before{display:none}
+  body{background:#fff;color:#000;font-size:11pt}
+  .shell{display:block}
+  .md{max-width:none}
+}
 </style>
 <!-- Vendored locally: the page makes no external requests of any kind. -->
 <script src="./assets/vendor/marked.umd.js"></script>
-<script src="./assets/vendor/mermaid.min.js"></script>
 </head>
 <body>
 
-<header class="site-header"><div class="wrap nav">
-  <a class="brand" href="./index.html"><span class="tile"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/logo-mark-light.svg">
-    <img src="./assets/brand/logo-mark.svg" alt="Molao mark">
-  </picture></span>molao</a>
-  <div class="nav-spacer"></div>
-  <nav class="nav-links">
-    <a href="./index.html#commons">A commons</a>
-    <a href="./index.html#verify">Verifiable</a>
-    <a href="./index.html#quorum">Quorum</a>
-    <a href="./docs.html">Docs</a>
-    <a href="https://github.com/vul-os/molao">GitHub</a>
-  </nav>
-  <a class="vulos-badge" href="https://vulos.org" title="Part of VulOS">
-    <img src="./assets/vulos-logo.png" alt="VulOS">Part of VulOS
-  </a>
-</div></header>
+<a class="skip" href="#chapter">Skip to the chapter</a>
 
-<div class="wrap docs-shell">
-  <aside class="docs-nav">
-    <div class="label">Using Molao</div>
-    <a data-slug="getting-started" href="#getting-started">Getting started</a>
-    <a data-slug="running-a-node" href="#running-a-node">Running a node</a>
-    <a data-slug="api" href="#api">HTTP API</a>
-    <a data-slug="screenshots" href="#screenshots">Screenshots</a>
-    <a data-slug="faq" href="#faq">FAQ</a>
-    <div class="label">How it works</div>
-    <a data-slug="architecture" href="#architecture">Architecture</a>
-    <a data-slug="citations" href="#citations">Citations</a>
-    <a data-slug="courts" href="#courts">Courts</a>
-    <a data-slug="releases" href="#releases">Releases</a>
-    <a data-slug="provenance" href="#provenance">Provenance</a>
-    <div class="label">Commitments</div>
-    <a data-slug="governance" href="#governance">Governance</a>
-    <a data-slug="sources" href="#sources">Sources &amp; ethics</a>
-    <a data-slug="threat-model" href="#threat-model">Threat model</a>
-    <a data-slug="security" href="#security">Security</a>
-    <a data-slug="contributing" href="#contributing">Contributing</a>
-    <a data-slug="roadmap" href="#roadmap">Roadmap</a>
-    <a data-slug="changelog" href="#changelog">Changelog</a>
+<header class="masthead">
+  <div class="sheet">
+    <div class="strip">
+      <span>Documentation</span><span class="sep">·</span>
+      <span class="hide-s">A commons, not a product</span><span class="sep hide-s">·</span>
+      <span class="now">Version 0.1.0 — early</span>
+      <span class="push">
+        <a href="./index.html">Home</a>
+        <a href="https://github.com/vul-os/molao">Source</a>
+      </span>
+    </div>
+  </div>
+  <div class="sheet">
+    <div class="plate double">
+      <a class="mark" href="./index.html" aria-label="Molao home">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/logo-mark-light.svg">
+          <img src="./assets/brand/logo-mark.svg" alt="The Molao mark: a ring of nodes joined by chords">
+        </picture>
+      </a>
+      <span class="names">
+        <a class="name" href="./index.html">Molao</a>
+        <span class="said">The documentation</span>
+      </span>
+      <span class="motto">Everything the project claims, written down where it can be checked against the code.</span>
+    </div>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Documentation controls">
+  <div class="sheet">
+    <div class="rail-inner">
+      <button class="railbtn burger" id="burger" aria-expanded="false" aria-controls="index" aria-label="Open the table of contents">
+        <span aria-hidden="true">☰</span> Contents
+      </button>
+      <span class="crumb">
+        <span class="grp" id="crumb-group"></span>
+        <span class="div grp" aria-hidden="true">/</span>
+        <span class="now" id="crumb-now">Documentation</span>
+        <span class="div" aria-hidden="true">·</span>
+        <span class="of" id="crumb-of"></span>
+      </span>
+      <span class="rail-end">
+        <button class="railbtn rail-search" id="rail-search" aria-label="Search the documentation"><span aria-hidden="true">⌕</span><span class="btn-word"> Search</span></button>
+        <a class="railbtn only-wide pager-rail" id="rail-prev" href="#" aria-label="Previous chapter">← Prev</a>
+        <a class="railbtn only-wide pager-rail" id="rail-next" href="#" aria-label="Next chapter">Next →</a>
+      </span>
+    </div>
+  </div>
+</nav>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<div class="sheet shell">
+
+  <aside class="index" id="index" aria-label="Chapters">
+    <div class="drawer-head">
+      <span class="drawer-title">Contents</span>
+      <button class="drawer-close" id="drawer-close">Close</button>
+    </div>
+    <div class="index-inner">
+      <div class="search-wrap">
+        <input class="search" id="search" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search the documentation" aria-label="Search the documentation" aria-controls="idx">
+        <button class="search-clear" id="search-clear" type="button" hidden>Clear</button>
+        <span class="search-kbd" aria-hidden="true">/</span>
+      </div>
+      <nav class="idx" id="idx"></nav>
+    </div>
   </aside>
-  <main class="docs-main">
-    <div class="docs-title" id="crumb"></div>
-    <article class="markdown" id="content">Loading…</article>
+
+  <main class="main" id="chapter">
+    <header class="chap-head">
+      <div class="chap-eyebrow">
+        <span class="grp" id="eyebrow-group"></span>
+        <span id="eyebrow-no"></span>
+        <a class="src" id="eyebrow-src" href="https://github.com/vul-os/molao" target="_blank" rel="noopener">Source file ↗</a>
+      </div>
+      <h1 class="chap-title" id="chap-title"></h1>
+    </header>
+    <details class="toc-inline toc" id="toc-inline">
+      <summary>In this chapter</summary>
+      <div class="toc-body" id="toc-inline-body"></div>
+    </details>
+    <article class="md" id="content"><p class="loading">Loading…</p></article>
+    <nav class="pager" id="pager" aria-label="Chapter navigation"></nav>
   </main>
+
+  <aside class="toc toc-rail" id="toc-rail" aria-label="In this chapter">
+    <div class="toc-title">In this chapter</div>
+    <div id="toc-rail-body"></div>
+  </aside>
+
 </div>
 
-<footer class="site-footer"><div class="wrap foot">
-  <div class="left"><img src="./assets/vulos-logo.png" alt="VulOS"> <span>Part of <a href="https://vulos.org" style="color:var(--text)">VulOS</a> — open, self-hostable apps. Standalone by design.</span></div>
-  <div class="links">
-    <a href="./index.html">Home</a>
-    <a href="https://github.com/vul-os/molao">GitHub</a>
-    <a href="./LICENSE.txt">License</a>
-    <a href="https://vulos.org">vulos.org</a>
+<footer class="colophon">
+  <div class="sheet">
+    <div class="colo">
+      <span class="who">
+        <img src="./assets/vulos-logo.png" alt="">
+        <span>Part of <a href="https://vulos.org" style="color:var(--ink)">VulOS</a> — open, self-hostable apps. Molao is standalone by design.</span>
+      </span>
+      <span class="links">
+        <a href="./index.html">Home</a>
+        <a href="https://github.com/vul-os/molao">Source</a>
+        <a href="https://github.com/vul-os/molao/issues">Issues</a>
+        <a href="./LICENSE.txt">Licence</a>
+        <a href="https://vulos.org">vulos.org</a>
+      </span>
+    </div>
+    <p class="fine">
+      <span>These pages are copies of the repository's own markdown, rendered in your browser.</span>
+      <span>No fonts, scripts, analytics or images are fetched from anywhere else.</span>
+      <span>MIT or Apache-2.0.</span>
+    </p>
   </div>
-</div></footer>
+</footer>
 
 <script>
-// Docs render straight from the repo's own markdown, copied into ./docs/.
-// Everything on this page is local: no fonts, no CDN, no analytics.
+// The docs viewer. Everything here is local: the markdown is fetched from
+// ./docs/, the renderer and the fonts are vendored under ./assets/, and the
+// page makes no request that does not start with this origin.
+'use strict';
+
+const REPO = 'https://github.com/vul-os/molao/blob/main';
+
+// group  — the heading it files under in the index
+// src    — the canonical file in the repository this is a copy of
 const DOCS = [
-  {"slug":"getting-started","title":"Getting started","path":"./docs/getting-started.md"},
-  {"slug":"running-a-node","title":"Running a node","path":"./docs/running-a-node.md"},
-  {"slug":"api","title":"HTTP API","path":"./docs/api.md"},
-  {"slug":"screenshots","title":"Screenshots","path":"./docs/screenshots.md"},
-  {"slug":"faq","title":"FAQ","path":"./docs/faq.md"},
-  {"slug":"architecture","title":"Architecture","path":"./docs/architecture.md"},
-  {"slug":"rag","title":"Local search (RAG)","path":"./docs/rag.md"},
-  {"slug":"citations","title":"Citations","path":"./docs/citations.md"},
-  {"slug":"courts","title":"Courts & regions","path":"./docs/courts.md"},
-  {"slug":"releases","title":"Releases","path":"./docs/releases.md"},
-  {"slug":"distribution","title":"Distribution","path":"./docs/distribution.md"},
-  {"slug":"provenance","title":"Provenance","path":"./docs/provenance.md"},
-  {"slug":"governance","title":"Governance","path":"./docs/governance.md"},
-  {"slug":"sources","title":"Sources & ethics","path":"./docs/sources.md"},
-  {"slug":"source-map","title":"Source map","path":"./docs/source-map.md"},
-  {"slug":"content-signals","title":"Content signals","path":"./docs/content-signals.md"},
-  {"slug":"threat-model","title":"Threat model","path":"./docs/threat-model.md"},
-  {"slug":"security","title":"Security","path":"./docs/security.md"},
-  {"slug":"contributing","title":"Contributing","path":"./docs/contributing.md"},
-  {"slug":"roadmap","title":"Roadmap","path":"./docs/roadmap.md"},
-  {"slug":"changelog","title":"Changelog","path":"./docs/changelog.md"}
+  {slug:'getting-started', title:'Getting started',    group:'Using Molao',      src:'docs/GETTING-STARTED.md'},
+  {slug:'running-a-node',  title:'Running a node',     group:'Using Molao',      src:'docs/RUNNING-A-NODE.md'},
+  {slug:'api',             title:'HTTP API',           group:'Using Molao',      src:'docs/API.md'},
+  {slug:'rag',             title:'Search & retrieval', group:'Using Molao',      src:'docs/RAG.md'},
+  {slug:'screenshots',     title:'Screenshots',        group:'Using Molao',      src:'docs/SCREENSHOTS.md'},
+  {slug:'faq',             title:'FAQ',                group:'Using Molao',      src:'docs/FAQ.md'},
+
+  {slug:'architecture',    title:'Architecture',       group:'How it works',     src:'docs/ARCHITECTURE.md'},
+  {slug:'citations',       title:'Citations',          group:'How it works',     src:'docs/CITATIONS.md'},
+  {slug:'courts',          title:'Courts & regions',   group:'How it works',     src:'docs/COURTS.md'},
+  {slug:'provenance',      title:'Provenance',         group:'How it works',     src:'docs/PROVENANCE.md'},
+  {slug:'releases',        title:'Releases',           group:'How it works',     src:'docs/RELEASES.md'},
+  {slug:'distribution',    title:'Distribution',       group:'How it works',     src:'docs/DISTRIBUTION.md'},
+
+  {slug:'sources',         title:'Sources & ethics',   group:'Where the law comes from', src:'docs/SOURCES.md'},
+  {slug:'source-map',      title:'The source map',     group:'Where the law comes from', src:'docs/SOURCE-MAP.md'},
+  {slug:'content-signals', title:'Content signals',    group:'Where the law comes from', src:'docs/CONTENT-SIGNALS.md'},
+
+  {slug:'governance',      title:'Governance',         group:'Commitments',      src:'GOVERNANCE.md'},
+  {slug:'threat-model',    title:'Threat model',       group:'Commitments',      src:'docs/THREAT-MODEL.md'},
+  {slug:'security',        title:'Security',           group:'Commitments',      src:'SECURITY.md'},
+  {slug:'contributing',    title:'Contributing',       group:'Commitments',      src:'CONTRIBUTING.md'},
+  {slug:'roadmap',         title:'Roadmap',            group:'Commitments',      src:'ROADMAP.md'},
+  {slug:'changelog',       title:'Changelog',          group:'Commitments',      src:'CHANGELOG.md'}
 ];
-const bySlug = Object.fromEntries(DOCS.map(d=>[d.slug,d]));
-const byFile = Object.fromEntries(DOCS.map(d=>[d.path.split('/').pop().toLowerCase(),d]));
-const content = document.getElementById('content');
-const crumb = document.getElementById('crumb');
+DOCS.forEach((d, i) => { d.path = './docs/' + d.slug + '.md'; d.n = i + 1; });
 
-const dark = !window.matchMedia || !window.matchMedia('(prefers-color-scheme: light)').matches;
-let mermaidReady = false;
-try {
-  mermaid.initialize({ startOnLoad:false, theme: dark ? 'dark' : 'neutral', securityLevel:'loose',
-                       themeVariables:{ fontFamily:'var(--sans)' } });
-  mermaidReady = true;
-} catch(e){}
+const bySlug = Object.fromEntries(DOCS.map(d => [d.slug, d]));
+const byFile = Object.fromEntries(DOCS.map(d => [d.slug + '.md', d]));
+DOCS.forEach(d => { byFile[d.src.split('/').pop().toLowerCase()] = d; });
 
-if (window.marked && marked.setOptions) marked.setOptions({ gfm:true, breaks:false });
+const $ = id => document.getElementById(id);
+const content = $('content'), idx = $('idx'), search = $('search');
+const tocInline = $('toc-inline'), tocInlineBody = $('toc-inline-body'), tocRailBody = $('toc-rail-body');
+const pager = $('pager');
 
-function setActive(slug){
-  document.querySelectorAll('.docs-nav a').forEach(a=>a.classList.toggle('active', a.dataset.slug===slug));
-}
+/* ── The index ─────────────────────────────────────────────────────────── */
 
-async function renderMermaid(){
-  if(!mermaidReady) return;
-  content.querySelectorAll('code.language-mermaid').forEach(code=>{
-    const div = document.createElement('div');
-    div.className = 'mermaid';
-    div.textContent = code.textContent;
-    code.closest('pre').replaceWith(div);
-  });
-  const nodes = content.querySelectorAll('.mermaid');
-  if(nodes.length){ try { await mermaid.run({ nodes }); } catch(e){ console.warn('mermaid', e); } }
-}
-
-async function load(slug){
-  const doc = bySlug[slug] || DOCS[0];
-  setActive(doc.slug);
-  crumb.textContent = doc.title;
-  content.innerHTML = 'Loading…';
-  try {
-    const res = await fetch(doc.path, {cache:'no-cache'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    content.innerHTML = marked.parse(await res.text());
-
-    // Screenshot paths in the repo docs point at docs/screenshots/.
-    content.querySelectorAll('img').forEach(img=>{
-      const s = img.getAttribute('src') || '';
-      if(/^https?:/i.test(s)) return;
-      const m = s.match(/(?:\.\.\/)*(?:docs\/)?screenshots\/(.+)$/);
-      if(m) img.setAttribute('src','./screenshots/'+m[1]);
-    });
-
-    // Cross-document links (ARCHITECTURE.md, ../ROADMAP.md#phase-4) become
-    // sidebar navigation rather than dead links.
-    content.querySelectorAll('a[href]').forEach(a=>{
-      const h = a.getAttribute('href') || '';
-      if(/^(https?:|#|mailto:)/i.test(h)) return;
-      const m = h.match(/([^\/]+\.md)(#.*)?$/i);
-      const target = m && byFile[m[1].toLowerCase()];
-      if(target) a.setAttribute('href','#'+target.slug);
-    });
-
-    content.querySelectorAll('a[href^="http"]').forEach(a=>{a.target='_blank';a.rel='noopener';});
-    await renderMermaid();
-    window.scrollTo({top:0});
-  } catch(err){
-    content.innerHTML = '<div class="docs-error">Could not load <code>'+doc.path.split('/').pop()+
-      '</code> — '+err.message+'. Opening this page directly from disk may be blocked by the browser; '+
-      'serve the <code>site/</code> directory over HTTP instead.</div>';
+function buildIndex(){
+  idx.textContent = '';
+  let group = null, list = null;
+  for (const d of DOCS) {
+    if (d.group !== group) {
+      group = d.group;
+      const wrap = document.createElement('div');
+      wrap.className = 'idx-group';
+      const label = document.createElement('div');
+      label.className = 'idx-label';
+      label.textContent = group;
+      wrap.appendChild(label);
+      list = document.createElement('div');
+      wrap.appendChild(list);
+      idx.appendChild(wrap);
+    }
+    const a = document.createElement('a');
+    a.href = '#' + d.slug;
+    a.dataset.slug = d.slug;
+    const no = document.createElement('span');
+    no.className = 'no';
+    no.textContent = String(d.n).padStart(2, '0');
+    a.append(no, document.createTextNode(d.title));
+    list.appendChild(a);
   }
 }
 
-function current(){ return (location.hash||'').replace('#','') || DOCS[0].slug; }
-window.addEventListener('hashchange', ()=>load(current()));
-load(current());
+function markCurrent(slug){
+  for (const a of idx.querySelectorAll('a[data-slug]')) {
+    if (a.dataset.slug === slug) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  }
+}
+
+/* ── Search across every chapter ───────────────────────────────────────────
+   The corpus is fetched once, on the first keystroke, and kept in memory.
+   Twenty-one local markdown files is a few hundred kilobytes from this same
+   origin — cheap, and it means search covers body text and not just titles. */
+
+let corpus = null, corpusLoading = null;
+
+function loadCorpus(){
+  if (corpus) return Promise.resolve(corpus);
+  if (corpusLoading) return corpusLoading;
+  corpusLoading = Promise.all(DOCS.map(async d => {
+    try {
+      const res = await fetch(d.path, {cache:'no-cache'});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const raw = await res.text();
+      const headings = [];
+      for (const line of raw.split('\n')) {
+        const m = /^(#{2,3})\s+(.+?)\s*$/.exec(line);
+        if (m) headings.push({level:m[1].length, text:stripInline(m[2]), id:slugify(stripInline(m[2]))});
+      }
+      // Prose only: fenced code and table pipes make for noisy snippets.
+      const prose = raw.replace(/```[\s\S]*?```/g, ' ').replace(/^\s*[|>#-].*$/gm, ' ');
+      return {doc:d, headings, prose:stripInline(prose).replace(/\s+/g, ' '), ok:true};
+    } catch { return {doc:d, headings:[], prose:'', ok:false}; }
+  })).then(rows => { corpus = rows; return rows; });
+  return corpusLoading;
+}
+
+function stripInline(s){
+  return s.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*_]/g, '').trim();
+}
+function slugify(s){
+  return s.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'section';
+}
+function esc(s){
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function highlight(text, q){
+  const i = text.toLowerCase().indexOf(q);
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+}
+
+function renderResults(q){
+  const query = q.trim().toLowerCase();
+  if (!query) { buildIndex(); markCurrent(current().slug); return; }
+
+  const rows = corpus;
+  if (!rows) { idx.innerHTML = '<p class="idx-empty">Reading the chapters…</p>'; return; }
+
+  const hits = [];
+  for (const row of rows) {
+    if (row.doc.title.toLowerCase().includes(query) || row.doc.group.toLowerCase().includes(query)) {
+      hits.push({doc:row.doc, where:'Chapter', what:row.doc.title, anchor:'', snip:''});
+    }
+    for (const h of row.headings) {
+      if (h.text.toLowerCase().includes(query)) {
+        hits.push({doc:row.doc, where:row.doc.title, what:h.text, anchor:h.id, snip:''});
+      }
+    }
+    const i = row.prose.toLowerCase().indexOf(query);
+    if (i >= 0) {
+      const from = Math.max(0, i - 60);
+      const snip = (from > 0 ? '…' : '') + row.prose.slice(from, i + query.length + 90).trim() + '…';
+      hits.push({doc:row.doc, where:row.doc.title, what:'', anchor:'', snip});
+    }
+  }
+
+  idx.textContent = '';
+  const count = document.createElement('p');
+  count.className = 'hit-count';
+  count.textContent = hits.length ? hits.length + ' result' + (hits.length === 1 ? '' : 's') : 'No match';
+  idx.appendChild(count);
+  if (!hits.length) {
+    const none = document.createElement('p');
+    none.className = 'idx-empty';
+    none.textContent = 'Nothing in the documentation matches that.';
+    idx.appendChild(none);
+    return;
+  }
+  for (const hit of hits.slice(0, 40)) {
+    const a = document.createElement('a');
+    a.className = 'hit';
+    a.href = '#' + hit.doc.slug + (hit.anchor ? '/' + hit.anchor : '');
+    a.innerHTML =
+      '<span class="where">' + esc(hit.where) + '</span>' +
+      (hit.what ? '<span class="what">' + highlight(hit.what, query) + '</span>' : '') +
+      (hit.snip ? '<span class="snip">' + highlight(hit.snip, query) + '</span>' : '');
+    idx.appendChild(a);
+  }
+}
+
+const searchClear = $('search-clear');
+searchClear.addEventListener('click', () => {
+  search.value = '';
+  searchClear.hidden = true;
+  renderResults('');
+  search.focus();
+});
+
+let searchTimer = null;
+search.addEventListener('input', () => {
+  const q = search.value;
+  searchClear.hidden = !q;
+  clearTimeout(searchTimer);
+  if (q.trim()) loadCorpus().then(() => { if (search.value === q) renderResults(q); });
+  searchTimer = setTimeout(() => renderResults(q), 90);
+});
+search.addEventListener('focus', () => { loadCorpus(); });
+search.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { search.value = ''; searchClear.hidden = true; renderResults(''); search.blur(); }
+});
+
+/* ── Drawer ────────────────────────────────────────────────────────────── */
+
+const burger = $('burger'), scrim = $('scrim'), drawerClose = $('drawer-close');
+const narrow = () => window.matchMedia('(max-width:1019px)').matches;
+
+function setNav(open){
+  document.body.classList.toggle('nav-open', open);
+  burger.setAttribute('aria-expanded', String(open));
+  scrim.hidden = !open;
+  if (open) { const f = $('index'); f.scrollTop = 0; }
+}
+burger.addEventListener('click', () => setNav(!document.body.classList.contains('nav-open')));
+drawerClose.addEventListener('click', () => { setNav(false); burger.focus(); });
+scrim.addEventListener('click', () => setNav(false));
+$('rail-search').addEventListener('click', () => { setNav(true); search.focus(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.body.classList.contains('nav-open')) { setNav(false); burger.focus(); }
+  if (e.key === '/' && e.target === document.body) { e.preventDefault(); if (narrow()) setNav(true); search.focus(); }
+});
+// A drawer that survives a resize into the desktop layout leaves the scrim over
+// a perfectly usable page.
+window.addEventListener('resize', () => { if (!narrow()) setNav(false); });
+
+/* ── Table of contents for the open chapter ────────────────────────────── */
+
+let spy = null;
+
+function buildToc(){
+  const heads = [...content.querySelectorAll('h2, h3')];
+  for (const box of [tocInlineBody, tocRailBody]) {
+    box.textContent = '';
+    if (!heads.length) {
+      const p = document.createElement('p');
+      p.className = 'toc-none';
+      p.textContent = 'This chapter has no sections.';
+      box.appendChild(p);
+      continue;
+    }
+    for (const h of heads) {
+      const a = document.createElement('a');
+      a.href = '#' + currentSlug + '/' + h.id;
+      a.className = 'lvl-' + h.tagName[1];
+      a.dataset.for = h.id;
+      a.textContent = h.textContent.replace(/§$/, '').trim();
+      box.appendChild(a);
+    }
+  }
+  tocInline.style.display = heads.length ? '' : 'none';
+  // Open where the layout has room to spare; closed on a phone, where an open
+  // list of sections is just the old stacked-sidebar problem in miniature.
+  tocInline.open = heads.length > 0 && window.innerWidth >= 1020;
+
+  if (spy) spy.disconnect();
+  if (!heads.length) return;
+  // IntersectionObserver, not a scroll handler: the top band is what counts as
+  // "where the reader is", and the last heading to cross it wins.
+  const seen = new Set();
+  spy = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) seen.add(e.target.id); else seen.delete(e.target.id);
+    }
+    let here = null;
+    for (const h of heads) if (seen.has(h.id)) { here = h.id; break; }
+    if (!here) {
+      for (const h of heads) { if (h.getBoundingClientRect().top < 140) here = h.id; }
+    }
+    for (const a of document.querySelectorAll('.toc a[data-for]')) {
+      a.classList.toggle('is-here', a.dataset.for === here);
+    }
+  }, {rootMargin: '-70px 0px -72% 0px', threshold: 0});
+  heads.forEach(h => spy.observe(h));
+}
+
+/* ── Rendering one chapter ─────────────────────────────────────────────── */
+
+if (window.marked && marked.setOptions) marked.setOptions({gfm:true, breaks:false});
+
+let mermaidPromise = null;
+function loadMermaid(){
+  // 3.5 MB of renderer for the one chapter that has a diagram. Twenty of the
+  // twenty-one chapters must not pay for it.
+  if (mermaidPromise) return mermaidPromise;
+  mermaidPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = './assets/vendor/mermaid.min.js';
+    s.onload = () => resolve(window.mermaid);
+    s.onerror = () => reject(new Error('mermaid failed to load'));
+    document.head.appendChild(s);
+  });
+  return mermaidPromise;
+}
+
+async function renderDiagrams(){
+  const blocks = [...content.querySelectorAll('code.language-mermaid')];
+  if (!blocks.length) return;
+  const boxes = blocks.map(code => {
+    const box = document.createElement('div');
+    box.className = 'diagram';
+    const note = document.createElement('div');
+    note.className = 'diagram-note';
+    note.textContent = 'Figure — drawn from the source of this document';
+    const node = document.createElement('div');
+    node.className = 'mermaid';
+    node.textContent = code.textContent;
+    box.append(note, node);
+    code.closest('pre').replaceWith(box);
+    return node;
+  });
+  try {
+    const mermaid = await loadMermaid();
+    // Draw the figure on the same paper as the page. Mermaid cannot read CSS
+    // custom properties, so the tokens are resolved here and handed over as
+    // literals — otherwise the one diagram in the documentation arrives as a
+    // grey stock flowchart in the middle of a law report.
+    const cs = getComputedStyle(document.documentElement);
+    const tok = n => cs.getPropertyValue(n).trim();
+    mermaid.initialize({
+      startOnLoad:false, securityLevel:'strict', theme:'base',
+      flowchart:{useMaxWidth:false, htmlLabels:false, curve:'basis'},
+      themeVariables:{
+        fontFamily:'"Plex Mono", ui-monospace, monospace', fontSize:'14px',
+        background:tok('--surface'),
+        primaryColor:tok('--sink'), primaryTextColor:tok('--ink'), primaryBorderColor:tok('--rule-2'),
+        secondaryColor:tok('--surface'), tertiaryColor:tok('--surface'),
+        lineColor:tok('--rule-3'), textColor:tok('--body'),
+        mainBkg:tok('--sink'), nodeBorder:tok('--rule-2'),
+        clusterBkg:'transparent', clusterBorder:tok('--rule'),
+        edgeLabelBackground:tok('--surface'),
+        titleColor:tok('--ink'), nodeTextColor:tok('--ink')
+      }
+    });
+    await mermaid.run({nodes: boxes});
+  } catch (err) {
+    // A diagram that cannot be drawn falls back to its own source, which is
+    // still readable — it never becomes a blank box.
+    for (let i = 0; i < boxes.length; i++) {
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      code.textContent = blocks[i].textContent;
+      pre.appendChild(code);
+      boxes[i].replaceWith(pre);
+    }
+  }
+}
+
+function decorate(slug){
+  // Headings become deep-linkable: #chapter/section-id.
+  const used = new Set();
+  for (const h of content.querySelectorAll('h2, h3, h4')) {
+    let id = slugify(h.textContent), n = 2;
+    while (used.has(id)) id = slugify(h.textContent) + '-' + n++;
+    used.add(id);
+    h.id = id;
+    const a = document.createElement('a');
+    a.className = 'anchor';
+    a.href = '#' + slug + '/' + id;
+    a.setAttribute('aria-label', 'Link to this section');
+    a.textContent = '§';
+    h.appendChild(a);
+  }
+
+  // Screenshot paths in the repo docs point at docs/screenshots/; the site
+  // carries its own copy at ./screenshots/.
+  for (const img of content.querySelectorAll('img')) {
+    const s = img.getAttribute('src') || '';
+    if (/^(https?:|data:)/i.test(s)) continue;
+    const m = s.match(/(?:\.\.\/)*(?:docs\/)?screenshots\/(.+)$/);
+    if (m) img.setAttribute('src', './screenshots/' + m[1]);
+    if (!img.closest('figure')) {
+      const fig = document.createElement('figure');
+      fig.className = 'plate-fig';
+      img.replaceWith(fig);
+      fig.appendChild(img);
+      const alt = img.getAttribute('alt');
+      if (alt) {
+        const cap = document.createElement('figcaption');
+        cap.textContent = alt;
+        fig.appendChild(cap);
+      }
+    }
+  }
+
+  // Cross-document links become navigation instead of dead paths; anything
+  // that is not a chapter of this site resolves against the repository.
+  for (const a of content.querySelectorAll('a[href]')) {
+    const h = a.getAttribute('href') || '';
+    if (/^(https?:|#|mailto:)/i.test(h)) continue;
+    const m = h.match(/([^\/]+\.md)(#(.*))?$/i);
+    const target = m && byFile[m[1].toLowerCase()];
+    if (target) a.setAttribute('href', '#' + target.slug + (m[3] ? '/' + slugify(m[3].replace(/-/g, ' ')) : ''));
+    else a.setAttribute('href', REPO + '/' + h.replace(/^\.\//, ''));
+  }
+  for (const a of content.querySelectorAll('a[href^="http"]')) { a.target = '_blank'; a.rel = 'noopener'; }
+
+  // Tables scroll inside their own box rather than widening the page.
+  for (const t of content.querySelectorAll('table')) {
+    if (t.parentElement.classList.contains('tablewrap')) continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'tablewrap';
+    t.replaceWith(wrap);
+    wrap.appendChild(t);
+  }
+
+  // Code blocks get a copy control.
+  for (const pre of content.querySelectorAll('pre')) {
+    if (pre.parentElement.classList.contains('codefig')) continue;
+    if (pre.querySelector('code.language-mermaid')) continue;
+    const fig = document.createElement('div');
+    fig.className = 'codefig';
+    pre.replaceWith(fig);
+    fig.appendChild(pre);
+    const btn = document.createElement('button');
+    btn.className = 'copy';
+    btn.type = 'button';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      const text = pre.innerText;
+      try {
+        if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+        else {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        btn.textContent = 'Copied'; btn.classList.add('done');
+      } catch { btn.textContent = 'Select it'; }
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1800);
+    });
+    fig.appendChild(btn);
+  }
+}
+
+function renderPager(doc){
+  const prev = DOCS[doc.n - 2], next = DOCS[doc.n];
+  pager.textContent = '';
+  const link = (d, dir) => {
+    if (!d) { const s = document.createElement('span'); s.className = 'spacer'; return s; }
+    const a = document.createElement('a');
+    a.href = '#' + d.slug;
+    a.className = dir === 'next' ? 'next' : 'prev';
+    a.innerHTML = '<span class="dir">' + (dir === 'next' ? 'Next chapter →' : '← Previous chapter') + '</span>' +
+                  '<span class="to">' + esc(d.title) + '</span>';
+    return a;
+  };
+  pager.append(link(prev, 'prev'), link(next, 'next'));
+
+  const rp = $('rail-prev'), rn = $('rail-next');
+  if (prev) { rp.href = '#' + prev.slug; rp.removeAttribute('disabled'); rp.title = prev.title; }
+  else { rp.removeAttribute('href'); rp.setAttribute('disabled', ''); rp.title = ''; }
+  if (next) { rn.href = '#' + next.slug; rn.removeAttribute('disabled'); rn.title = next.title; }
+  else { rn.removeAttribute('href'); rn.setAttribute('disabled', ''); rn.title = ''; }
+}
+
+let currentSlug = null;
+let renderToken = 0;
+
+async function load(doc, anchor){
+  const token = ++renderToken;
+  currentSlug = doc.slug;
+  markCurrent(doc.slug);
+  renderPager(doc);
+
+  $('crumb-group').textContent = doc.group;
+  $('crumb-now').textContent = doc.title;
+  $('crumb-of').textContent = doc.n + ' of ' + DOCS.length;
+  $('eyebrow-group').textContent = doc.group;
+  $('eyebrow-no').textContent = 'Chapter ' + String(doc.n).padStart(2, '0') + ' of ' + DOCS.length;
+  $('eyebrow-src').href = REPO + '/' + doc.src;
+  $('eyebrow-src').textContent = doc.src + ' ↗';
+  $('chap-title').textContent = doc.title;
+  document.title = doc.title + ' — Molao documentation';
+
+  content.innerHTML = '<p class="loading">Loading ' + esc(doc.title) + '…</p>';
+
+  let text;
+  try {
+    const res = await fetch(doc.path, {cache:'no-cache'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    text = await res.text();
+  } catch (err) {
+    if (token !== renderToken) return;
+    content.innerHTML =
+      '<div class="notice-err"><strong>This chapter did not load.</strong> ' +
+      esc(doc.path.split('/').pop()) + ' — ' + esc(err.message) + '. ' +
+      'Opening this page straight from disk is usually the cause: a browser refuses ' +
+      '<code>fetch</code> over <code>file://</code>. Serve the <code>site/</code> directory over HTTP instead.</div>';
+    buildToc();
+    return;
+  }
+  if (token !== renderToken) return;
+
+  content.innerHTML = marked.parse(text);
+
+  // Lift the document's own H1 into the chapter head, above the double rule,
+  // and fall back to the index title if a document ever ships without one.
+  const h1 = content.querySelector('h1');
+  $('chap-title').textContent = h1 ? h1.textContent.trim() : doc.title;
+  if (h1) h1.remove();
+
+  decorate(doc.slug);
+  buildToc();
+  await renderDiagrams();
+  if (token !== renderToken) return;
+  buildToc();
+  goTo(anchor);
+}
+
+function goTo(anchor){
+  if (!anchor) { window.scrollTo({top:0, behavior:'auto'}); return; }
+  const el = document.getElementById(anchor);
+  if (el) el.scrollIntoView({block:'start', behavior:'auto'});
+  else window.scrollTo({top:0, behavior:'auto'});
+}
+
+/* ── Routing:  #chapter  or  #chapter/section ──────────────────────────── */
+
+function current(){
+  const raw = (location.hash || '').replace(/^#/, '');
+  const [slug, anchor] = raw.split('/');
+  return {slug: bySlug[slug] ? slug : DOCS[0].slug, anchor: anchor || ''};
+}
+
+function route(){
+  const {slug, anchor} = current();
+  if (narrow()) setNav(false);
+  if (slug === currentSlug) { goTo(anchor); markCurrent(slug); return; }
+  load(bySlug[slug], anchor);
+}
+
+window.addEventListener('hashchange', route);
+buildIndex();
+route();
 </script>
 </body>
 </html>
