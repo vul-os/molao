@@ -1,0 +1,76 @@
+name: Region profile for a new jurisdiction
+description: Add or correct the court codes and law-report series for a jurisdiction. A TOML file — no code.
+title: "profile: <jurisdiction>"
+labels: [region-profile, good first issue]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A region profile is **data, not code** — see
+        [COURTS.md](https://github.com/vul-os/molao/blob/main/docs/COURTS.md#adding-a-jurisdiction).
+        A node loads a directory of them with `molao --profiles <DIR>`, so you can test
+        yours without rebuilding anything.
+
+        Contributing it here additionally adds its fallback constant in
+        `molao_core::region`, so a node with no flag still resolves it. A test holds
+        `profiles/*.toml` and the compiled-in constants equal, so the two cannot drift.
+
+        **This works because the free-access-to-law world already converged on one
+        citation grammar** — `[2020] UKSC 1`, `[2020] HCA 1`, `[1995] ZACC 3`. Only the
+        court registry differs, which is exactly why it belongs in data.
+
+  - type: input
+    id: jurisdiction
+    attributes:
+      label: Jurisdiction
+      placeholder: Kenya
+    validations:
+      required: true
+
+  - type: input
+    id: code
+    attributes:
+      label: Region code
+      description: ISO 3166-1 alpha-2, lowercase, matching the filename (`ke.toml`).
+      placeholder: ke
+    validations:
+      required: true
+
+  - type: textarea
+    id: courts
+    attributes:
+      label: Courts
+      description: >-
+        Code, name, tier (Apex / Appellate / Superior / Specialist / Lower) and seat.
+        Tier drives the authority weighting, so please get it right — an apex court
+        weighted as a lower one quietly distorts every ranking in that jurisdiction.
+      render: toml
+    validations:
+      required: true
+
+  - type: textarea
+    id: series
+    attributes:
+      label: Law-report series
+      description: >-
+        The enumerated report series for this jurisdiction. Without these, only neutral
+        citations and case numbers are matched — reported citations need the list.
+      render: toml
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Source for the court list
+      description: >-
+        Where these codes and tiers come from — a judiciary site, a practice direction,
+        a citation guide. This is a legal reference work; "I believe" is not a source.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I ran `molao --profiles <DIR> regions` and it resolved
+        - label: Tiers reflect the actual hierarchy, not a guess

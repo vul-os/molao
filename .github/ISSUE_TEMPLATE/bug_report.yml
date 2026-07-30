@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in the node, the CLI, the web interface or the crates behaves wrongly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not this form if:** a judgment does not match its source, or you have found
+        a way to make verification pass on tampered data. Both are security issues —
+        use the [private advisory channel](https://github.com/vul-os/molao/security/advisories/new).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: >-
+        Exact commands. `molao demo` seeds a synthetic corpus and is usually enough to
+        reproduce against — please try, since it means anyone can follow along without
+        your data.
+      placeholder: |
+        molao demo
+        molao verify --release r.json --signers signers.json
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Actual output
+      description: Paste it rather than describing it.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `molao --version`, or the commit you built.
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: macOS 15.1 arm64 / Debian 12 x86_64 / …
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiles
+    attributes:
+      label: Region profiles in use
+      description: >-
+        Output of `molao regions` if the problem touches citations, courts or parsing.
+        A loaded profile overrides the compiled-in one, so this is often the answer.
+      render: shell

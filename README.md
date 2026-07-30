@@ -419,10 +419,22 @@ Node roles, what each costs to run, and the practical guidance are in
 | [SCREENSHOTS.md](docs/SCREENSHOTS.md) | The screenshot set and how to regenerate it |
 | [FAQ.md](docs/FAQ.md) | Straight answers, including the ones that are "not yet" |
 
-Also: [GOVERNANCE.md](GOVERNANCE.md) (the signer set, and what "decentralized"
-honestly means here), [ROADMAP.md](ROADMAP.md) (phases, with what is done, in
-progress, designed-not-built, and deliberately excluded),
-[SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md).
+Also: [GOVERNANCE.md](GOVERNANCE.md) (the signer set, what a signature does and
+does not attest, and the open questions on takedown and data protection),
+[ROADMAP.md](ROADMAP.md) (phases, with what is done, in progress,
+designed-not-built, and deliberately excluded),
+[CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+[SECURITY.md](SECURITY.md), [CHANGELOG.md](CHANGELOG.md), and
+[CITATION.cff](CITATION.cff) if you need to cite this in research or teaching.
+
+**If you want to help:** the highest-leverage tasks are laid out in
+[SOURCE-MAP.md](docs/SOURCE-MAP.md#how-the-community-can-help) — verify a
+court-direct host, write an adapter, add a region profile (a TOML file, no
+code), or file one of the licence requests drafted in
+[`paperwork/`](paperwork/). Issue templates exist for each. And if your
+institution might hold a signing key, that is the one thing the project cannot
+do for itself — `threshold < 2` is refused in code, so **Molao cannot publish
+anything until two independent organisations say yes**.
 
 ## Development
 

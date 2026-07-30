@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: "Molao: a decentralized commons of case law"
+message: >-
+  If you refer to Molao in research, teaching or a report, please cite it using
+  these metadata. Cite the version you actually used — the project is early and
+  changes substantially between versions.
+type: software
+authors:
+  - name: "The Molao contributors"
+repository-code: "https://github.com/vul-os/molao"
+url: "https://vulos.org/projects/molao/"
+abstract: >-
+  Molao is a free, decentralized commons of case law: a corpus of judgments
+  identified by the BLAKE3 hash of their canonical text, a citation graph over
+  them derived by a pinned deterministic extractor and therefore verifiable by
+  recomputation, and a single offline-first binary that serves both. Releases
+  are threshold-signed by a quorum of independent organisations rather than
+  published by one operator; a threshold below two is refused in code.
+  Jurisdictions are data, not code — court codes, hierarchy tiers and
+  law-report series load from region-profile files at run time. Molao is
+  infrastructure any jurisdiction can stand up for its own corpus, in the
+  tradition of the Free Access to Law Movement.
+keywords:
+  - legal informatics
+  - case law
+  - free access to law
+  - citation analysis
+  - citator
+  - content addressing
+  - threshold signatures
+  - decentralization
+license:
+  - MIT
+  - Apache-2.0
+version: 0.1.0

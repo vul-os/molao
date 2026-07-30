@@ -1,0 +1,81 @@
+name: Institution — enquire about holding a signing key
+description: Your organisation is considering becoming one of Molao's independent signers.
+title: "signer: <institution>"
+labels: [governance, signer]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you — this is the thing the project most needs.
+
+        **Molao cannot publish a single release until at least two independent
+        organisations hold signing keys.** A threshold below two is refused in code
+        (`crates/molao-core/src/release.rs`), including for the people who wrote it.
+        That is deliberate, and it means the project is blocked on institutions rather
+        than on software.
+
+        **Please read [GOVERNANCE.md](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md)
+        first**, in particular:
+        - what a signature attests (that you rebuilt the release and got the same
+          hashes) and what it does **not** attest (anything at all about whether a
+          judgment is correctly decided or still good law);
+        - the open questions written up honestly there — **court-ordered takedown**,
+          data protection, key rotation, compulsion, and the fact that there is no
+          legal entity to contract with.
+
+        Those open questions are not hidden and are not settled. If any of them is
+        disqualifying for your institution, saying so here is a genuinely useful
+        contribution.
+
+        **We are not asking for your corpus.** If you operate an LII, Molao's sourcing
+        policy already treats an aggregator that declines bulk supply as a
+        citation-resolution target and never a scrape target.
+
+  - type: input
+    id: institution
+    attributes:
+      label: Institution
+      placeholder: Faculty of Law, University of …
+    validations:
+      required: true
+
+  - type: input
+    id: jurisdiction
+    attributes:
+      label: Jurisdiction
+      description: >-
+        Relevant because signer sets are deliberately spread across legal systems, so
+        that no single one can compel a quorum.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: Which role are you considering?
+      description: See [RUNNING-A-NODE.md](https://github.com/vul-os/molao/blob/main/docs/RUNNING-A-NODE.md) for what each costs.
+      multiple: true
+      options:
+        - "Attestor — hold a signing key"
+        - "Builder — rebuild releases independently"
+        - "Witness — fetch and sign source bytes"
+        - "Mirror — serve releases"
+        - "Not sure yet, would like a conversation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions your institution needs answered
+      description: >-
+        Including any your counsel has raised. If GOVERNANCE.md failed to answer
+        something, please say — a gap there is a defect worth fixing.
+
+  - type: markdown
+    attributes:
+      value: |
+        **Two things worth having ready**, more useful at this stage than a decision:
+        who inside the institution can commit to key custody that survives one person
+        leaving, and whether the institution can genuinely rebuild a release
+        independently rather than trust one handed to it.

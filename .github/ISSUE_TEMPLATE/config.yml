@@ -1,0 +1,18 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security or corpus-integrity report
+    url: https://github.com/vul-os/molao/security/advisories/new
+    about: >-
+      A judgment that does not match its source is a security issue and uses
+      this private channel, not a public one. See SECURITY.md.
+  - name: Hold a signing key for your institution
+    url: https://github.com/vul-os/molao/blob/main/GOVERNANCE.md
+    about: >-
+      Molao cannot publish a release until two independent organisations hold
+      keys. Read GOVERNANCE.md first — especially what a signature does and does
+      not attest, and the open questions on takedown and data protection.
+  - name: Where a corpus may legitimately come from
+    url: https://github.com/vul-os/molao/blob/main/docs/SOURCE-MAP.md
+    about: >-
+      The per-jurisdiction map of what is usable now, what needs an adapter, and
+      what is off-limits by the source's own policy.

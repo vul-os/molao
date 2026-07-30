@@ -1,0 +1,75 @@
+name: Source verification report
+description: You ran the crawler against a court-direct source and want to report what it found.
+title: "sources: <jurisdiction> — <host>"
+labels: [sources, help wanted]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is task 1 in [how the community can help](https://github.com/vul-os/molao/blob/main/docs/SOURCE-MAP.md#how-the-community-can-help),
+        and it is the one that moves a 🔵 row to 🟢.
+
+        **Please use `--dry-run`.** It parses and prints without storing anything, which is
+        what makes this safe to run against someone else's server. The crawler already
+        honours `robots.txt`, per-judgment `Disallow` lines and crawl-delay — do not
+        work around any of them to get a result.
+
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      placeholder: courtsofnz.govt.nz
+    validations:
+      required: true
+
+  - type: input
+    id: jurisdiction
+    attributes:
+      label: Jurisdiction
+      placeholder: New Zealand
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The `--dry-run` invocation and what it printed.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: parsed
+    attributes:
+      label: Did it parse?
+      options:
+        - "Yes — court, citation, date and paragraphs all correct"
+        - "Partly — some fields wrong or missing (say which below)"
+        - "No — needs an adapter"
+    validations:
+      required: true
+
+  - type: textarea
+    id: policy
+    attributes:
+      label: What the source's policy says
+      description: >-
+        `robots.txt` contents, any `Content-Signal`, and the reuse/copyright terms as
+        published. **Quote it rather than summarising** — the verdict in SOURCE-MAP has
+        to be defensible to the source itself, and a paraphrase is not evidence.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: Proposed verdict for the map
+      options:
+        - "🟢 usable now"
+        - "🟡 needs a paperwork step"
+        - "🔵 needs an adapter or further verification"
+        - "🔴 off-limits by the source's own policy"
+    validations:
+      required: true
