@@ -89,6 +89,11 @@ pub struct CorpusInput {
     pub previous: Option<String>,
     pub created_at: String,
     pub extractor_version: String,
+    /// `SignerSet::fingerprint()` of the set this release will be signed
+    /// under. Required at packaging time, not at signing time: it is inside
+    /// the manifest's signing bytes, so it has to be decided before there is
+    /// anything to sign.
+    pub signer_set: String,
 }
 
 /// One entry in a [`FileIndex`]: a content address, where the file lives
@@ -252,6 +257,7 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
         doc_count: ids.len() as u64,
         graph_root,
         extractor_version: corpus.extractor_version.clone(),
+        signer_set: corpus.signer_set.clone(),
     };
 
     Ok(PackagedRelease {
@@ -284,7 +290,7 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
 ///
 /// What this still does not prove: that the graph is the *right* graph for
 /// these documents. See the module docs.
-pub(crate) fn verify_file_set(
+pub fn verify_file_set(
     manifest: &Manifest,
     index: &FileIndex,
     fetch: impl Fn(&str) -> Option<Vec<u8>>,
@@ -410,6 +416,7 @@ mod tests {
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),
             extractor_version: "molao-cite@0.1.0".into(),
+            signer_set: "5e".repeat(32),
         }
     }
 

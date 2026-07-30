@@ -99,6 +99,7 @@ mod tests {
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),
             extractor_version: "molao-cite@0.1.0".into(),
+            signer_set: set.fingerprint(),
         };
         let packaged = pack(&corpus).unwrap();
         packaged.verify_integrity().unwrap();

@@ -11,6 +11,15 @@
 //! authority is a quorum of independent institutions rather than one operator
 //! who can be pressured, bought, or breached.
 //!
+//! A manifest also names the *signer set* it was signed under — as a
+//! fingerprint, never as the set itself. The distinction is the whole point: a
+//! release carrying the list of who may sign it would authorise itself, whereas
+//! a release carrying a commitment to the list it was signed under lets a
+//! reader who supplies their own set discover, in band and by name, that the
+//! two rosters differ. Before that field existed a signature covered the corpus
+//! and the chain but not the authority behind them, and a release signed under
+//! a rotated-out set verified silently against anyone still holding it.
+//!
 //! Releases chain: each names its predecessor's hash. A node that has followed
 //! the chain can detect a fork, and a node that has not can compare its head
 //! against any peer's. Combined with an append-only public log, silently
@@ -68,6 +77,54 @@ impl SignerSet {
         Ok(())
     }
 
+    /// A short, stable digest of *who may sign and how many must*.
+    ///
+    /// The one step of verification that cannot be automated is confirming the
+    /// signer set you hold is the set the signing organisations published. That
+    /// comparison is a human reading two values, so there has to be one value
+    /// short enough to read. This is it: BLAKE3 over the epoch, the threshold
+    /// and the sorted key list, deliberately **excluding** `name`, which is
+    /// display text — two nodes that render the same institution differently
+    /// must still agree that they hold the same set.
+    ///
+    /// It is not a security control. Matching fingerprints mean two parties
+    /// hold the same bytes, nothing about whether those bytes are the right
+    /// ones.
+    pub fn fingerprint(&self) -> String {
+        let mut keys: Vec<&str> = self.signers.iter().map(|s| s.key.as_str()).collect();
+        keys.sort_unstable();
+        let mut h = blake3::Hasher::new();
+        h.update(b"molao-signer-set-v1\n");
+        h.update(&self.epoch.to_be_bytes());
+        h.update(&(self.threshold as u64).to_be_bytes());
+        h.update(&(keys.len() as u64).to_be_bytes());
+        for k in keys {
+            h.update(&(k.len() as u64).to_be_bytes());
+            h.update(k.as_bytes());
+        }
+        hex::encode(h.finalize().as_bytes())
+    }
+
+    /// Does `manifest` name this signer set?
+    ///
+    /// A cheap string comparison against [`SignerSet::fingerprint`], and worth
+    /// having as its own check: it distinguishes "somebody tampered with this
+    /// release" from "you and the publisher are working from different
+    /// rosters", which is a rotation problem with a completely different fix.
+    ///
+    /// It is a consistency check, not an authority check. It cannot tell you
+    /// the set you hold is the current one — see [`Manifest::signer_set`].
+    pub fn check_binds(&self, manifest: &Manifest) -> Result<(), ReleaseError> {
+        let expected = self.fingerprint();
+        if manifest.signer_set != expected {
+            return Err(ReleaseError::SignerSetMismatch {
+                named: manifest.signer_set.clone(),
+                held: expected,
+            });
+        }
+        Ok(())
+    }
+
     fn verifying_key(&self, key_hex: &str) -> Option<VerifyingKey> {
         self.signers.iter().find(|s| s.key == key_hex)?;
         parse_key(key_hex).ok()
@@ -95,6 +152,26 @@ pub struct Manifest {
     /// recomputation rather than by trust — the property embeddings can never
     /// have, which is why no embedding artifact is part of a release.
     pub extractor_version: String,
+    /// [`SignerSet::fingerprint`] of the set this release was signed under.
+    ///
+    /// **Not the set itself, and not a way to obtain it.** A release that
+    /// carried its own list of who may sign it would be a release that
+    /// authorised itself; a release that carries a *commitment* to the list it
+    /// was signed under is the opposite — the reader still supplies the set out
+    /// of band, and this is what turns "your set and theirs differ" from a
+    /// baffling `0 valid signatures` into a named failure.
+    ///
+    /// Before this field existed, a signer could not express which roster they
+    /// believed they were signing as a member of, and a release signed under a
+    /// superseded set verified perfectly against any reader still holding that
+    /// superseded set, with nothing in band to say so. Because the field is
+    /// inside [`Manifest::signing_bytes`], every signature now covers it.
+    ///
+    /// What it cannot do: tell a reader their set is current. Nothing in band
+    /// can — the set *is* the trust root. Confirming it against what the
+    /// signing organisations published is the one step of verification that
+    /// stays human.
+    pub signer_set: String,
 }
 
 impl Manifest {
@@ -104,9 +181,19 @@ impl Manifest {
     /// and number formatting are not guaranteed stable across versions, and a
     /// signature over a representation that can shift is a signature over
     /// nothing. Length-prefixed fields, fixed order, no escaping ambiguity.
+    ///
+    /// ## v2
+    ///
+    /// The format tag is `molao-release-v2`. v1 had no `signer_set` field, so
+    /// its signatures covered the corpus and the chain but never the authority
+    /// that vouched for them. Adding a field to a signed encoding is a breaking
+    /// change and gets a new tag rather than a quiet append — a v1 signature
+    /// must not accidentally validate a v2 manifest or the reverse. Nothing was
+    /// ever published under v1: there is no public signed release, which is
+    /// exactly why the format could still be fixed.
     pub fn signing_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        out.extend_from_slice(b"molao-release-v1\n");
+        out.extend_from_slice(b"molao-release-v2\n");
         push_field(&mut out, self.release.to_string().as_bytes());
         push_field(&mut out, self.previous.as_deref().unwrap_or("").as_bytes());
         push_field(&mut out, self.created_at.as_bytes());
@@ -114,6 +201,7 @@ impl Manifest {
         push_field(&mut out, self.doc_count.to_string().as_bytes());
         push_field(&mut out, self.graph_root.as_bytes());
         push_field(&mut out, self.extractor_version.as_bytes());
+        push_field(&mut out, self.signer_set.as_bytes());
         out
     }
 
@@ -145,13 +233,33 @@ pub struct SignedRelease {
 }
 
 impl SignedRelease {
-    /// Verify against a signer set. Returns the number of valid distinct
+    /// Verify against a signer set: the release must have been signed **under
+    /// this set**, and by a quorum of it. Returns the number of valid distinct
     /// signatures on success.
+    ///
+    /// This is the fail-closed entry point, and the one every caller outside
+    /// this module should use. It is deliberately the composition of two checks
+    /// that are separately callable — [`SignerSet::check_binds`] and
+    /// [`SignedRelease::verify_signatures`] — so that a step-by-step verifier
+    /// can report which of the two properties failed, and so that neither can
+    /// act as a backstop hiding a break in the other.
+    /// The set is checked for shape *before* binding: a set that cannot deliver
+    /// a quorum at all is a worse problem than the wrong set, and reporting
+    /// "these fingerprints differ" for a one-of-one set would bury it.
+    pub fn verify(&self, set: &SignerSet) -> Result<usize, ReleaseError> {
+        set.validate()?;
+        set.check_binds(&self.manifest)?;
+        self.verify_signatures(set)
+    }
+
+    /// Threshold signature verification alone — **does not** check that the
+    /// release names this signer set. Use [`SignedRelease::verify`] unless you
+    /// are reporting the two properties separately.
     ///
     /// Fails closed at every step: unknown signers, malformed keys, and
     /// malformed signatures are ignored rather than counted, and duplicates
     /// from one key count once.
-    pub fn verify(&self, set: &SignerSet) -> Result<usize, ReleaseError> {
+    pub fn verify_signatures(&self, set: &SignerSet) -> Result<usize, ReleaseError> {
         set.validate()?;
         let bytes = self.manifest.signing_bytes();
 
@@ -211,6 +319,11 @@ pub enum ReleaseError {
     ThresholdUnreachable { threshold: usize, signers: usize },
     #[error("the signer set contains a duplicate key")]
     DuplicateSigner,
+    #[error(
+        "this release was signed under signer set {named}, but the set supplied is {held} — \
+         one of you is working from a superseded roster"
+    )]
+    SignerSetMismatch { named: String, held: String },
     #[error("release has {got} valid signature(s), needs {need}")]
     ThresholdNotMet { got: usize, need: usize },
     #[error("malformed public key")]
@@ -230,7 +343,13 @@ mod tests {
         (sk, pk)
     }
 
+    /// A manifest bound to the [`three_of_five`] set, which is the set almost
+    /// every test below verifies against.
     fn manifest() -> Manifest {
+        manifest_bound_to(&three_of_five().0)
+    }
+
+    fn manifest_bound_to(set: &SignerSet) -> Manifest {
         Manifest {
             release: 1,
             previous: Some("00".repeat(32)),
@@ -239,6 +358,7 @@ mod tests {
             doc_count: 130_161,
             graph_root: "bb".repeat(32),
             extractor_version: "molao-cite@0.1.0".into(),
+            signer_set: set.fingerprint(),
         }
     }
 
@@ -417,6 +537,159 @@ mod tests {
     }
 
     #[test]
+    fn a_signer_set_fingerprint_ignores_display_names_but_not_membership() {
+        let (set, _) = three_of_five();
+        let base = set.fingerprint();
+
+        // Renaming an institution must not look like a different set.
+        let mut renamed = set.clone();
+        renamed.signers[0].name = "renamed after a merger".into();
+        assert_eq!(renamed.fingerprint(), base);
+
+        // Listing the same members in another order must not either.
+        let mut reordered = set.clone();
+        reordered.signers.reverse();
+        assert_eq!(reordered.fingerprint(), base);
+
+        // Everything that changes who can sign, or how many must, does.
+        let mut epoch = set.clone();
+        epoch.epoch += 1;
+        assert_ne!(epoch.fingerprint(), base);
+
+        let mut threshold = set.clone();
+        threshold.threshold = 4;
+        assert_ne!(threshold.fingerprint(), base);
+
+        let mut swapped = set.clone();
+        swapped.signers[0].key = keypair(77).1;
+        assert_ne!(swapped.fingerprint(), base);
+
+        let mut dropped = set.clone();
+        dropped.signers.pop();
+        assert_ne!(dropped.fingerprint(), base);
+    }
+
+    // -----------------------------------------------------------------------
+    // Signer-set binding
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_release_signed_under_another_signer_set_is_refused() {
+        // The scenario the binding exists for: a perfectly valid quorum of a
+        // *superseded* roster. Every signature below is cryptographically
+        // sound; the release still must not verify against the set the reader
+        // actually holds.
+        let (old_set, old_pairs) = three_of_five();
+        let mut new_set = old_set.clone();
+        new_set.epoch = 2;
+        new_set.signers.remove(4); // one institution left the commons
+
+        let m = manifest_bound_to(&old_set);
+        let release = SignedRelease {
+            signatures: old_pairs[..3]
+                .iter()
+                .map(|(sk, pk)| sign(&m, sk, pk))
+                .collect(),
+            manifest: m,
+        };
+
+        // Against the set it was signed under: fine.
+        assert_eq!(release.verify(&old_set).unwrap(), 3);
+
+        // Against the set the reader holds: named, not mysterious.
+        match release.verify(&new_set) {
+            Err(ReleaseError::SignerSetMismatch { named, held }) => {
+                assert_eq!(named, old_set.fingerprint());
+                assert_eq!(held, new_set.fingerprint());
+            }
+            other => panic!("expected a signer-set mismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_binding_is_covered_by_the_signatures_not_merely_carried() {
+        // Rewriting signer_set on a signed manifest must invalidate every
+        // signature, or the field would be an unauthenticated label a
+        // man-in-the-middle could edit to match whatever set the victim holds.
+        let (set, pairs) = three_of_five();
+        let m = manifest_bound_to(&set);
+        let signatures: Vec<_> = pairs[..3].iter().map(|(sk, pk)| sign(&m, sk, pk)).collect();
+
+        // A man-in-the-middle rewrites the binding to match whatever roster the
+        // victim holds. Every signature over the manifest dies with it.
+        let mut relabelled = m.clone();
+        relabelled.signer_set = "cd".repeat(32);
+        let release = SignedRelease {
+            manifest: relabelled,
+            signatures,
+        };
+        assert_eq!(
+            release.verify_signatures(&set),
+            Err(ReleaseError::ThresholdNotMet { got: 0, need: 3 }),
+            "signer_set must be inside signing_bytes"
+        );
+    }
+
+    #[test]
+    fn binding_and_signatures_fail_independently_of_each_other() {
+        // Neither check may act as a backstop for the other: each must be able
+        // to go red on its own, or a break in one hides behind the other.
+        let (set, pairs) = three_of_five();
+        let m = manifest_bound_to(&set);
+
+        // Binding right, signatures short.
+        let short = SignedRelease {
+            signatures: pairs[..2].iter().map(|(sk, pk)| sign(&m, sk, pk)).collect(),
+            manifest: m.clone(),
+        };
+        assert!(set.check_binds(&short.manifest).is_ok());
+        assert!(matches!(
+            short.verify_signatures(&set),
+            Err(ReleaseError::ThresholdNotMet { .. })
+        ));
+
+        // Binding wrong, signatures a full quorum over what was actually signed.
+        let mut other_set = set.clone();
+        other_set.epoch = 7;
+        let m2 = manifest_bound_to(&other_set);
+        let quorum = SignedRelease {
+            signatures: pairs[..3]
+                .iter()
+                .map(|(sk, pk)| sign(&m2, sk, pk))
+                .collect(),
+            manifest: m2,
+        };
+        assert!(matches!(
+            set.check_binds(&quorum.manifest),
+            Err(ReleaseError::SignerSetMismatch { .. })
+        ));
+        assert_eq!(
+            quorum.verify_signatures(&set).unwrap(),
+            3,
+            "the signatures themselves are valid; only the roster is wrong"
+        );
+    }
+
+    #[test]
+    fn a_malformed_set_is_reported_as_malformed_not_as_a_binding_mismatch() {
+        let (sk, pk) = keypair(1);
+        let set = SignerSet {
+            threshold: 1,
+            epoch: 1,
+            signers: vec![Signer {
+                name: "sole operator".into(),
+                key: pk.clone(),
+            }],
+        };
+        let m = manifest_bound_to(&set);
+        let release = SignedRelease {
+            signatures: vec![sign(&m, &sk, &pk)],
+            manifest: m,
+        };
+        assert_eq!(release.verify(&set), Err(ReleaseError::ThresholdTooLow(1)));
+    }
+
+    #[test]
     fn releases_chain() {
         let first = manifest();
         let mut second = manifest();
@@ -453,9 +726,36 @@ mod tests {
     // computed once, never regenerated from the code under test.
     //
     // **If one of these fails, the release format has changed.** That is a
-    // breaking change to `molao-release-v1` and needs a new format tag, not a
+    // breaking change to `molao-release-v2` and needs a new format tag, not a
     // new constant here.
+    //
+    // These vectors were regenerated exactly once, when `signer_set` was added
+    // and the tag moved from v1 to v2 — a deliberate break, taken while there
+    // is still no public signed release to invalidate. Everything below was
+    // computed outside this crate, with independent BLAKE3 and Ed25519
+    // implementations, so a bug shared between the encoder and the signer here
+    // cannot make the vectors agree with themselves.
     // -----------------------------------------------------------------------
+
+    /// The vector signer set: threshold 2, epoch 1, the three keys below.
+    fn vector_signer_set() -> SignerSet {
+        SignerSet {
+            threshold: 2,
+            epoch: 1,
+            signers: VECTOR_SIGNERS
+                .iter()
+                .enumerate()
+                .map(|(i, (key, _))| Signer {
+                    name: format!("institution-{i}"),
+                    key: (*key).to_string(),
+                })
+                .collect(),
+        }
+    }
+
+    /// [`SignerSet::fingerprint`] of [`vector_signer_set`].
+    const VECTOR_SIGNER_SET_FINGERPRINT: &str =
+        "bdfffb5c96aeec2e5f9725e01fb2780334fa47999110f461c8a5ff7f7fc55416";
 
     /// The vector manifest. Fixed values, deliberately not the one the other
     /// tests use, so nobody edits it to make a test pass.
@@ -468,40 +768,47 @@ mod tests {
             doc_count: 130_161,
             graph_root: "bb".repeat(32),
             extractor_version: "molao-cite@0.1.0".into(),
+            signer_set: VECTOR_SIGNER_SET_FINGERPRINT.to_string(),
         }
     }
 
     /// `signing_bytes` for [`vector_manifest`], hex.
     const VECTOR_SIGNING_BYTES: &str = "\
-6d6f6c616f2d72656c656173652d76310a00000000000000023432000000000000004031313131313131313131313131\
-313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131\
-3131310000000000000014323032362d30372d32305431303a30303a30305a0000000000000040616161616161616161\
-616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161\
-616161616161610000000000000006313330313631000000000000004062626262626262626262626262626262626262\
-626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262000000\
-00000000106d6f6c616f2d6369746540302e312e30";
+6d6f6c616f2d72656c656173652d76320a000000000000000234320000000000000040313131313131313131313131313131\
+3131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313100\
+00000000000014323032362d30372d32305431303a30303a30305a0000000000000040616161616161616161616161616161\
+6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616100\
+0000000000000631333031363100000000000000406262626262626262626262626262626262626262626262626262626262\
+626262626262626262626262626262626262626262626262626262626262626262626200000000000000106d6f6c616f2d63\
+69746540302e312e300000000000000040626466666662356339366165656332653566393732356530316662323738303333\
+34666134373939393131306634363163386135666637663766633535343136";
 
     /// `hash()` of [`vector_manifest`] — what release 43 must name as its
     /// `previous`, on every platform and every future version of this crate.
-    const VECTOR_HASH: &str = "4db6f22386c48fa11db51e6b958cf635a35a4349958d46866c11337a1a08f5e3";
+    const VECTOR_HASH: &str = "3b68fc057ab2b004455ff98b9f738a102bb5c59adc3718ba7bfa52c160fa808c";
+
+    /// The `molao-release-v1` tag, before `signer_set` existed. Kept so the
+    /// break is explicit and a silent revert to a format whose signatures do
+    /// not cover the signing roster fails loudly.
+    const V1_TAG: &[u8] = b"molao-release-v1\n";
 
     /// Ed25519 keys from seeds `[1; 32]`, `[2; 32]`, `[3; 32]`, and their
     /// signatures over [`VECTOR_SIGNING_BYTES`].
     const VECTOR_SIGNERS: &[(&str, &str)] = &[
         (
             "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
-            "d56b089d11d62afb9b21cc7ca9ce53935a74bb78749ead0cbfc1f05a3c29d9bf\
-             15fa1bff1b40ea658a81a90261e880d214090ef2fa22905e0a023d12220bda03",
+            "560364061d426f1d8f1e4eca64a14db8e6fcaafeb78566e3dd4564ba612cd63e\
+             38b9cc7295d1a65c65fa11d69adbe39bfdea8cfa56a58dbae1dc4bb0d6f0bd04",
         ),
         (
             "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
-            "2ad65042e7c3da5186c3d01d4715617a20be80d8f45856169b2fe2a451b1ef4a\
-             604a3f73bb99f7848b5e3154f36100d38bff26eece51d1f2c42c454dc6e02c0c",
+            "0c4bb938ec05f987595aac297f123e38fc2177ce77cd9002c5f1d33025c4f961\
+             b4ce966149831112bdc741944fad60ca348a05aa8c646dffb51851a1ef30970e",
         ),
         (
             "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
-            "385307fbf23e7f259402baf39f3b3c85df86930fef09a4fbd6698b6398848de6\
-             b4c876ce97eda877aedf20b1c2e6da889821eb667afb187c762160b4b6dea600",
+            "dbe659e4c978f39ce021442f009076dbe62a070d26b9f422a898cbe03a389167\
+             478ff4b6bacf496e4522223ca96224f26e3b725198bca4b7f501af7b8c40d409",
         ),
     ];
 
@@ -517,10 +824,39 @@ mod tests {
         assert_eq!(
             hex::encode(m.signing_bytes()),
             unwrap_hex(VECTOR_SIGNING_BYTES),
-            "the molao-release-v1 signing encoding has changed; every signature \
+            "the molao-release-v2 signing encoding has changed; every signature \
              ever produced over a Molao manifest is now invalid"
         );
         assert_eq!(m.hash(), VECTOR_HASH, "the manifest hash has changed");
+    }
+
+    #[test]
+    fn the_signing_encoding_is_v2_and_covers_the_signer_set() {
+        let m = vector_manifest();
+        let bytes = m.signing_bytes();
+        assert!(bytes.starts_with(b"molao-release-v2\n"));
+        assert!(
+            !bytes.starts_with(V1_TAG),
+            "reverting to v1 would ship signatures that do not cover the roster \
+             that produced them"
+        );
+        // The field is genuinely in the preimage, not merely on the struct.
+        let mut other = m.clone();
+        other.signer_set = "00".repeat(32);
+        assert_ne!(other.signing_bytes(), bytes);
+        assert_ne!(other.hash(), m.hash());
+    }
+
+    #[test]
+    fn the_vector_signer_set_fingerprint_is_unchanged() {
+        // Pins `fingerprint()` itself: the manifest's binding is only stable if
+        // the function that produces it is.
+        assert_eq!(
+            vector_signer_set().fingerprint(),
+            VECTOR_SIGNER_SET_FINGERPRINT,
+            "the molao-signer-set-v1 fingerprint encoding has changed; every \
+             manifest ever signed now names a set nobody can match"
+        );
     }
 
     /// A quorum verifies against signatures this code did not just produce.
@@ -528,18 +864,7 @@ mod tests {
     /// yesterday's binary must still verify under today's.
     #[test]
     fn a_quorum_of_recorded_signatures_still_verifies() {
-        let set = SignerSet {
-            threshold: 2,
-            epoch: 1,
-            signers: VECTOR_SIGNERS
-                .iter()
-                .enumerate()
-                .map(|(i, (key, _))| Signer {
-                    name: format!("institution-{i}"),
-                    key: (*key).to_string(),
-                })
-                .collect(),
-        };
+        let set = vector_signer_set();
         let release = SignedRelease {
             manifest: vector_manifest(),
             signatures: VECTOR_SIGNERS[..2]
@@ -563,18 +888,7 @@ mod tests {
     /// above is checking the bytes and not merely the key set.
     #[test]
     fn a_recorded_signature_does_not_verify_over_a_different_manifest() {
-        let set = SignerSet {
-            threshold: 2,
-            epoch: 1,
-            signers: VECTOR_SIGNERS
-                .iter()
-                .enumerate()
-                .map(|(i, (key, _))| Signer {
-                    name: format!("institution-{i}"),
-                    key: (*key).to_string(),
-                })
-                .collect(),
-        };
+        let set = vector_signer_set();
         let mut altered = vector_manifest();
         altered.doc_count += 1;
         let release = SignedRelease {

@@ -14,6 +14,10 @@
 //! Order matters: signatures are checked first because they are cheap
 //! relative to hashing an entire corpus, and a manifest with no valid quorum
 //! is not worth spending I/O on regardless of what its file set contains.
+//!
+//! `SignedRelease::verify` also refuses a release that names a signer set
+//! other than the one supplied, so a fetched release cannot be adopted under a
+//! roster its signers never claimed to be acting for.
 
 use crate::package::{self, FileIndex, IntegrityError};
 use molao_core::release::{Manifest, ReleaseError, SignedRelease, SignerSet};
@@ -116,6 +120,7 @@ mod tests {
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),
             extractor_version: "molao-cite@0.1.0".into(),
+            signer_set: three_of_five().0.fingerprint(),
         };
         let p = pack(&corpus).unwrap();
         let mut blobs = BTreeMap::new();
@@ -291,6 +296,32 @@ mod tests {
             err,
             VerifyError::Content(IntegrityError::HashMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn a_release_signed_under_a_different_signer_set_is_not_adopted() {
+        // A quorum of a superseded roster is still a quorum, cryptographically.
+        // The receive path must refuse it anyway, or a node fetching from a
+        // mirror that never rotated would silently adopt an old authority.
+        let (set, pairs) = three_of_five();
+        let (manifest, index, blobs) = packaged();
+        let signed = SignedRelease {
+            signatures: sign_all(&manifest, &pairs, 3),
+            manifest,
+        };
+        let mut rotated = set.clone();
+        rotated.epoch = 2;
+
+        assert!(verify_received(&signed, &set, &index, |h| blobs.get(h).cloned()).is_ok());
+        let err =
+            verify_received(&signed, &rotated, &index, |h| blobs.get(h).cloned()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                VerifyError::Signatures(ReleaseError::SignerSetMismatch { .. })
+            ),
+            "{err}"
+        );
     }
 
     #[test]

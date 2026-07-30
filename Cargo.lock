@@ -2462,11 +2462,14 @@ name = "molao-graph"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "ed25519-dalek 2.2.0",
  "hex",
  "molao-core",
  "molao-corpus",
  "rusqlite",
  "serde",
+ "serde_json",
+ "thiserror 2.0.19",
  "tracing",
 ]
 
@@ -2509,6 +2512,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "blake3",
  "clap",
  "ed25519-dalek 2.2.0",
  "hex",
@@ -2517,12 +2521,14 @@ dependencies = [
  "molao-cite",
  "molao-core",
  "molao-corpus",
+ "molao-dist",
  "molao-graph",
  "molao-index",
  "molao-ingest",
  "rust-embed",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tower",
  "tower-http",

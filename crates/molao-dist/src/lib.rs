@@ -68,8 +68,8 @@ pub mod verify;
 pub use delta::{delta, ReleaseDelta};
 pub use molao_core::roots::{graph_bytes, parse_graph_bytes, GraphEdge};
 pub use package::{
-    corpus_root, pack, CorpusInput, DocumentInput, FileEntry, FileIndex, GraphInput,
-    IntegrityError, PackageError, PackagedRelease,
+    corpus_root, pack, verify_file_set, CorpusInput, DocumentInput, FileEntry, FileIndex,
+    GraphInput, IntegrityError, PackageError, PackagedRelease,
 };
 pub use transport::Transport;
 pub use verify::{verify_received, VerifiedRelease, VerifyError};

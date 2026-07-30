@@ -21,8 +21,13 @@ molao-index.workspace = true
 # the `molao fetch`/`molao crawl` commands need PDF text extraction to ingest
 # them. See crates/molao-ingest/src/html.rs on why the path is feature-gated.
 molao-ingest = { workspace = true, features = ["pdf"] }
+# Wires Phase 5 in: `molao release publish/sign/fetch/torrent/attest`.
+molao-dist = { path = "../molao-dist", version = "0.1.0" }
 
 anyhow.workspace = true
+blake3.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -38,5 +43,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-ed25519-dalek.workspace = true
-hex.workspace = true
+tempfile = "3"

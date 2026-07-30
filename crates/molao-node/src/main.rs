@@ -13,6 +13,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use molao_corpus::Corpus;
 use molao_graph::Graph;
 use molao_index::{FakeEmbedder, HttpConfig, HttpEmbedder, Index};
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -114,16 +115,52 @@ enum Command {
         no_serve: bool,
     },
 
-    /// Verify a threshold-signed release. Exits non-zero if it does not verify.
+    /// Verify a threshold-signed release, step by step.
+    ///
+    /// Six steps: the signer set can deliver a quorum; a quorum signed this
+    /// manifest; the release chains onto the head you hold; every document
+    /// re-hashes to its own id; `corpus_root` and `doc_count` match the corpus;
+    /// and re-running the pinned extractor reproduces `graph_root`.
+    ///
+    /// The last three need `--db`, and step 3 needs `--previous`. A step that
+    /// cannot run is reported SKIP, which is **not** a pass: exit 0 means all
+    /// six passed, 1 means one failed, 2 means the run was incomplete.
     Verify {
         /// The release JSON file.
         release: PathBuf,
         /// The signer set to verify against.
         ///
         /// Supplied by you, deliberately: a release that named its own signers
-        /// would be a release that authorised itself.
+        /// would be a release that authorised itself. Compare its fingerprint,
+        /// printed by step 1, against the set the signing organisations
+        /// published — that comparison is the trust root and cannot be
+        /// automated away.
         #[arg(long)]
         signers: PathBuf,
+        /// The corpus to check the release against (steps 4, 5 and 6).
+        #[arg(long)]
+        db: Option<PathBuf>,
+        /// The manifest of the release you already trust, for the chain check.
+        ///
+        /// A release directory's `manifest.json`, or the `manifest` field of a
+        /// signed release you have already verified.
+        #[arg(long, value_name = "MANIFEST.JSON")]
+        previous: Option<PathBuf>,
+    },
+
+    /// Package, sign, move and inspect content-addressed releases.
+    ///
+    /// A release is a set of files each named by its own hash, plus a manifest
+    /// naming the roots over them, plus a quorum's signatures over that
+    /// manifest. Because the files are content-addressed and the manifest is
+    /// signed, *how* a release travels is not part of what makes it
+    /// trustworthy — so none of these transports is privileged and none of them
+    /// is required. **P2P will never be needed to read the law.**
+    ///
+    /// There is no public signed release. Nothing here has carried a real one.
+    Release {
+        #[command(subcommand)]
+        command: ReleaseCommand,
     },
 
     /// Report what this node holds.
@@ -233,6 +270,101 @@ enum EmbedderKind {
     /// An OpenAI-compatible `/v1/embeddings` endpoint you supply. This is how a
     /// real node gets semantic search: point it at your own local model.
     Http,
+}
+
+#[derive(Debug, Subcommand)]
+enum ReleaseCommand {
+    /// Package a corpus into a content-addressed release directory.
+    ///
+    /// Writes `objects/`, `index.json` and an **unsigned** `manifest.json`. It
+    /// is not a release until a quorum has signed it (`molao release sign`);
+    /// one signature is never enough and this tool will not pretend otherwise.
+    ///
+    /// Deterministic: two builders running this over the same corpus, with the
+    /// same `--release`, `--previous` and `--created-at`, produce byte-identical
+    /// output. `molao release attest` prints the one line they compare.
+    Publish {
+        /// Corpus database file.
+        #[arg(long, default_value = "molao.db")]
+        db: PathBuf,
+        /// Directory to write the release into. Created if it does not exist.
+        #[arg(long)]
+        out: PathBuf,
+        /// Release number.
+        #[arg(long)]
+        release: u64,
+        /// Hash of the previous manifest. Omit only for release 0.
+        #[arg(long, value_name = "HASH")]
+        previous: Option<String>,
+        /// RFC 3339 timestamp to record. Supplied rather than taken from the
+        /// clock, because a timestamp read at build time is the one input that
+        /// would make two honest builders disagree.
+        #[arg(long, value_name = "RFC3339")]
+        created_at: String,
+    },
+
+    /// Add one signature to a packaged release.
+    ///
+    /// Run once per signing institution, each on its own machine with its own
+    /// key. The signature is appended to `signed-release.json`; a release is
+    /// only a release once `threshold` distinct institutions have done this,
+    /// and `threshold` is never less than 2.
+    Sign {
+        /// The release directory written by `molao release publish`.
+        dir: PathBuf,
+        /// File holding the Ed25519 signing key as 64 hex characters.
+        ///
+        /// Generate one with `openssl rand -hex 32 > signer.key`, and treat it
+        /// the way the institution treats any other private key. Molao does not
+        /// generate, escrow, or transmit signing keys.
+        #[arg(long, value_name = "FILE")]
+        key: PathBuf,
+    },
+
+    /// Fetch a release over a transport and verify it before keeping it.
+    ///
+    /// The bytes are checked against the manifest a quorum signed, so the
+    /// transport is not part of the trust boundary: a mirror, a stranger's
+    /// directory, or a USB stick are all the same to this command. A release
+    /// that does not verify is not written.
+    Fetch {
+        /// Source release directory — a local mirror, or an HTTP mirror already
+        /// mounted or synced locally.
+        #[arg(long)]
+        from: PathBuf,
+        /// Where to write the verified release.
+        #[arg(long)]
+        into: PathBuf,
+        /// The signer set to verify against. Supplied by you, as always.
+        #[arg(long)]
+        signers: PathBuf,
+    },
+
+    /// Export a release as a BitTorrent v2 `.torrent`.
+    ///
+    /// An export, not a client: it produces a file for tools libraries and
+    /// universities already run, so a corpus can outlive this project. Nothing
+    /// in Molao seeds or leeches.
+    Torrent {
+        /// The release directory.
+        dir: PathBuf,
+        /// Where to write the `.torrent`.
+        #[arg(long)]
+        out: PathBuf,
+        /// Tracker announce URL. Omit for a trackerless (DHT) torrent.
+        #[arg(long)]
+        tracker: Option<String>,
+    },
+
+    /// Print the reproducibility attestation for a release directory.
+    ///
+    /// One line that two builders compare. If it matches, they built the same
+    /// release from the same corpus with the same extractor and the same region
+    /// registry; if it does not, the following lines say which input differed.
+    Attest {
+        /// The release directory.
+        dir: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -412,26 +544,12 @@ fn main() -> Result<()> {
             run_server(addr, state)
         }
 
-        Command::Verify { release, signers } => {
-            let verdict = verify::verify_files(&release, &signers)?;
-            if verdict.ok {
-                println!(
-                    "OK  release {}: {} of {} signature(s), threshold {}",
-                    verdict.release, verdict.valid_signatures, verdict.signers, verdict.threshold
-                );
-                println!(
-                    "this verifies bytes and signatures — not that the law is correctly stated"
-                );
-                Ok(())
-            } else {
-                eprintln!(
-                    "FAILED  release {}: {}",
-                    verdict.release,
-                    verdict.reason.as_deref().unwrap_or("did not verify")
-                );
-                std::process::exit(1);
-            }
-        }
+        Command::Verify {
+            release,
+            signers,
+            db,
+            previous,
+        } => run_verify(&release, &signers, previous.as_deref(), db.as_deref()),
 
         Command::Stats { db } => {
             let corpus = open(&db)?;
@@ -458,6 +576,8 @@ fn main() -> Result<()> {
         }
 
         Command::Index { command } => run_index(command),
+
+        Command::Release { command } => run_release(command),
 
         Command::Fetch {
             url,
@@ -704,6 +824,430 @@ fn run_index(command: IndexCommand) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// `molao verify` — every step, printed one per line.
+///
+/// The exit code is the whole point of the command in a script, so it is
+/// derived from the report rather than from a summary line someone might later
+/// edit: 0 only when every step passed, 1 when one failed, 2 when the run was
+/// incomplete.
+fn run_verify(
+    release: &std::path::Path,
+    signers: &std::path::Path,
+    previous: Option<&std::path::Path>,
+    db: Option<&std::path::Path>,
+) -> Result<()> {
+    let report = verify::verify_files(release, signers, previous, db)?;
+    // A report missing a step would understate what was left unchecked. Refuse
+    // to print one rather than print a narrower check under a wider name.
+    report.check_shape()?;
+
+    println!("release {}\n", report.release);
+    for step in &report.steps {
+        println!(
+            "  {}  {}  {:<19}  {}",
+            step.status.label(),
+            step.number,
+            step.name,
+            step.detail
+        );
+        if let Some(message) = step.status.message() {
+            println!("              {message}");
+        }
+    }
+    println!();
+
+    match report.outcome() {
+        verify::Outcome::Verified => {
+            println!(
+                "OK  release {} — all {} step(s) passed",
+                report.release,
+                verify::STEP_COUNT
+            );
+        }
+        verify::Outcome::Failed => {
+            eprintln!(
+                "FAILED  release {} — {} of {} step(s) passed",
+                report.release,
+                report.passed(),
+                verify::STEP_COUNT
+            );
+        }
+        verify::Outcome::Incomplete => {
+            eprintln!(
+                "INCOMPLETE  release {} — {} of {} step(s) ran; this release has NOT been \
+                 fully verified",
+                report.release,
+                report.passed(),
+                verify::STEP_COUNT
+            );
+        }
+    }
+    println!("this verifies bytes and signatures — not that the law is correctly stated");
+    println!(
+        "step 1 also needs a human: compare the signer-set fingerprint above against the set \
+         the signing organisations published"
+    );
+
+    let code = report.outcome().exit_code();
+    if code != 0 {
+        std::process::exit(code);
+    }
+    Ok(())
+}
+
+/// Handle `molao release …` — the commands that wire `molao-dist` in.
+fn run_release(command: ReleaseCommand) -> Result<()> {
+    match command {
+        ReleaseCommand::Publish {
+            db,
+            out,
+            release,
+            previous,
+            created_at,
+        } => run_release_publish(&db, &out, release, previous, &created_at),
+        ReleaseCommand::Sign { dir, key } => run_release_sign(&dir, &key),
+        ReleaseCommand::Fetch {
+            from,
+            into,
+            signers,
+        } => run_release_fetch(&from, &into, &signers),
+        ReleaseCommand::Torrent { dir, out, tracker } => {
+            run_release_torrent(&dir, &out, tracker.as_deref())
+        }
+        ReleaseCommand::Attest { dir } => run_release_attest(&dir),
+    }
+}
+
+/// Everything a release directory needs, read back off disk.
+fn read_release_dir(
+    dir: &std::path::Path,
+) -> Result<(molao_dist::FileIndex, BTreeMap<String, Vec<u8>>)> {
+    let index = molao_dist::layout::read_index(dir)
+        .with_context(|| format!("reading {}/index.json", dir.display()))?;
+    let mut blobs = BTreeMap::new();
+    for entry in &index.files {
+        let bytes = molao_dist::layout::read_blob(dir, &entry.hash)
+            .with_context(|| format!("reading blob {}", entry.hash))?;
+        blobs.insert(entry.hash.clone(), bytes);
+    }
+    Ok((index, blobs))
+}
+
+fn run_release_publish(
+    db: &std::path::Path,
+    out: &std::path::Path,
+    release: u64,
+    previous: Option<String>,
+    created_at: &str,
+) -> Result<()> {
+    let signers_note = "a release is not a release until a quorum has signed it";
+    let corpus = open(db)?;
+
+    // Documents, re-hashed on the way in. Packaging a corpus whose stored text
+    // no longer matches its ids would mint a release nobody can verify.
+    let mut documents = Vec::new();
+    for node in corpus.nodes().context("listing judgments")? {
+        let id: molao_core::doc::DocId = node.id.parse()?;
+        let judgment = corpus
+            .judgment(&id)?
+            .ok_or_else(|| anyhow!("judgment {id} is listed but cannot be read"))?;
+        let text = judgment.canonical_text();
+        if molao_core::doc::DocId::of_canonical(&text) != id {
+            return Err(anyhow!(
+                "judgment {id} does not hash to its own stored text — run \
+                 `molao verify … --db {}` before publishing",
+                db.display()
+            ));
+        }
+        documents.push(molao_dist::DocumentInput {
+            id,
+            bytes: text.into_bytes(),
+        });
+    }
+
+    // The graph is re-extracted, not read out of the citation table: a release
+    // must ship the graph the pinned extractor produces from the text it also
+    // ships, not whatever rows happen to be in the database.
+    let edges = verify::reextract_edges(&corpus).context("re-extracting the citation graph")?;
+
+    let input = molao_dist::CorpusInput {
+        documents,
+        graph: molao_dist::GraphInput { edges },
+        release,
+        previous,
+        created_at: created_at.to_string(),
+        extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
+        signer_set: read_signer_set_fingerprint()?,
+    };
+    let packaged = molao_dist::pack(&input).map_err(|e| anyhow!("packaging the release: {e}"))?;
+    packaged
+        .verify_integrity()
+        .map_err(|e| anyhow!("the release this build produced does not verify: {e}"))?;
+    packaged
+        .write_to(out)
+        .with_context(|| format!("writing the release to {}", out.display()))?;
+
+    println!("wrote release {} to {}", release, out.display());
+    println!("  documents      {}", packaged.manifest.doc_count);
+    println!("  corpus root    {}", packaged.manifest.corpus_root);
+    println!("  graph root     {}", packaged.manifest.graph_root);
+    println!("  extractor      {}", packaged.manifest.extractor_version);
+    println!("  signer set     {}", packaged.manifest.signer_set);
+    println!("  manifest hash  {}", packaged.manifest.hash());
+    println!();
+    println!("this manifest is UNSIGNED — {signers_note}");
+    println!(
+        "each signing institution now runs `molao release sign {}` on its own machine",
+        out.display()
+    );
+    Ok(())
+}
+
+/// The signer set a publish is bound to.
+///
+/// Read from `MOLAO_SIGNER_SET`, a path to the signer-set JSON. It is required:
+/// the fingerprint is inside the manifest's signing bytes, so it has to be
+/// decided before there is anything to sign, and defaulting it to "no set"
+/// would produce releases that can never verify against any real one.
+fn read_signer_set_fingerprint() -> Result<String> {
+    let path = std::env::var("MOLAO_SIGNER_SET").map_err(|_| {
+        anyhow!(
+            "set MOLAO_SIGNER_SET to the signer-set JSON this release will be signed under.\n\
+             The manifest names that set (by fingerprint, never by listing it), and every \
+             signature covers the name — so it has to be chosen before packaging, not after."
+        )
+    })?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading signer set {path}"))?;
+    let set: molao_core::SignerSet =
+        serde_json::from_str(&text).with_context(|| format!("parsing signer set {path}"))?;
+    // Refuse to package against a set that could never deliver a quorum, here
+    // rather than at signing time — see SignerSet::validate.
+    set.validate()
+        .map_err(|e| anyhow!("the signer set at {path} is not usable: {e}"))?;
+    Ok(set.fingerprint())
+}
+
+fn run_release_sign(dir: &std::path::Path, key: &std::path::Path) -> Result<()> {
+    use ed25519_dalek::{Signer as _, SigningKey};
+
+    let manifest = molao_dist::layout::read_manifest(dir)
+        .with_context(|| format!("reading {}/manifest.json", dir.display()))?;
+
+    let key_text = std::fs::read_to_string(key)
+        .with_context(|| format!("reading signing key {}", key.display()))?;
+    let key_bytes: [u8; 32] = hex::decode(key_text.trim())
+        .map_err(|_| anyhow!("the signing key must be 64 hex characters"))?
+        .try_into()
+        .map_err(|_| anyhow!("the signing key must be 32 bytes (64 hex characters)"))?;
+    let sk = SigningKey::from_bytes(&key_bytes);
+    let public = hex::encode(sk.verifying_key().to_bytes());
+
+    let mut signed = match molao_dist::layout::read_signed_release(dir) {
+        Ok(existing) => {
+            // Signing a different manifest into the same file would produce a
+            // release whose signatures cover two different things.
+            if existing.manifest != manifest {
+                return Err(anyhow!(
+                    "{}/signed-release.json is for a different manifest than \
+                     {}/manifest.json — repackage rather than mixing them",
+                    dir.display(),
+                    dir.display()
+                ));
+            }
+            existing
+        }
+        Err(_) => molao_core::SignedRelease {
+            manifest: manifest.clone(),
+            signatures: Vec::new(),
+        },
+    };
+
+    // Re-signing with the same key replaces rather than appends: one signer,
+    // one vote, and a duplicate entry would only ever confuse a reader.
+    signed.signatures.retain(|s| s.key != public);
+    signed
+        .signatures
+        .push(molao_core::release::ManifestSignature {
+            key: public.clone(),
+            signature: hex::encode(sk.sign(&manifest.signing_bytes()).to_bytes()),
+        });
+    molao_dist::layout::write_signed_release(dir, &signed)
+        .with_context(|| format!("writing {}/signed-release.json", dir.display()))?;
+
+    println!("signed release {} as {}", manifest.release, public);
+    println!("  manifest hash  {}", manifest.hash());
+    println!("  signer set     {}", manifest.signer_set);
+    println!("  signatures now {}", signed.signatures.len());
+    println!();
+    println!(
+        "a release needs at least two distinct institutions. This tool counts signatures; it \
+         cannot tell you whether the keys behind them are independent, and that is the part \
+         that matters."
+    );
+    Ok(())
+}
+
+fn run_release_fetch(
+    from: &std::path::Path,
+    into: &std::path::Path,
+    signers: &std::path::Path,
+) -> Result<()> {
+    use molao_dist::transport::fs::FsTransport;
+    use molao_dist::Transport as _;
+
+    let signers_text = std::fs::read_to_string(signers)
+        .with_context(|| format!("reading signer set {}", signers.display()))?;
+    let signer_set: molao_core::SignerSet =
+        serde_json::from_str(&signers_text).context("parsing the signer set")?;
+
+    let transport = FsTransport::new(from);
+    let signed = transport
+        .fetch_signed_release()
+        .with_context(|| format!("fetching the signed release from {}", from.display()))?;
+    let index = transport
+        .fetch_index()
+        .with_context(|| format!("fetching the file index from {}", from.display()))?;
+
+    // Fetch once, into memory, then verify against what was actually fetched —
+    // never re-fetch for the write, or the bytes verified and the bytes kept
+    // could differ.
+    let mut blobs: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    for entry in &index.files {
+        match transport.fetch_blob(&entry.hash) {
+            Ok(bytes) => {
+                blobs.insert(entry.hash.clone(), bytes);
+            }
+            // A missing blob is a verification failure, not a fetch error: it
+            // is exactly what an incomplete or hostile mirror looks like.
+            Err(e) => tracing::debug!(hash = %entry.hash, error = %e, "blob not available"),
+        }
+    }
+
+    let verified =
+        molao_dist::verify_received(&signed, &signer_set, &index, |h| blobs.get(h).cloned())
+            .map_err(|e| anyhow!("this release does not verify and was NOT kept: {e}"))?;
+
+    for (hash, bytes) in &blobs {
+        molao_dist::layout::write_blob(into, hash, bytes)
+            .with_context(|| format!("writing blob {hash}"))?;
+    }
+    molao_dist::layout::write_index(into, &index)?;
+    molao_dist::layout::write_manifest(into, &verified.manifest)?;
+    molao_dist::layout::write_signed_release(into, &signed)?;
+
+    println!(
+        "fetched and verified release {} into {}",
+        verified.manifest.release,
+        into.display()
+    );
+    println!("  files          {}", index.files.len());
+    println!("  documents      {}", verified.manifest.doc_count);
+    println!("  signatures     {}", verified.signatures);
+    println!("  corpus root    {}", verified.manifest.corpus_root);
+    println!("  graph root     {}", verified.manifest.graph_root);
+    println!();
+    println!(
+        "the transport was not trusted: every byte was re-hashed and every signature re-checked."
+    );
+    println!(
+        "this checked the release's own integrity. To check it against a corpus you hold, and \
+         to re-run the pinned extractor, use `molao verify`."
+    );
+    Ok(())
+}
+
+/// Piece length for the torrent export: 256 KiB, the usual default for a file
+/// set of this shape and a power of two as BEP 52 requires.
+const TORRENT_PIECE_LENGTH: u32 = 256 * 1024;
+
+fn run_release_torrent(
+    dir: &std::path::Path,
+    out: &std::path::Path,
+    tracker: Option<&str>,
+) -> Result<()> {
+    let manifest = molao_dist::layout::read_manifest(dir)
+        .with_context(|| format!("reading {}/manifest.json", dir.display()))?;
+    let (index, blobs) = read_release_dir(dir)?;
+    let name = format!("molao-release-{}", manifest.release);
+    let bytes = molao_dist::torrent::export_release(&name, TORRENT_PIECE_LENGTH, &index, &blobs)
+        .map_err(|e| anyhow!("exporting a torrent: {e}"))?;
+    std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
+
+    let info_hash = molao_dist::torrent::info_hash(&bytes)
+        .map_err(|e| anyhow!("computing the info hash: {e}"))?;
+    println!("wrote {} ({} bytes)", out.display(), bytes.len());
+    println!("  files          {}", index.files.len());
+    println!("  v2 info hash   {}", hex::encode(info_hash));
+    match tracker {
+        Some(url) => println!(
+            "  tracker        {url} — add it with your client; the export itself is trackerless \
+             so the file stays byte-identical between builders"
+        ),
+        None => println!("  tracker        none (DHT only)"),
+    }
+    println!();
+    println!("this is an export. Molao does not seed, leech, or run a torrent client.");
+    Ok(())
+}
+
+/// The domain-separated attestation over everything that determines a release.
+const ATTESTATION_DOMAIN: &[u8] = b"molao-build-attestation-v1\n";
+
+fn run_release_attest(dir: &std::path::Path) -> Result<()> {
+    let manifest = molao_dist::layout::read_manifest(dir)
+        .with_context(|| format!("reading {}/manifest.json", dir.display()))?;
+    let (index, blobs) = read_release_dir(dir)?;
+
+    // Recompute rather than report: an attestation over a release directory
+    // nobody checked would agree with any other unchecked directory built by
+    // the same buggy code.
+    molao_dist::verify_file_set(&manifest, &index, |h| blobs.get(h).cloned())
+        .map_err(|e| anyhow!("this release directory does not verify: {e}"))?;
+
+    let profile = molao_core::region::default_profile();
+    let mut h = blake3::Hasher::new();
+    let mut field = |bytes: &[u8]| {
+        h.update(&(bytes.len() as u64).to_be_bytes());
+        h.update(bytes);
+    };
+    field(ATTESTATION_DOMAIN);
+    field(manifest.hash().as_bytes());
+    field(molao_core::VERSION.as_bytes());
+    field(molao_cite::EXTRACTOR_VERSION.as_bytes());
+    field(profile.code.as_bytes());
+    field(profile.fingerprint().as_bytes());
+    for entry in &index.files {
+        field(entry.hash.as_bytes());
+        field(entry.path.as_bytes());
+    }
+    let attestation = hex::encode(h.finalize().as_bytes());
+
+    println!("release        {}", manifest.release);
+    println!("manifest hash  {}", manifest.hash());
+    println!("corpus root    {}", manifest.corpus_root);
+    println!("graph root     {}", manifest.graph_root);
+    println!("doc count      {}", manifest.doc_count);
+    println!("signer set     {}", manifest.signer_set);
+    println!("created at     {}", manifest.created_at);
+    println!("extractor      {}", manifest.extractor_version);
+    println!("core version   {}", molao_core::VERSION);
+    println!("region profile {} {}", profile.code, profile.fingerprint());
+    println!("files          {}", index.files.len());
+    println!();
+    println!("attestation    {attestation}");
+    println!();
+    println!(
+        "Two builders comparing that one line have compared every input above. If it differs, \
+         the lines above say which one did."
+    );
+    println!(
+        "It attests that two builds agree — not that either is correct, and not that the corpus \
+         they were built from is complete."
+    );
+    Ok(())
 }
 
 fn open(path: &std::path::Path) -> Result<Corpus> {
@@ -1176,8 +1720,8 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources",
-                "regions"
+                "serve", "ingest", "demo", "verify", "release", "stats", "index", "fetch",
+                "crawl", "sources", "regions"
             ],
             "a subcommand was added or renamed without updating the docs, and \
              TOP_LEVEL_COMMANDS in tests/cli.rs"

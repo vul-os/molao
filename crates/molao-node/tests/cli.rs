@@ -24,26 +24,15 @@ fn workdir(name: &str) -> PathBuf {
 }
 
 fn manifest() -> Manifest {
-    Manifest {
-        release: 3,
-        previous: None,
-        created_at: "2026-07-20T10:00:00Z".into(),
-        corpus_root: "aa".repeat(32),
-        doc_count: 15,
-        graph_root: "bb".repeat(32),
-        extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
-    }
+    manifest_bound_to(&signer_set())
 }
 
-/// Write a release signed by `signing` members of a 3-member, threshold-2 set.
-fn write_release(dir: &Path, signing: usize) -> (PathBuf, PathBuf) {
-    let keys: Vec<SigningKey> = (1..=3u8)
-        .map(|s| SigningKey::from_bytes(&[s; 32]))
-        .collect();
-    let set = SignerSet {
+/// The 3-member, threshold-2 set every fixture below signs under.
+fn signer_set() -> SignerSet {
+    SignerSet {
         threshold: 2,
         epoch: 1,
-        signers: keys
+        signers: signing_keys()
             .iter()
             .enumerate()
             .map(|(i, k)| SetSigner {
@@ -51,7 +40,34 @@ fn write_release(dir: &Path, signing: usize) -> (PathBuf, PathBuf) {
                 key: hex::encode(k.verifying_key().to_bytes()),
             })
             .collect(),
-    };
+    }
+}
+
+fn signing_keys() -> Vec<SigningKey> {
+    (1..=3u8)
+        .map(|s| SigningKey::from_bytes(&[s; 32]))
+        .collect()
+}
+
+fn manifest_bound_to(set: &SignerSet) -> Manifest {
+    Manifest {
+        release: 3,
+        // A non-genesis release names its predecessor. Leaving this None would
+        // make the fixture itself malformed, and step 4 says so.
+        previous: Some("11".repeat(32)),
+        created_at: "2026-07-20T10:00:00Z".into(),
+        corpus_root: "aa".repeat(32),
+        doc_count: 15,
+        graph_root: "bb".repeat(32),
+        extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
+        signer_set: set.fingerprint(),
+    }
+}
+
+/// Write a release signed by `signing` members of a 3-member, threshold-2 set.
+fn write_release(dir: &Path, signing: usize) -> (PathBuf, PathBuf) {
+    let keys = signing_keys();
+    let set = signer_set();
     let m = manifest();
     let release = SignedRelease {
         signatures: keys[..signing]
@@ -72,8 +88,10 @@ fn write_release(dir: &Path, signing: usize) -> (PathBuf, PathBuf) {
 }
 
 #[test]
-fn verify_exits_zero_on_a_quorum() {
-    let dir = workdir("verify-ok");
+fn verify_without_a_corpus_is_incomplete_rather_than_ok() {
+    // The failure this exit code exists to prevent: three of seven checks run,
+    // four skipped for want of a corpus, and the command printing OK anyway.
+    let dir = workdir("verify-incomplete");
     let (release, signers) = write_release(&dir, 2);
 
     let out = Command::new(MOLAO)
@@ -85,17 +103,287 @@ fn verify_exits_zero_on_a_quorum() {
         .expect("running molao verify");
 
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        out.status.success(),
-        "exit {:?}: {stdout}",
-        out.status.code()
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "an unchecked release must not exit 0.\nstdout: {stdout}\nstderr: {stderr}"
     );
-    assert!(stdout.contains("OK"), "{stdout}");
+    assert!(stderr.contains("INCOMPLETE"), "{stderr}");
+    assert!(
+        stderr.contains("NOT been\n fully verified") || stderr.contains("NOT been"),
+        "{stderr}"
+    );
+    // The steps that did run are reported as having run, and the ones that did
+    // not say why.
+    assert_eq!(stdout.matches("PASS").count(), 3, "{stdout}");
+    assert_eq!(stdout.matches("SKIP").count(), 4, "{stdout}");
+    assert!(stdout.contains("--db"), "{stdout}");
     // The honest-status line must not be quietly dropped: a verifier that reads
     // as blessing the law is the failure mode that matters here.
     assert!(
         stdout.contains("not that the law is correctly stated"),
         "the caveat is missing: {stdout}"
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The whole Phase 2 + Phase 5 path, run as a user would: seed a corpus,
+/// package it, have two institutions sign it, verify all seven steps, fetch it
+/// over a transport, and export a torrent.
+///
+/// This is the only test that proves the release commands work end to end. It
+/// runs the real binary, so nothing in it can pass by talking to a mock.
+#[test]
+fn a_packaged_release_signs_verifies_fetches_and_exports() {
+    let dir = workdir("release-e2e");
+    let db = dir.join("molao.db");
+    let out = dir.join("release");
+    let fetched = dir.join("fetched");
+    let signers_path = dir.join("signers.json");
+    std::fs::write(
+        &signers_path,
+        serde_json::to_string_pretty(&signer_set()).unwrap(),
+    )
+    .unwrap();
+
+    let run = |args: Vec<&std::ffi::OsStr>| -> std::process::Output {
+        Command::new(MOLAO)
+            .args(&args)
+            .env("MOLAO_SIGNER_SET", &signers_path)
+            .output()
+            .expect("running molao")
+    };
+    let ok = |o: &std::process::Output, what: &str| {
+        assert!(
+            o.status.success(),
+            "{what} exited {:?}\nstdout: {}\nstderr: {}",
+            o.status.code(),
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        );
+    };
+
+    ok(
+        &run(vec![
+            "demo".as_ref(),
+            "--no-serve".as_ref(),
+            "--db".as_ref(),
+            db.as_ref(),
+        ]),
+        "demo",
+    );
+
+    let publish = |target: &Path| {
+        run(vec![
+            "release".as_ref(),
+            "publish".as_ref(),
+            "--db".as_ref(),
+            db.as_ref(),
+            "--out".as_ref(),
+            target.as_ref(),
+            "--release".as_ref(),
+            "0".as_ref(),
+            "--created-at".as_ref(),
+            "2026-07-20T10:00:00Z".as_ref(),
+        ])
+    };
+    ok(&publish(&out), "release publish");
+    assert!(out.join("manifest.json").exists());
+    assert!(out.join("index.json").exists());
+    assert!(
+        !out.join("signed-release.json").exists(),
+        "publish must not produce anything that looks signed"
+    );
+
+    // Two institutions, two machines, two keys. One is never enough.
+    for (i, key) in signing_keys().iter().take(2).enumerate() {
+        let key_path = dir.join(format!("signer-{i}.key"));
+        std::fs::write(&key_path, hex::encode(key.to_bytes())).unwrap();
+        ok(
+            &run(vec![
+                "release".as_ref(),
+                "sign".as_ref(),
+                out.as_ref(),
+                "--key".as_ref(),
+                key_path.as_ref(),
+            ]),
+            "release sign",
+        );
+    }
+
+    // All seven steps, against the corpus the release was built from.
+    let verified = run(vec![
+        "verify".as_ref(),
+        out.join("signed-release.json").as_ref(),
+        "--signers".as_ref(),
+        signers_path.as_ref(),
+        "--db".as_ref(),
+        db.as_ref(),
+    ]);
+    ok(&verified, "verify");
+    let stdout = String::from_utf8_lossy(&verified.stdout);
+    assert_eq!(
+        stdout.matches("PASS").count(),
+        7,
+        "every step must pass: {stdout}"
+    );
+    assert_eq!(stdout.matches("SKIP").count(), 0, "{stdout}");
+    assert!(stdout.contains("re-extracted"), "{stdout}");
+
+    // Fetch it over a transport and verify on receipt.
+    ok(
+        &run(vec![
+            "release".as_ref(),
+            "fetch".as_ref(),
+            "--from".as_ref(),
+            out.as_ref(),
+            "--into".as_ref(),
+            fetched.as_ref(),
+            "--signers".as_ref(),
+            signers_path.as_ref(),
+        ]),
+        "release fetch",
+    );
+
+    // What arrived is the same release, by the only measure that matters.
+    let attest = |d: &Path| {
+        let o = run(vec!["release".as_ref(), "attest".as_ref(), d.as_ref()]);
+        ok(&o, "release attest");
+        let text = String::from_utf8_lossy(&o.stdout).to_string();
+        text.lines()
+            .find_map(|l| l.strip_prefix("attestation    "))
+            .expect("an attestation line")
+            .to_string()
+    };
+    assert_eq!(
+        attest(&out),
+        attest(&fetched),
+        "a fetched release must attest identically to the one it came from"
+    );
+
+    // Reproducibility across processes: a second, independent packaging run of
+    // the same corpus must produce the same release. This is also the only
+    // check that molao-cite's determinism holds across process boundaries —
+    // a hash-map iteration order leaking into the citation graph would differ
+    // here and nowhere else, because Rust reseeds RandomState per process.
+    let again = dir.join("release-again");
+    ok(&publish(&again), "second release publish");
+    assert_eq!(
+        attest(&out),
+        attest(&again),
+        "two builders of the same corpus must agree"
+    );
+
+    // The archival export.
+    let torrent = dir.join("release.torrent");
+    ok(
+        &run(vec![
+            "release".as_ref(),
+            "torrent".as_ref(),
+            out.as_ref(),
+            "--out".as_ref(),
+            torrent.as_ref(),
+        ]),
+        "release torrent",
+    );
+    assert!(std::fs::metadata(&torrent).unwrap().len() > 0);
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_release_is_not_kept_when_it_does_not_verify() {
+    // The offline guarantee's other half: an untrusted transport can waste your
+    // bandwidth, and cannot make your node adopt altered content.
+    let dir = workdir("release-tampered");
+    let db = dir.join("molao.db");
+    let out = dir.join("release");
+    let fetched = dir.join("fetched");
+    let signers_path = dir.join("signers.json");
+    std::fs::write(
+        &signers_path,
+        serde_json::to_string_pretty(&signer_set()).unwrap(),
+    )
+    .unwrap();
+
+    let run = |args: Vec<&std::ffi::OsStr>| -> std::process::Output {
+        Command::new(MOLAO)
+            .args(&args)
+            .env("MOLAO_SIGNER_SET", &signers_path)
+            .output()
+            .expect("running molao")
+    };
+
+    assert!(run(vec![
+        "demo".as_ref(),
+        "--no-serve".as_ref(),
+        "--db".as_ref(),
+        db.as_ref()
+    ])
+    .status
+    .success());
+    assert!(run(vec![
+        "release".as_ref(),
+        "publish".as_ref(),
+        "--db".as_ref(),
+        db.as_ref(),
+        "--out".as_ref(),
+        out.as_ref(),
+        "--release".as_ref(),
+        "0".as_ref(),
+        "--created-at".as_ref(),
+        "2026-07-20T10:00:00Z".as_ref(),
+    ])
+    .status
+    .success());
+    for (i, key) in signing_keys().iter().take(2).enumerate() {
+        let key_path = dir.join(format!("signer-{i}.key"));
+        std::fs::write(&key_path, hex::encode(key.to_bytes())).unwrap();
+        assert!(run(vec![
+            "release".as_ref(),
+            "sign".as_ref(),
+            out.as_ref(),
+            "--key".as_ref(),
+            key_path.as_ref()
+        ])
+        .status
+        .success());
+    }
+
+    // Substitute a document's bytes for something of the same length, so the
+    // cheap length guard cannot be what catches it.
+    let index: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out.join("index.json")).unwrap()).unwrap();
+    let entry = index["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["path"].as_str().unwrap().starts_with("documents/"))
+        .unwrap()
+        .clone();
+    let hash = entry["hash"].as_str().unwrap();
+    let blob_path = out.join("objects").join(&hash[..2]).join(&hash[2..]);
+    let original = std::fs::read(&blob_path).unwrap();
+    std::fs::write(&blob_path, vec![b'x'; original.len()]).unwrap();
+
+    let o = run(vec![
+        "release".as_ref(),
+        "fetch".as_ref(),
+        "--from".as_ref(),
+        out.as_ref(),
+        "--into".as_ref(),
+        fetched.as_ref(),
+        "--signers".as_ref(),
+        signers_path.as_ref(),
+    ]);
+    assert!(!o.status.success(), "a tampered release must not be kept");
+    let stderr = String::from_utf8_lossy(&o.stderr);
+    assert!(stderr.contains("does not verify"), "{stderr}");
+    assert!(
+        !fetched.join("index.json").exists(),
+        "nothing may be written when verification fails"
     );
 
     std::fs::remove_dir_all(&dir).unwrap();
@@ -405,7 +693,8 @@ fn index_build_with_http_requires_an_endpoint() {
 /// clap's own metadata and fails, naming this constant, the moment a command is
 /// added or renamed.
 const TOP_LEVEL_COMMANDS: &[&str] = &[
-    "serve", "ingest", "demo", "verify", "stats", "index", "fetch", "crawl", "sources", "regions",
+    "serve", "ingest", "demo", "verify", "release", "stats", "index", "fetch", "crawl", "sources",
+    "regions",
 ];
 
 #[test]
@@ -415,11 +704,14 @@ fn every_documented_command_has_working_help() {
     args.extend(TOP_LEVEL_COMMANDS.iter().map(|c| vec![*c, "--help"]));
     args.push(vec!["index", "build", "--help"]);
     args.push(vec!["index", "info", "--help"]);
+    for sub in ["publish", "sign", "fetch", "torrent", "attest"] {
+        args.push(vec!["release", sub, "--help"]);
+    }
 
     // Covering nothing must not read as passing.
     assert_eq!(
         args.len(),
-        TOP_LEVEL_COMMANDS.len() + 3,
+        TOP_LEVEL_COMMANDS.len() + 8,
         "the help matrix lost entries"
     );
 
