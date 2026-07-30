@@ -7,9 +7,28 @@ It is non-commercial and honours sources' `robots.txt` and content-signals.
 Judgments are public documents; the project sources them from courts/official
 publishers directly or under licence, never by scraping sites that decline it.
 
-This directory holds fill-in-the-blank templates for the paperwork a human running
-a Molao node needs to file to obtain permission or a licence to source case law
-legitimately from a given jurisdiction or publisher.
+This directory holds fill-in-the-blank templates for the letters a human has to
+send on Molao's behalf. They come in **two kinds, which must not be confused**:
+
+1. **The governance ask** — will your institution hold one of the signing keys
+   that authorise a release. Two templates.
+2. **Corpus-licensing asks** — may we source judgments from you, and on what
+   terms. Four templates.
+
+**The governance ask is the critical path.** The corpus letters unblock
+*content*: each one that succeeds adds a jurisdiction. The governance letter
+unblocks the project existing at all, because
+`crates/molao-core/src/release.rs:52` refuses any release whose signing
+threshold is below 2, even when every signature present is valid. Until at
+least two independent organisations each hold a key, **Molao cannot publish a
+release — not a small one, not a provisional one, not any.** Every licensed
+corpus in the world would not change that.
+
+The two categories also fail differently. A corpus request that gets a no costs
+you that source. A governance request sent to the wrong institution, or sent as
+a data request to an institution that has publicly declined to supply data,
+costs you the relationship permanently — see the warning at the top of
+[`signer-invitation-lii.md`](./signer-invitation-lii.md).
 
 **Every template contains `[PLACEHOLDERS IN BRACKETS]` that must be filled in
 before sending, and marks anything uncertain as `[VERIFY: ...]`.** These are
@@ -22,7 +41,36 @@ submit applications, sign licences, or make representations on anyone's behalf.
 A person operating a node must read, adapt, sign, and send each of these
 themselves, and is responsible for complying with whatever terms come back.
 
-## Which template for which source
+## 1. The governance ask — hold a signing key
+
+Same request, two readers. Neither letter asks for data, and both say so
+explicitly and early, because the reflex answer to a stranger writing about
+case law is "we don't supply bulk data".
+
+| Recipient | Template | Notes |
+|---|---|---|
+| An LII — SAFLII, AfricanLII, BAILII, AustLII, NZLII, CanLII, and the wider Free Access to Law Movement network | [`signer-invitation-lii.md`](./signer-invitation-lii.md) | The most credible possible signers and the **worst possible corpus targets** — they are 🔴 in [`docs/SOURCE-MAP.md`](../docs/SOURCE-MAP.md) and have declined bulk or AI use publicly. Approach them about governance and citation resolution only. |
+| A law faculty, law library, or bar council / law society | [`signer-invitation-academic.md`](./signer-invitation-academic.md) | Different motivations (research, preservation, access to justice) and a different approval path (dean and university counsel; library director; council resolution). Carries a routing table for the three. |
+
+Both letters answer, in the recipient's own terms: what a signature attests to
+(that the bytes are what the manifest says) and what it does not (anything at
+all about whether the judgment is good law); what it costs in money,
+infrastructure, and staff time; how an institution leaves; how the signer set
+changes; and why the founder cannot simply publish the corpus alone.
+
+Both also state plainly what does not exist yet — no public corpus, no signed
+release, an empty signer set, no key-generation or signing tooling, no
+end-to-end rebuild command, no external audit. **Do not soften that section
+when you adapt a letter.** For this audience a checkable overstatement is
+fatal, and every one of those absences is checkable from the repository in
+about five minutes.
+
+Neither letter asks anyone to sign anything today, because with the shipped
+software nobody could: signing tooling does not exist. The ask is a
+conversation and an in-principle indication, with the commitment deferred until
+there is a documented ceremony for an institution's people to review.
+
+## 2. Corpus-licensing asks — which template for which source
 
 | Source | Template | Notes |
 |---|---|---|
@@ -46,3 +94,13 @@ under a named open licence and you just need AI-use confirmation).
 - If a source says no, or attaches conditions Molao can't meet (e.g. no
   redistribution), respect that and do not source from it. The whole point
   of this process is sourcing legitimately.
+
+Two more that apply only to the governance letters:
+
+- **Never name an institution publicly as a prospective signer without its
+  written agreement to be named.** Implying a quorum that does not exist would
+  discredit the project faster than having no quorum at all.
+- When counsel or a risk office asks a question the letter cannot answer, that
+  is a governance gap, not a drafting problem. Raise it as an issue against
+  [`GOVERNANCE.md`](../GOVERNANCE.md) so the answer survives; do not settle it
+  privately and re-word the letter.

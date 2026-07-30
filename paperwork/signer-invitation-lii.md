@@ -204,13 +204,15 @@ care about the integrity of `[JURISDICTION]`'s law would be theatre.
 
 ### Separately, and much more simply: citation resolution
 
-Independent of anything above, Molao shows a citation it cannot resolve as it
-was written, and links out so the reader can go and read the case where it is
-properly published — which, for `[JURISDICTION]`, is you. That is meant as
-support for your service, not a detour around it. If there is a citation format,
-link structure, or attribution wording you would prefer, I would rather be told
-than guess. This costs you nothing and does not depend on the governance
-question at all.
+Independent of anything above: when Molao encounters a citation it cannot
+resolve, it shows the citation as written rather than hiding it — that part is
+built and is a standing commitment. The intended next step is to link out, so
+the reader goes and reads the case where it is properly published, which for
+`[JURISDICTION]` is you. **That link-out is not implemented yet**, which is
+precisely why I would rather ask than guess: if there is a citation format,
+link structure, or attribution wording you would prefer — or would prefer we
+did not use — I would like to know before it is written rather than after. This
+costs you nothing and does not depend on the governance question at all.
 
 ### What I am actually asking for now
 
