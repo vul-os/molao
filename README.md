@@ -112,17 +112,21 @@ uses fewer forms simply matches fewer of them.
 >
 > What is **not** live yet: peer-to-peer distribution and a public corpus.
 > **There is no bundled corpus — a node starts empty**, and `molao demo` seeds
-> a synthetic one. No public signed release exists yet, and releases still
-> move as plain files, mirrored by hand. Three crates exist in the workspace
-> against that gap: **`molao-ingest`** (a robots-respecting,
-> collectively-built corpus — witnesses fetch and sign independently;
-> corroboration, not upload trust), **`molao-dist`** (content-addressed
-> releases, a torrent export, and an iroh transport behind a feature flag),
-> and **`molao-index`** (a local vector+keyword search cache, rebuildable and
-> unsigned, never part of a release). `molao-ingest` and `molao-index` are
-> wired into the node; **`molao-dist` is not — nothing depends on it yet**, so
-> no `molao` command publishes or fetches a packaged release. None has run
-> against real data yet. Treatment attestations remain **designed, not built**.
+> a synthetic one. **No public signed release exists yet.** Three crates carry
+> the machinery: **`molao-ingest`** (a robots-respecting, collectively-built
+> corpus — witnesses fetch and sign independently; corroboration, not upload
+> trust), **`molao-dist`** (content-addressed releases, a torrent export, and
+> an iroh transport behind a feature flag), and **`molao-index`** (a local
+> vector+keyword search cache, rebuildable and unsigned, never part of a
+> release). All three are now wired into the node — `molao release
+> publish/sign/fetch/torrent` package and move a release, and `molao verify`
+> checks one in seven steps, including re-running the pinned extractor over
+> the stored text. **But none of it has carried real data**: no release has
+> been published, neither transport has moved one, and nothing has run against
+> a real jurisdiction. Treatment attestations are **built but unused** — the
+> signature check, ingest, conflict display, reader-side trust policy and
+> `molao attest` all exist and are tested, and **nobody has ever attested
+> anything**; there is no gossip, no authoring path and no UI for them.
 > Semantic search over a release is **deliberately excluded**
 > ([why](docs/THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)) —
 > a local rebuildable cache is not the same thing and does not reopen that
@@ -400,7 +404,8 @@ Node roles, what each costs to run, and the practical guidance are in
 | [CITATIONS.md](docs/CITATIONS.md) | The citation grammar the parser implements — neutral, reported, historical, case numbers, pinpoints, keys; and which parts are profile-driven |
 | [COURTS.md](docs/COURTS.md) | The region-profile contract, the shared tier model, and how to add a jurisdiction |
 | [RELEASES.md](docs/RELEASES.md) | Threshold signing, manifest chaining, content-addressed packaging, and how to verify a release yourself |
-| [DISTRIBUTION.md](docs/DISTRIBUTION.md) | How a release travels: content-addressed packaging, iroh, torrent export, HTTP mirror, and verification on receipt — the `molao-dist` crate, which no node uses yet |
+| [DISTRIBUTION.md](docs/DISTRIBUTION.md) | How a release travels: content-addressed packaging, iroh, torrent export, HTTP mirror, and verification on receipt — the `molao-dist` crate, reached from `molao release` |
+| [RAG.md](docs/RAG.md) | The local, rebuildable, unsigned search cache: what it indexes, why it is never part of a release, and how to build one |
 | [PROVENANCE.md](docs/PROVENANCE.md) | Witnesses, corroboration, and the Corroborated / Single / Manual classes — the model that lets a corpus be built collectively |
 | [THREAT-MODEL.md](docs/THREAT-MODEL.md) | Poisoning, split view, why embeddings are excluded, why a rebuildable RAG cache doesn't reopen that, distribution over untrusted transports, and what is **not** protected |
 | [SOURCES.md](docs/SOURCES.md) | How to source responsibly in any jurisdiction: direct, robots-respecting crawl, licensed bulk, and why an LII that declines bulk supply is not scraped |
