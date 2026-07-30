@@ -188,6 +188,42 @@ mod tests {
     }
 
     #[test]
+    fn a_same_length_tampered_file_is_still_rejected() {
+        // `verify_file_set` checks length before recomputing the BLAKE3 hash
+        // (a cheap guard ahead of an expensive one — see package.rs). The
+        // test above substitutes a *differently sized* payload, so it can
+        // pass on the length guard alone without ever exercising the actual
+        // hash comparison. Proven empirically during this audit: with the
+        // hash comparison in `verify_file_set` deliberately disabled (kept
+        // the length check), the test above still passed, and a tampered
+        // file of the same byte length as the original was silently
+        // accepted as `Ok(VerifiedRelease { .. })`. This test closes that
+        // gap by tampering with same-length bytes, so a broken hash check
+        // has nowhere left to hide behind the length guard.
+        let (set, pairs) = three_of_five();
+        let (manifest, index, blobs) = packaged();
+        let signed = SignedRelease {
+            signatures: sign_all(&manifest, &pairs, 3),
+            manifest,
+        };
+        let tampered_hash = index.files[0].hash.clone();
+        let original_len = blobs.get(&tampered_hash).unwrap().len();
+        let garbage = vec![b'x'; original_len];
+        let err = verify_received(&signed, &set, &index, |h| {
+            if h == tampered_hash {
+                Some(garbage.clone())
+            } else {
+                blobs.get(h).cloned()
+            }
+        })
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            VerifyError::Content(IntegrityError::HashMismatch { .. })
+        ));
+    }
+
+    #[test]
     fn a_release_whose_manifest_was_altered_after_signing_is_rejected() {
         // Tampering with the manifest itself (not just a file) invalidates
         // every signature over it — SignedRelease::verify in molao-core

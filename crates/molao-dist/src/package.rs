@@ -455,6 +455,35 @@ mod tests {
         assert!(matches!(err, IntegrityError::DocCountMismatch { .. }));
     }
 
+    /// Pins a real, acknowledged structural limitation (see the module docs'
+    /// "What gets verified here, and what does not" section): `graph_root` is
+    /// carried through opaque and is not checked against anything, not even
+    /// against the graph blob this same release carries. A release whose
+    /// citation graph is missing an edge (or a whole subgraph) relative to
+    /// the corpus it claims to derive from — the same *shape* of defect as
+    /// the small brand marks that shipped with one of five citation chords
+    /// missing (fixed in c7de10c) — would pass `verify_integrity` and
+    /// `verify_received` without complaint, because nothing here recomputes
+    /// or cross-checks the graph. Catching that class of defect needs
+    /// `molao-graph` (to recompute `graph_root` from the pinned extractor
+    /// version), which this crate deliberately does not depend on. This test
+    /// is not a check that graph corruption is caught — it is a check that it
+    /// is *not*, so the gap cannot silently close (or silently widen) without
+    /// this test forcing the change to be looked at.
+    #[test]
+    fn graph_root_corruption_is_not_caught_here_this_crate_cannot_do_it() {
+        let mut packaged = pack(&toy_corpus()).unwrap();
+        packaged.manifest.graph_root = "ff".repeat(32); // arbitrary, matches nothing
+        assert!(
+            packaged.verify_integrity().is_ok(),
+            "if this now fails, either verify_integrity started checking \
+             graph_root (update this test and the module docs to describe \
+             how) or something else broke — it is not a regression to fix by \
+             re-adding a graph_root check that only compares two opaque \
+             strings, since that would still not verify the graph is correct"
+        );
+    }
+
     #[test]
     fn a_release_missing_a_graph_file_is_rejected() {
         let packaged = pack(&toy_corpus()).unwrap();
