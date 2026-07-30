@@ -842,7 +842,7 @@ mod tests {
     }
 
     #[test]
-    fn a_good_release_against_its_own_corpus_passes_all_six() {
+    fn a_good_release_against_its_own_corpus_passes_all_seven() {
         let c = corpus();
         let report = full(&c);
         assert_eq!(report.passed(), STEP_COUNT, "{:#?}", report.steps);
