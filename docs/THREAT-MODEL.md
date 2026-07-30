@@ -167,13 +167,18 @@ verified judgment once it opens one; a poisoned index can make you miss a
 case, exactly as reasoned above, but it cannot make you misread one you do
 open.
 
-**Status:** this local, rebuildable, unsigned index is `molao-index`, being
-written this session. It does not exist yet, has not been shared between two
-nodes, and the sharing path described above is the design it is being built
-to. The embeddings-exclusion argument above is unaffected by its existence —
-if anything, `molao-index` is the proof that the exclusion was the right call:
-semantic search was never blocked, only its promotion to something a release
-would need to trust.
+**Status:** this local, rebuildable, unsigned index is `molao-index`. It is in
+the workspace, tested, and wired into the node — `molao index build`,
+`molao index info`, `GET /api/rag/search` ([docs/RAG.md](RAG.md),
+[docs/API.md](API.md#get-apiragsearch)) — and `molao demo` builds one against
+the synthetic corpus so the whole hybrid pipeline is exercisable with no
+model and no network. What it has not done: built an index over a *real*
+corpus, because there is no public corpus yet, and been shared between two
+nodes — the cache-sharing path described above is the design it is built to,
+not a running feature. The embeddings-exclusion argument above is unaffected
+by its existence — if anything, `molao-index` is the proof that the exclusion
+was the right call: semantic search was never blocked, only its promotion to
+something a release would need to trust.
 
 ## Distribution: content-addressed release over an untrusted transport
 

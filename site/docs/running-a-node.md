@@ -108,6 +108,11 @@ answer, and it is governance, not cryptography. See
 [GOVERNANCE.md](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md) and
 [THREAT-MODEL.md](THREAT-MODEL.md#what-this-does-not-protect-against).
 
+Considering this for your institution? [GOVERNANCE.md#saying-yes](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md#saying-yes)
+is the concrete next step, and
+[GOVERNANCE.md#what-signing-attests-and-what-it-does-not](https://github.com/vul-os/molao/blob/main/GOVERNANCE.md#what-signing-attests-and-what-it-does-not)
+is what your own counsel will want to read first.
+
 ## Designing against decay
 
 What the project does about nodes going quiet:

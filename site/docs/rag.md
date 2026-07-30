@@ -3,7 +3,8 @@
 This document describes Molao's semantic-search layer and, more importantly, the
 line it does not cross. Read [THREAT-MODEL.md](THREAT-MODEL.md) first: the
 argument for why embeddings are excluded from releases is the premise this whole
-design is built to respect.
+design is built to respect. The wire shape of the HTTP endpoint below is also
+in [API.md](API.md#get-apiragsearch); this document is the model behind it.
 
 ## The one rule
 

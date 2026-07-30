@@ -30,7 +30,7 @@ an adapter or live verification · 🔴 off-limits by policy.
 | South Africa | SAFLII, LawLibrary | — | SAFLII: `use=reference` + blocks AI crawlers + declines bulk. LawLibrary: `ai-input=no`. | 🔴 citation-only |
 | **Kenya** | Kenya Law (`new.kenyalaw.org`) | crawl | No `Content-Signal`; robots allows the path for `molao-node`. | 🟢 **live-proven** (may paywall) |
 | **Ghana** | Judiciary e-Judgment (`ejudgment.judicial.gov.gh`) | crawl | Court-direct, open robots, no AI block. | 🔵 clean route, needs an adapter |
-| Uganda, Tanzania, Zambia, Zimbabwe, Namibia, Lesotho, Eswatini, Malawi, Nigeria, Sierra Leone, Seychelles | Their LII sites | — | `ai-input=no` or `use=reference`; several also `Disallow` the judgment path. | 🔴 off by default |
+| Uganda, Tanzania, Zambia, Zimbabwe, Namibia, Lesotho, Eswatini, Malawi, Nigeria, Ghana (GhaLII), Sierra Leone, Seychelles | Their LII sites | — | `ai-input=no` or `use=reference`; several also `Disallow` the judgment path. | 🔴 off by default |
 | **All of the above (bulk)** | **Laws.Africa** (`api.laws.africa`) | licensed bulk (Akoma Ntoso) | CC-BY-NC-SA default (workable for a non-commercial commons); AI terms unpublished → negotiate. Upstream digitiser for the whole network. | 🟡 needs a licence conversation |
 | Nigeria, Uganda, Tanzania… (court-direct) | National judiciary portals | crawl | Some open (e.g. Nigeria `supremecourt.gov.ng`), reuse terms often unstated. | 🔵 verify per-site |
 

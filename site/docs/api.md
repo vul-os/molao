@@ -44,12 +44,24 @@ a client comparing two nodes should compare this before comparing edges.
 {
   "docs": 130161,
   "edges": 894233,
+  "unresolved": 21044,
   "release": 42,
   "signers": 5,
   "threshold": 3,
   "provenance": { "corroborated": 128904, "single": 1102, "manual": 155 },
   "courts": 32,
-  "verified": true
+  "regions": [ { "code": "ZA", "doc_count": 130161 } ],
+  "verified": true,
+  "index": {
+    "present": true,
+    "corpus_root": "9f2c…",
+    "descriptors": [
+      { "descriptor_id": "b71a…", "embedder_id": "fake-hash", "model_version": "v1",
+        "dim": 256, "metric": "cosine", "chunker_id": "paragraph",
+        "chunk_count": 4102, "built_at": "2026-07-28T10:00:00Z",
+        "corpus_root": "9f2c…", "stale": false }
+    ]
+  }
 }
 ```
 
@@ -60,6 +72,23 @@ serving material it has not been able to verify, and a client should say so.
 The `provenance` breakdown is what makes network health legible. A corpus
 drifting toward `single` is a corpus losing its corroboration guarantee, and
 that should be visible without asking anyone.
+
+`unresolved` is how many citation edges point at a judgment this node does not
+hold — the same count that shows up per-case as `resolved: false` on
+`/api/case/:id/citations`, rolled up network-wide.
+
+`regions` is the per-jurisdiction breakdown of what this node actually holds.
+Molao is jurisdiction-neutral and a single node may serve more than one region
+profile at once ([COURTS.md](COURTS.md)); this is how a client tells the two
+apart rather than assuming `ZA`.
+
+`index` reports the local RAG cache honestly: `present: false` (with no
+`descriptors`) when no index has been built, and otherwise one entry per
+model-tagged descriptor, including whether it is `stale` against the corpus
+this node currently serves. This index is never signed and never part of a
+release — see [RAG.md](RAG.md) for what it is and is not, and
+[THREAT-MODEL.md](THREAT-MODEL.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole)
+for why exposing it here does not weaken the verification story.
 
 ### `GET /api/courts`
 
@@ -82,6 +111,7 @@ judgments the court has handed down.
 | `limit` | `20` | Results per page |
 | `offset` | `0` | Pagination offset |
 | `court` | — | Restrict to a court code, e.g. `ZACC` |
+| `region` | — | Restrict to a region-profile code, e.g. `ZA` — see [COURTS.md](COURTS.md) |
 | `year_from` | — | Inclusive lower bound on judgment date |
 | `year_to` | — | Inclusive upper bound |
 
@@ -94,6 +124,7 @@ judgments the court has handed down.
       "title": "Minister of Police v Mboweni",
       "court": "ZACC",
       "court_name": "Constitutional Court of South Africa",
+      "region": "ZA",
       "date": "2026-06-26",
       "neutral_citation": "[2026] ZACC 26",
       "snippet": "…the <mark>unlawful arrest</mark> of the applicant…",
@@ -115,6 +146,57 @@ whether a case is good law, and nothing in the API is.
 **Search is lexical.** There is no semantic or vector search, deliberately —
 see [THREAT-MODEL.md](THREAT-MODEL.md#why-embeddings-are-excluded-from-releases).
 
+### `GET /api/rag/search`
+
+Hybrid retrieval over the node's local, optional **RAG index** — never a
+release artifact, never signed. Full model in [RAG.md](RAG.md); this section
+is the wire shape only.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `q` | — | Query string |
+| `k` | `5` | Number of chunks, clamped to 1–100 |
+| `model` | most recently built | Selects an index descriptor when the node holds several |
+
+```json
+{
+  "query": "unlawful arrest damages",
+  "k": 5,
+  "retrieval": "hybrid",
+  "descriptor": {
+    "descriptor_id": "b71a…", "embedder_id": "fake-hash", "model_version": "v1",
+    "dim": 256, "metric": "cosine", "quantization": "f32", "normalization": "unit-l2",
+    "chunker_id": "paragraph", "chunker_params": "{}", "corpus_root": "9f2c…",
+    "stale": false
+  },
+  "hits": [
+    {
+      "doc_id": "f3a9…", "para_index": 12, "para_number": 87,
+      "title": "Minister of Police v Mboweni", "court": "ZACC",
+      "court_name": "Constitutional Court of South Africa", "region": "ZA",
+      "date": "2026-06-26", "text": "…",
+      "score": 0.041, "vector_score": 0.91, "keyword_rank": 3, "vector_rank": 1
+    }
+  ]
+}
+```
+
+`doc_id` plus `para_index`/`para_number` is the pinpoint — the full judgment is
+one hop away at `/api/case/:id`. `descriptor` is the "which model produced
+this" answer, with the same `stale` flag as the `/api/status` index block: a
+stale descriptor was built from a corpus root this node no longer serves.
+
+If no index exists at all, this returns `{ "hits": [], "descriptor": null,
+"retrieval": "none", "note": "..." }` rather than a 404 — an empty index is not
+an error. If a `model` is named but not found, that **is** a 404. If the
+descriptor's embedder cannot be reached (a remote-model index with no endpoint
+configured), retrieval silently degrades to keyword-only and `retrieval`
+reports `"keyword"` rather than returning results from the wrong vector space.
+
+This index is a local cache, never authoritative and never part of a release
+— see
+[THREAT-MODEL.md](THREAT-MODEL.md#why-a-rebuildable-cache-rag-index-does-not-reopen-this-hole).
+
 ### `GET /api/case/:id`
 
 ```json
@@ -125,6 +207,7 @@ see [THREAT-MODEL.md](THREAT-MODEL.md#why-embeddings-are-excluded-from-releases)
                 "judges": ["Mboweni J"], "reported_citations": [],
                 "paragraphs": [ { "index": 0, "number": null, "text": "MBOWENI J:" } ] },
   "court_name": "Constitutional Court of South Africa",
+  "region": "ZA",
   "provenance_class": "corroborated",
   "cites_count": 23,
   "cited_by_count": 14,
@@ -187,19 +270,24 @@ about approval or disapproval.
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `depth` | `1` | How many hops out from the subject judgment |
+| `depth` | `1` | How many hops out from the subject judgment, clamped to a maximum so a client cannot walk the whole corpus in one request |
 
 ```json
 {
+  "depth": 1,
   "nodes": [ { "id": "f3a9…", "title": "Minister of Police v Mboweni",
-               "court": "ZACC", "date": "2026-06-26",
+               "court": "ZACC", "region": "ZA", "date": "2026-06-26",
                "authority": 0.83, "depth": 0 } ],
-  "edges": [ { "from": "c04e…", "to": "f3a9…", "weight": 1.0 } ]
+  "edges": [ { "from": "c04e…", "to": "f3a9…", "weight": 1.0, "paragraph_count": 2 } ]
 }
 ```
 
-`depth: 0` is the subject judgment. `weight` is the citing court's authority
-weight ([COURTS.md](COURTS.md#tiers)).
+The top-level `depth` echoes the clamped value actually used, which may be
+lower than requested. Per node, `depth: 0` is the subject judgment. `weight` is
+the citing court's authority weight ([COURTS.md](COURTS.md#tiers)).
+`paragraph_count` on an edge is how many distinct paragraphs of the citing
+judgment cite the target — more than one usually means a sustained discussion,
+not a passing mention.
 
 Only resolved edges appear here — an unresolved citation has no node to point
 at. The full picture including unresolved citations is on

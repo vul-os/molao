@@ -162,5 +162,6 @@ These are exactly what CI runs ([.github/workflows/ci.yml](../.github/workflows/
 | How releases are signed and verified | [RELEASES.md](RELEASES.md) |
 | Which role to run, and what it costs | [RUNNING-A-NODE.md](RUNNING-A-NODE.md) |
 | What is defended and what is not | [THREAT-MODEL.md](THREAT-MODEL.md) |
+| Local semantic search over your own verified corpus | [RAG.md](RAG.md) |
 | Where the corpus may come from | [SOURCES.md](SOURCES.md) |
 | Straight answers | [FAQ.md](FAQ.md) |

@@ -74,6 +74,36 @@ That last one is the substantive obligation. An attestor is not lending a
 signature; it is asserting that it rebuilt the release from the same inputs and
 got the same roots.
 
+## What signing attests, and what it does not
+
+An institution's counsel will ask this before anyone signs anything, so it is
+answered here directly rather than left to be inferred from the rest of this
+document.
+
+**What a signature attests:** that your institution independently rebuilt the
+release — the same corpus, the same pinned `EXTRACTOR_VERSION` — and computed
+the same `corpus_root` and `graph_root` the manifest claims
+([RELEASES.md](releases.md)). That is a factual, checkable claim about
+bytes matching bytes. It is the only claim the act of signing makes.
+
+**What a signature does not attest:** that any judgment in the release is
+correctly decided, current, good law, or applicable to any reader's facts. The
+software repeats this constraint everywhere it can
+(`docs/API.md`, `docs/THREAT-MODEL.md`, `docs/FAQ.md`) and the same limit binds
+a signer: an attestor's signature endorses a hash, not a holding, and carries no
+opinion about the law inside it.
+
+**On liability beyond that:** this project cannot tell an institution what
+signing exposes it to under its own jurisdiction's law, and it would be
+overreach to try. That is a question for the institution's own counsel to
+answer before joining the signer set — this section exists to make the
+question precise and askable, not to answer it for you. What this project can
+state is the scope of the thing being signed, above, and that the design
+keeps that scope deliberately narrow: an attestor is one of several
+independent parties vouching for a reproducible hash. It is not a sole
+publisher, not an editor of the underlying judgments, and not a certifier of
+their correctness.
+
 ## Changing membership
 
 Adding or removing an attestor changes the signer set, which is itself an act
@@ -136,6 +166,33 @@ maintainers. Some decisions are not the maintainers' to make:
 | What enters a release | The quorum, by signing |
 | Signer set membership | The quorum, with an epoch bump |
 | Sourcing ethics ([docs/SOURCES.md](sources.md)) | Maintainers, and it is a floor rather than a default — the ethical position is not up for optimisation |
+
+## Saying yes
+
+There is no formal onboarding ceremony yet — the membership-change process is
+**designed, not built**, as stated above, and pretending otherwise here would
+undo the honesty the rest of this document relies on. What exists today is the
+real first step: open an issue at
+[github.com/vul-os/molao](https://github.com/vul-os/molao) naming your
+institution and which role you are considering. [docs/RUNNING-A-NODE.md](running-a-node.md)
+sets out what each role — Mirror, Witness, Builder, Attestor — actually costs,
+and an institution can hold more than one without holding more than one
+attestor key.
+
+An attestor conversation additionally needs answers to two questions, and
+having them ready is more useful at this stage than a decision:
+
+1. **Who inside the institution can commit to key custody that survives one
+   person leaving?** The commonest failure mode named above is the person with
+   the key moving on.
+2. **Can the institution genuinely rebuild a release**, independently, rather
+   than trust one handed to it? Signing without rebuilding is the thing
+   [Who should be an attestor](#who-should-be-an-attestor) calls "quorum
+   theatre."
+
+The first quorum has not been assembled yet. How it gets assembled — which
+institutions, how many, from how many jurisdictions — is being worked out in
+the open, not decided in advance by this project.
 
 ## Commitments
 

@@ -84,7 +84,7 @@ deliberate and are explained below.
 | `molao-corpus` | SQLite storage, FTS5 search, ingest | In progress |
 | `molao-graph` | Citation graph, authority scoring, treatment attestations | In progress; treatment attestations **designed, not built** |
 | `molao-ingest` | Robots-respecting fetch, Akoma Ntoso / HTML / PDF ingest, witness corroboration, jurisdiction adapters | In progress; used by the node |
-| `molao-index` | Local rebuildable keyword+vector search cache, never part of a release | In progress; used by the node |
+| `molao-index` | Local rebuildable keyword+vector search cache, never part of a release ([RAG.md](RAG.md)) | In progress; used by the node |
 | `molao-dist` | Content-addressed release packaging, torrent v2 export, delta, transports | In progress; **nothing depends on it** — no node command publishes or fetches a release |
 | node binary | `axum` HTTP server, embedded UI | In progress |
 | `apps/web` | TypeScript + Vite + Preact UI, embedded into the binary | In progress |
@@ -214,8 +214,10 @@ for a reason that is not about effort:
 
 So no embedding artifact is part of a release. A node operator is free to build
 an index locally over verified text, and that is the right place for it: local,
-optional, and never something anyone else has to trust. See
-[THREAT-MODEL.md](THREAT-MODEL.md).
+optional, and never something anyone else has to trust. That local index is
+`molao-index`, wired into the node today (`molao index build`,
+`GET /api/rag/search`) — see [RAG.md](RAG.md) for what it does and
+[THREAT-MODEL.md](THREAT-MODEL.md) for why it does not reopen this argument.
 
 ## Distribution
 
