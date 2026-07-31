@@ -99,11 +99,20 @@ confirm, in writing, that:
 
 We are glad to attribute `[COURT NAME]` clearly wherever a judgment sourced
 from it is shown — for example: `[SPECIFY ATTRIBUTION WORDING YOU PROPOSE,
-e.g. "Sourced from [COURT NAME], [JURISDICTION]"]` — and to accept any
-conditions (such as excluding specific judgment types, respecting takedown
-or correction requests, or limiting redistribution) that make this workable
-for the court. Please let us know if a different process, form, or contact
-is more appropriate for this request.
+e.g. "Sourced from [COURT NAME], [JURISDICTION]"]`.
+
+We can accept conditions on **what we collect** — excluding specific judgment
+types, honouring exclusions the court publishes, limiting redistribution, or
+not sourcing from the court at all. We want to be precise about one thing
+rather than let it be assumed: **once a judgment has been published in a
+signed release, this design cannot retract it.** Releases are immutable and
+content-addressed, and a later release can omit a judgment, but it cannot
+recall copies already distributed. If the court needs a retraction channel
+over already-published material, we do not have one today, and we would
+rather say so now than discover it matters later.
+
+Please let us know if a different process, form, or contact is more
+appropriate for this request.
 
 Thank you for your time, and for the work the `[COURT NAME]` does in making
 its judgments publicly available.
@@ -121,9 +130,14 @@ Kind regards,
 
 - Record the date sent and keep the email in your own records.
 - If the registry replies with conditions, follow them exactly — e.g. if
-  redistribution is limited, restricted judgment types are excluded, or a
-  takedown process is required, encode that into how this source is
-  configured in Molao.
+  redistribution is limited or restricted judgment types are excluded,
+  encode that into how this source is configured in Molao.
+- **If a post-publication takedown process is required, stop.** Collection
+  controls are configurable; retraction is not, because a published release
+  is immutable and content-addressed. Do not agree to a condition the
+  software cannot honour. Raise it as an open question — see
+  [docs/TAKEDOWN.md](../docs/TAKEDOWN.md) — and treat sourcing from that
+  court as blocked until it is resolved.
 - If there is no reply after a reasonable period, `[VERIFY: decide and note
   your own follow-up policy here — e.g. "follow up once after 4 weeks;
   do not proceed to source this court's judgments without an affirmative

@@ -152,6 +152,17 @@ find them yourself:
   is implemented and shipped as a command; *signing* is not. This is why I am
   not asking you to sign anything now — you could not, and I will not ask until
   the tooling and a documented ceremony exist for your people to review.
+- **There is no answer to court-ordered removal after publication**, and this is
+  the one I most expect you to raise, because suppression is routine work for
+  you and not for me. Molao honours exclusions a source publishes *before* it
+  collects, but a release is immutable and content-addressed: a later release
+  can omit a judgment, and nothing can recall copies already distributed.
+  Deletion is not merely unsupported — the verifier reports a missing document
+  as corruption, so compliance-by-deletion and verifiability cannot both hold
+  as the system is built. I have written up the options rather than picked one
+  ([docs/TAKEDOWN.md](../docs/TAKEDOWN.md)); the recommendation is to decide it
+  with an LII rather than before one, and your operational experience here is
+  worth more than my design instinct.
 - **The independent-rebuild step is designed, not built.** The obligation I
   described above is the substantive one, and today there is no single command
   that performs it end to end.
