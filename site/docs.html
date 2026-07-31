@@ -534,6 +534,17 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   .shell{display:block}
   .md{max-width:none}
 }
+
+  /* ── Vulos suite chrome — identical on every product landing ───────────────
+     Two elements, and only two: a logo-only home button in the top bar, and
+     one line in the footer. Deliberately free of repo variables so the block
+     is byte-identical across the suite and can be diffed as one thing. */
+  .vulos-home { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; opacity: .72; transition: opacity .15s ease, transform .15s ease; }
+  .vulos-home:hover, .vulos-home:focus-visible { opacity: 1; transform: translateY(-1px); }
+  .vulos-home img { display: block; width: 22px; height: 22px; border-radius: 6px; }
+  .vulos-foot { display: inline-flex; align-items: center; gap: 9px; font-size: 13.5px; line-height: 1.45; text-decoration: none; color: inherit; opacity: .85; transition: opacity .15s ease; }
+  .vulos-foot:hover { opacity: 1; text-decoration: none; }
+  .vulos-foot img { display: block; width: 18px; height: 18px; border-radius: 5px; flex: 0 0 auto; }
 </style>
 <!-- Vendored locally: the page makes no external requests of any kind. -->
 <script src="./assets/vendor/marked.umd.js"></script>
@@ -569,6 +580,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
       <span class="motto">Everything the project claims, written down where it can be checked against the code.</span>
     </div>
   </div>
+  <a class="vulos-home" href="https://vulos.org" target="_blank" rel="noopener" title="Vulos — open, self-hostable software" aria-label="Vulos — open, self-hostable software"><img src="./assets/vulos-logo.png" alt="" width="22" height="22"></a>
 </header>
 
 <nav class="rail" aria-label="Documentation controls">
@@ -639,27 +651,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <footer class="colophon">
   <div class="sheet">
-    <div class="imprint">
-      <div class="imp-id">
-        <p class="imp-lbl">
-          <a href="https://vulos.org"><img src="./assets/vulos-logo.png" width="20" height="20" alt="">Part of VulOS</a>
-        </p>
-        <p class="imp-say">Open, self-hostable apps. Molao is standalone by design. <a href="https://vulos.org">vulos.org</a></p>
-      </div>
-      <nav class="imp-idx" aria-label="Molao">
-        <div class="imp-set">
-          <span class="imp-lbl">This site</span>
-          <a href="./index.html">Home</a>
-          <a href="./LICENSE.txt">Licence</a>
-        </div>
-        <div class="imp-set">
-          <span class="imp-lbl">Repository</span>
-          <a href="https://github.com/vul-os/molao">Source</a>
-          <a href="https://github.com/vul-os/molao/issues">Issues</a>
-        </div>
-      </nav>
-    </div>
-    <p class="fine">These pages are copies of the repository's own markdown, rendered in your browser.&nbsp;<span class="sep">·</span> No fonts, scripts, analytics or images are fetched from anywhere else.&nbsp;<span class="sep">·</span> MIT or Apache-2.0.</p>
+    <a class="vulos-foot" href="https://vulos.org" target="_blank" rel="noopener"><img src="./assets/vulos-logo.png" alt="" width="18" height="18"><span>Part of <strong>Vulos</strong> — open, self-hostable software</span></a>
+    <p class="fine">These pages are copies of the repository's own markdown, rendered in your browser.&nbsp;<span class="sep">·</span> No fonts, scripts, analytics or images are fetched from anywhere else.</p>
   </div>
 </footer>
 
