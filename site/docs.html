@@ -415,16 +415,54 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .pager .spacer{border:0;background:none}
 
 /* ── Colophon ───────────────────────────────────────────────────────────── */
+/* ── Colophon ──────────────────────────────────────────────────────────────
+   The same imprint the landing carries, so the two pages end the same way.
+   The defects were the landing's defects: a mark centred against a paragraph
+   instead of standing at its head, an unlabelled run of links, and — here
+   only — 21px tap targets, because the landing's 44px rule was never copied
+   across. See site/index.html for the full note. */
 .colophon{border-top:3px double var(--rule-3);padding:clamp(22px,3vw,30px) 0 clamp(24px,3.2vw,34px)}
-.colo{display:flex;flex-wrap:wrap;gap:14px 30px;justify-content:space-between;align-items:center}
-.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;max-width:46ch}
-.colo .who img{width:20px;height:20px;flex:none}
-.colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
-.colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.colo .links a:hover{color:var(--ink)}
-.fine{margin:15px 0 0;padding-top:13px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
-.fine span+span::before{content:"·";margin:0 .6em;color:var(--rule-3)}
-@media(max-width:560px){.fine{display:block}.fine span{display:block;margin-top:5px}.fine span+span::before{content:none}}
+.imprint{display:grid;gap:clamp(16px,2.6vw,28px) clamp(24px,4vw,72px);grid-template-columns:1fr}
+@media(min-width:640px){.imprint{grid-template-columns:minmax(0,1fr) auto;align-items:start}}
+
+.imp-lbl{
+  display:flex;align-items:center;gap:9px;margin:0 0 9px;
+  font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);font-weight:600;line-height:1.25;
+}
+.imp-lbl img{width:19px;flex:none}
+.imp-lbl a{color:var(--muted)}
+.imp-lbl a:hover,.imp-lbl a:focus-visible{color:var(--ink)}
+.imp-say{margin:0;font-size:14px;color:var(--muted);max-width:46ch;text-wrap:pretty}
+.imp-say a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:2.5px}
+.imp-say a:hover{text-decoration-color:var(--seal)}
+
+.imp-idx{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);gap:0 clamp(18px,4vw,40px)}
+.imp-idx .imp-set{display:contents}
+.imp-idx .imp-lbl{display:none}
+/* border-TOP, not bottom. A bottom rule on the last entry of each column
+   landed a hairline directly above the fine print's own rule, and the footer
+   ended in a stacked double line that read as a mistake. A top rule instead
+   closes the gap between the imprint and the index, and the list ends open. */
+.imp-idx a{
+  display:flex;align-items:center;min-height:40px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);transition:color .15s;
+}
+.imp-idx a:hover,.imp-idx a:focus-visible{color:var(--ink)}
+@media(min-width:640px){
+  .imp-idx{display:flex;gap:clamp(30px,5vw,72px)}
+  .imp-idx .imp-set{display:block}
+  .imp-idx .imp-lbl{display:flex}
+  .imp-idx a{display:block;min-height:0;padding:2px 0;border-top:0}
+}
+
+.fine{margin:clamp(14px,2.2vw,20px) 0 0;padding-top:13px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
+.fine span{display:inline-block}
+/* ::after on the item it follows, glued by a non-breaking space, so a wrapped
+   run can never begin a line with a stranded middot. */
+.fine span:not(:last-child)::after{content:"\00a0·";margin-right:.55em;color:var(--rule-3)}
+@media(max-width:560px){.fine{display:block}.fine span{display:block;margin-top:5px}.fine span:not(:last-child)::after{content:none}}
 
 @media print{
   .rail,.index,.scrim,.toc-inline,.toc-rail,.pager,.copy,.anchor,.strip{display:none!important}
@@ -538,18 +576,26 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <footer class="colophon">
   <div class="sheet">
-    <div class="colo">
-      <span class="who">
-        <img src="./assets/vulos-logo.png" alt="">
-        <span>Part of <a href="https://vulos.org" style="color:var(--ink)">VulOS</a> — open, self-hostable apps. Molao is standalone by design.</span>
-      </span>
-      <span class="links">
-        <a href="./index.html">Home</a>
-        <a href="https://github.com/vul-os/molao">Source</a>
-        <a href="https://github.com/vul-os/molao/issues">Issues</a>
-        <a href="./LICENSE.txt">Licence</a>
-        <a href="https://vulos.org">vulos.org</a>
-      </span>
+    <div class="imprint">
+      <div class="imp-id">
+        <p class="imp-lbl">
+          <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
+          <a href="https://vulos.org">Part of VulOS</a>
+        </p>
+        <p class="imp-say">Open, self-hostable apps. Molao is standalone by design. <a href="https://vulos.org">vulos.org</a></p>
+      </div>
+      <nav class="imp-idx" aria-label="Molao">
+        <div class="imp-set">
+          <span class="imp-lbl">This site</span>
+          <a href="./index.html">Home</a>
+          <a href="./LICENSE.txt">Licence</a>
+        </div>
+        <div class="imp-set">
+          <span class="imp-lbl">Repository</span>
+          <a href="https://github.com/vul-os/molao">Source</a>
+          <a href="https://github.com/vul-os/molao/issues">Issues</a>
+        </div>
+      </nav>
     </div>
     <p class="fine">
       <span>These pages are copies of the repository's own markdown, rendered in your browser.</span>

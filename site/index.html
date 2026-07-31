@@ -447,33 +447,79 @@ pre code{
 .honest li{color:var(--muted)}
 .honest .t{display:block}
 
-/* ── Colophon ──────────────────────────────────────────────────────────── */
+/* ── Colophon ──────────────────────────────────────────────────────────────
+   The imprint of a printed report: who published it, the standing index, and
+   the rights line. It replaces a flex row whose three separate defects were
+   really one defect — nothing in it was aligned to anything.
+
+   The VulOS mark was vertically centred against a three-line paragraph, so it
+   floated in the middle of the sentence instead of standing at its head. The
+   six links wrapped four-and-two, stranding SOURCE LICENCE on a row of their
+   own. And the "Part of VulOS" sentence, set on the same line as the links,
+   competed with them for the same eye.
+
+   The fix is structural, not cosmetic. The mark now sits ON the label line, so
+   it cannot float; the links are a labelled index in columns, so they cannot
+   wrap raggedly because they do not wrap at all; and the sentence has a column
+   of its own with a label above it, so it reads as an imprint rather than as
+   an unlabelled aside next to a nav. */
 .colophon{border-top:3px double var(--rule-3);padding:clamp(18px,3vw,32px) 0 clamp(20px,3.2vw,34px)}
-.colo{display:flex;flex-wrap:wrap;gap:16px 30px;justify-content:space-between;align-items:center}
-.colo .who{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:var(--t-xs);max-width:46ch}
-.colo .who img{width:20px;height:20px;flex:none}
-.colo .links{display:flex;flex-wrap:wrap;gap:8px 20px}
-.colo .links a{font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.colo .links a:hover{color:var(--ink)}
-/* On a phone these were 21px-high targets in a row of six. Give them the full
-   44px a thumb needs; the row gap goes to zero because the height now supplies
-   the separation. */
-@media(max-width:760px){
-  .colo .links{gap:0 18px}
-  .colo .links a{display:flex;align-items:center;min-height:44px}
+.imprint{display:grid;gap:clamp(16px,2.6vw,30px) clamp(24px,4vw,72px);grid-template-columns:1fr}
+/* The index leaves the flow at 640 and stands at the right margin, which also
+   closes the acre of dead paper that opened between the two at 1440. */
+@media(min-width:640px){.imprint{grid-template-columns:minmax(0,1fr) auto;align-items:start}}
+
+.imp-lbl{
+  display:flex;align-items:center;gap:9px;margin:0 0 9px;
+  font-family:var(--mono);font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);font-weight:600;line-height:1.25;
 }
+.imp-lbl img{width:19px;flex:none}
+.imp-lbl a{color:var(--muted)}
+.imp-lbl a:hover,.imp-lbl a:focus-visible{color:var(--ink)}
+.imp-say{margin:0;font-size:var(--t-xs);color:var(--muted);max-width:46ch;text-wrap:pretty}
+
+/* Phone: two columns of three, so every row is full. The set labels are the
+   one thing that goes — they are worth their line only where they sit beside
+   the imprint rather than above it. Each entry gets a rule and 40px, which is
+   both a thumb-sized target and how a standing index is set in print. */
+.imp-idx{display:grid;grid-auto-flow:column;grid-template-rows:repeat(3,auto);gap:0 clamp(18px,4vw,40px)}
+.imp-idx .imp-set{display:contents}
+.imp-idx .imp-lbl{display:none}
+/* border-TOP, not bottom. A bottom rule on the last entry of each column
+   landed a hairline directly above the fine print's own rule, and the footer
+   ended in a stacked double line that read as a mistake. A top rule instead
+   closes the gap between the imprint and the index, and the list ends open. */
+.imp-idx a{
+  display:flex;align-items:center;min-height:40px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);transition:color .15s;
+}
+.imp-idx a:hover,.imp-idx a:focus-visible{color:var(--ink)}
+@media(min-width:640px){
+  .imp-idx{display:flex;gap:clamp(30px,5vw,72px)}
+  .imp-idx .imp-set{display:block}
+  .imp-idx .imp-lbl{display:flex}
+  .imp-idx a{display:block;min-height:0;padding:2px 0;border-top:0}
+}
+
 /* The colophon line: one rule of meta items, not a paragraph. It used to be a
    single 70ch run-on that wrapped to four lines on a desktop and far more on a
    phone, which gave fine print more vertical weight than the links above it. */
-.fine{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--rule);
+.fine{margin:clamp(14px,2.2vw,20px) 0 0;padding-top:14px;border-top:1px solid var(--rule);
   display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
 .fine span{display:inline-block}
-.fine span+span::before{content:"·";margin:0 .6em;color:var(--rule-3)}
+/* THE ORPHAN THIS FIXES. The separator used to be ::before on the FOLLOWING
+   item, so when the run wrapped it carried the middot to the head of the new
+   line — at 1440 the last line of the colophon literally began "· No outbound
+   requests". As ::after on the item it follows, glued by a non-breaking space,
+   a middot can only ever end a line. */
+.fine span:not(:last-child)::after{content:"\00a0·";margin-right:.55em;color:var(--rule-3)}
 @media (max-width:560px){
   /* Stacked on a phone, where a middot rule would wrap into orphans. */
   .fine{display:block}
   .fine span{display:block;margin-top:5px}
-  .fine span+span::before{content:none}
+  .fine span:not(:last-child)::after{content:none}
 }
 </style>
 </head>
@@ -1019,19 +1065,28 @@ pre code{
 
 <footer class="colophon">
   <div class="sheet">
-    <div class="colo">
-      <div class="who">
-        <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
-        <span>Part of <a href="https://vulos.org" style="color:var(--ink)">VulOS</a> — open, self-hostable software. Molao runs standalone by design, and bills nothing, hosts nothing, and has no paid tier.</span>
+    <div class="imprint">
+      <div class="imp-id">
+        <p class="imp-lbl">
+          <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
+          <a href="https://vulos.org">Part of VulOS</a>
+        </p>
+        <p class="imp-say">Open, self-hostable software. Molao runs standalone by design, and bills nothing, hosts nothing, and has no paid tier.</p>
       </div>
-      <div class="links">
-        <a href="./docs.html">Documentation</a>
-        <a href="./docs.html#governance">Governance</a>
-        <a href="./docs.html#faq">FAQ</a>
-        <a href="./docs.html#roadmap">Roadmap</a>
-        <a href="https://github.com/vul-os/molao">Source</a>
-        <a href="./LICENSE.txt">Licence</a>
-      </div>
+      <nav class="imp-idx" aria-label="Molao">
+        <div class="imp-set">
+          <span class="imp-lbl">Read</span>
+          <a href="./docs.html">Documentation</a>
+          <a href="./docs.html#governance">Governance</a>
+          <a href="./docs.html#faq">FAQ</a>
+          <a href="./docs.html#roadmap">Roadmap</a>
+        </div>
+        <div class="imp-set">
+          <span class="imp-lbl">Repository</span>
+          <a href="https://github.com/vul-os/molao">Source</a>
+          <a href="./LICENSE.txt">Licence</a>
+        </div>
+      </nav>
     </div>
     <p class="fine">
       <span>MIT or Apache-2.0 · © Molao contributors</span>
