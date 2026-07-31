@@ -350,6 +350,23 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;
   color:var(--muted);background:var(--surface);border:1px solid var(--rule-2);padding:3px 8px;border-radius:2px;
 }
+/* THE SLICED LINE THIS SIGNPOSTS. A shell block with a right-aligned comment
+   is wider than a 390px column, so it scrolls inside itself — and it did so
+   with no affordance at all, rendering "molao regions        # w" with the
+   word cut at the frame edge. That does not read as swipeable, it reads as
+   broken. The landing solved exactly this for its index rail; this is the same
+   fix in the one form a bordered plate allows: a gradient laid INSIDE the
+   border rather than a mask over the element, which would have faded the
+   plate's own background and rule along with the text.
+
+   data-fade is set by script to whichever edges actually have content past
+   them, so a block that fits is never dimmed and the fade never claims there
+   is more when there is not. */
+.codefig::before,.codefig::after{content:"";position:absolute;top:1px;bottom:1px;width:34px;pointer-events:none;opacity:0;transition:opacity .14s}
+.codefig::before{left:1px;background:linear-gradient(to left,transparent,var(--sink))}
+.codefig::after{right:1px;background:linear-gradient(to right,transparent,var(--sink))}
+.codefig[data-fade="right"]::after,.codefig[data-fade="both"]::after{opacity:1}
+.codefig[data-fade="left"]::before,.codefig[data-fade="both"]::before{opacity:1}
 .codefig:hover .copy,.copy:focus-visible{opacity:1}
 .copy:hover{color:var(--ink);border-color:var(--seal)}
 .copy.done{color:var(--ok);border-color:var(--ok);opacity:1}
@@ -431,7 +448,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   color:var(--faint);font-weight:600;line-height:1.25;
 }
 .imp-lbl img{width:19px;flex:none}
-.imp-lbl a{color:var(--muted)}
+/* The mark is inside the link, so the target is the whole row rather than the
+   15px of type beside it. The negative margin pays back the padding, so this
+   costs nothing in height. */
+.imp-lbl a{display:flex;align-items:center;gap:9px;min-height:36px;margin:-9px 0;color:var(--muted)}
 .imp-lbl a:hover,.imp-lbl a:focus-visible{color:var(--ink)}
 .imp-say{margin:0;font-size:14px;color:var(--muted);max-width:46ch;text-wrap:pretty}
 .imp-say a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule-2);text-underline-offset:2.5px}
@@ -451,18 +471,23 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 }
 .imp-idx a:hover,.imp-idx a:focus-visible{color:var(--ink)}
 @media(min-width:640px){
-  .imp-idx{display:flex;gap:clamp(30px,5vw,72px)}
-  .imp-idx .imp-set{display:block}
+  .imp-idx{display:flex;gap:clamp(26px,4vw,72px)}
+  .imp-idx .imp-set{display:block;min-width:9.4em}
   .imp-idx .imp-lbl{display:flex}
-  .imp-idx a{display:block;min-height:0;padding:2px 0;border-top:0}
+}
+/* The compact index is for a pointer. A tablet at 768 is a thumb, and the
+   entries there were 25px — so the 40px rows and their rules hold until 900,
+   where the page is unambiguously a desk. */
+@media(min-width:900px){
+  .imp-idx a{display:block;min-height:0;padding:5px 0;border-top:0}
 }
 
-.fine{margin:clamp(14px,2.2vw,20px) 0 0;padding-top:13px;border-top:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
-.fine span{display:inline-block}
-/* ::after on the item it follows, glued by a non-breaking space, so a wrapped
-   run can never begin a line with a stranded middot. */
-.fine span:not(:last-child)::after{content:"\00a0·";margin-right:.55em;color:var(--rule-3)}
-@media(max-width:560px){.fine{display:block}.fine span{display:block;margin-top:5px}.fine span:not(:last-child)::after{content:none}}
+/* One paragraph, separators as real characters glued to the word before them.
+   See site/index.html for why generated separators could not be made to wrap
+   without stranding one at a line edge. --muted, not --faint: --faint is
+   4.33:1 on this paper at 13px, under the AA floor. */
+.fine{margin:clamp(14px,2.2vw,20px) 0 0;padding-top:13px;border-top:1px solid var(--rule);font-size:13px;line-height:1.5;color:var(--muted)}
+.fine .sep{color:var(--rule-3)}
 
 @media print{
   .rail,.index,.scrim,.toc-inline,.toc-rail,.pager,.copy,.anchor,.strip{display:none!important}
@@ -579,8 +604,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <div class="imprint">
       <div class="imp-id">
         <p class="imp-lbl">
-          <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
-          <a href="https://vulos.org">Part of VulOS</a>
+          <a href="https://vulos.org"><img src="./assets/vulos-logo.png" width="20" height="20" alt="">Part of VulOS</a>
         </p>
         <p class="imp-say">Open, self-hostable apps. Molao is standalone by design. <a href="https://vulos.org">vulos.org</a></p>
       </div>
@@ -597,11 +621,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
         </div>
       </nav>
     </div>
-    <p class="fine">
-      <span>These pages are copies of the repository's own markdown, rendered in your browser.</span>
-      <span>No fonts, scripts, analytics or images are fetched from anywhere else.</span>
-      <span>MIT or Apache-2.0.</span>
-    </p>
+    <p class="fine">These pages are copies of the repository's own markdown, rendered in your browser.&nbsp;<span class="sep">·</span> No fonts, scripts, analytics or images are fetched from anywhere else.&nbsp;<span class="sep">·</span> MIT or Apache-2.0.</p>
   </div>
 </footer>
 
@@ -1034,7 +1054,15 @@ function highlight(src, lang){
   return out;
 }
 
+// Re-measured on resize: a block that fits at 1440 does not fit at 390. The
+// list is rebuilt for each chapter, so it never holds a node that has been
+// replaced by the next one.
+const codeScrollers = [];
+window.addEventListener('resize', () => { for (const m of codeScrollers) m(); });
+
 function decorate(slug){
+  codeScrollers.length = 0;
+
   // Headings become deep-linkable: #chapter/section-id.
   const used = new Set();
   for (const h of content.querySelectorAll('h2, h3, h4')) {
@@ -1128,8 +1156,22 @@ function decorate(slug){
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1800);
     });
     fig.appendChild(btn);
+
+    // Mark which edges have code past them. CSS cannot ask "is this element
+    // scrolled", and a fade that was always on would claim there is more to
+    // see when there is not.
+    const mark = () => {
+      const over = pre.scrollWidth - pre.clientWidth;
+      if (over <= 1) { fig.dataset.fade = 'none'; return; }
+      const left = pre.scrollLeft > 2, right = pre.scrollLeft < over - 2;
+      fig.dataset.fade = left && right ? 'both' : right ? 'right' : 'left';
+    };
+    pre.addEventListener('scroll', mark, { passive: true });
+    codeScrollers.push(mark);
+    mark();
   }
 }
+
 
 function renderPager(doc){
   const prev = DOCS[doc.n - 2], next = DOCS[doc.n];

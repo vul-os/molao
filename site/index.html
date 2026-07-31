@@ -83,7 +83,16 @@
   --lh:1.66; --p-gap:1.05em;
   /* Vertical rhythm, phone → desktop. Named so the whole page tightens from
      one place rather than from thirty scattered clamps. */
-  --gap-chapter:clamp(25px,6.5vw,86px);   /* padding above/below a chapter   */
+  /* The chapter gap is the one token that should not track the others one for
+     one. A chapter break is already drawn — a 3px double rule — so the padding
+     only has to beat the gaps INSIDE a chapter, and those are 14px on a phone.
+     At 6.5vw a phone spent 25px each side, so 53px of air crossed a boundary
+     that already had a rule on it, against 14px within one. 5.6vw brings that
+     to 46px, still three times the internal gap, and returns 56px across the
+     nine chapters — which is what the rebuilt colophon costs. The ceiling is
+     unchanged: at 1440 the measure is three times wider and the paper is right
+     at 80px. */
+  --gap-chapter:clamp(21px,5.6vw,86px);   /* padding above/below a chapter   */
   --gap-block:clamp(14px,3vw,32px);       /* the spacer between blocks       */
   --gap-stand:clamp(12px,3vw,34px);       /* standfirst to the body below it */
 }
@@ -132,6 +141,20 @@ strong{font-weight:600;color:var(--ink)}
 em{font-style:italic}
 .sheet{max-width:var(--sheet);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
 .prose{max-width:66ch}
+
+/* ── Rag ───────────────────────────────────────────────────────────────────
+   The thing a harness cannot see. Every paragraph on this page is measured for
+   overflow and for size, and none of that catches a nine-line paragraph whose
+   tenth line is the word "produce." — which is what a 44-character measure
+   does to long-form prose over and over. `pretty` asks the engine to look at
+   the last few lines together and pull a word down rather than strand one.
+
+   `balance` on the headings is the same argument at the other end: a
+   two-line title set 90/10 reads as a mistake, and every title on this page is
+   short enough for the browser to balance without cost. Both degrade to
+   nothing where they are not supported, so neither is load-bearing. */
+p,li,figcaption,.stand,.lede,.after,.held,.d,.imp-say,.fine span,.facts .v{text-wrap:pretty}
+h1,h2,h3,.notice h2,.motto{text-wrap:balance}
 
 code,.mono{font-family:var(--mono);font-variation-settings:normal}
 code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);white-space:nowrap}
@@ -206,7 +229,10 @@ code{font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--r
 
 :focus-visible{outline:2px solid var(--seal);outline-offset:3px;border-radius:2px}
 .skip{position:absolute;left:-9999px}
-.skip:focus{position:static;display:inline-block;margin:8px;font-family:var(--mono);font-size:13px}
+/* When it is on screen it is the first thing a keyboard or a switch reaches,
+   and it was a 24px target. */
+.skip:focus{position:static;display:inline-flex;align-items:center;min-height:44px;margin:8px;padding:0 14px;
+  border:1px solid var(--rule-3);background:var(--surface);font-family:var(--mono);font-size:13px}
 
 /* ── Opening ─────────────────────────────────────────────────────────────── */
 /* padding-block only: the shorthand here also reset .sheet's horizontal
@@ -243,6 +269,13 @@ h1 .brk{display:block}
 .btn.seal{background:var(--seal);border-color:var(--seal);color:#1A1713;font-weight:600}
 .btn.seal:hover{background:#D8912C;border-color:#D8912C}
 .btn .arrow{font-size:15px;line-height:1}
+/* At 390 these were three pills of three different widths stacked down the
+   left, which reads as three sizes of nothing rather than three choices. One
+   column, one width, the arrow at the far margin. No change in height. */
+@media(max-width:480px){
+  .acts{display:grid;grid-template-columns:1fr;gap:8px}
+  .btn{justify-content:space-between}
+}
 
 /* ── Notice: the honest status, immediately after the opening ───────────── */
 .notice{border:1px solid var(--rule-2);border-left:4px solid var(--seal);background:var(--surface);padding:clamp(16px,3vw,28px);margin-top:clamp(20px,4vw,42px)}
@@ -324,6 +357,17 @@ figure{margin:0}
 .fig .paper{fill:var(--surface);stroke:var(--rule-2)}
 figcaption{font-size:var(--t-xs);color:var(--faint);margin-top:9px;line-height:1.45;max-width:62ch}
 figcaption strong{color:var(--muted)}
+/* THE CLIPPED SENTENCES THIS FIXES. All three figures carried a footnote
+   inside the SVG — a rule and two to four lines of prose set in viewBox units.
+   A drawing survives being scrolled sideways; a sentence does not. At 390 the
+   figure is 600 units wide in a 330px window, so every one of those lines was
+   cut mid-word: "…shared by every jurisdicti", "…however many times it sig".
+   The drawing stays in the SVG where scrolling is fine. The prose comes out
+   into HTML, where it wraps to the reader's measure at any width, and the
+   viewBoxes lose the band they occupied. */
+.fig-note{font-size:var(--t-xs);color:var(--muted);line-height:1.5;margin:11px 0 0;padding-top:11px;border-top:1px solid var(--rule)}
+.fig-note strong{color:var(--ink)}
+.fig-note code{font-size:12.4px}
 
 /* ── Ledger (jurisdiction map) ─────────────────────────────────────────── */
 .ledger-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--surface)}
@@ -475,7 +519,10 @@ pre code{
   color:var(--faint);font-weight:600;line-height:1.25;
 }
 .imp-lbl img{width:19px;flex:none}
-.imp-lbl a{color:var(--muted)}
+/* The mark is inside the link, so the target is the whole row rather than the
+   15px of type beside it. The negative margin pays back the padding, so this
+   costs nothing in height. */
+.imp-lbl a{display:flex;align-items:center;gap:9px;min-height:36px;margin:-9px 0;color:var(--muted)}
 .imp-lbl a:hover,.imp-lbl a:focus-visible{color:var(--ink)}
 .imp-say{margin:0;font-size:var(--t-xs);color:var(--muted);max-width:46ch;text-wrap:pretty}
 
@@ -497,30 +544,39 @@ pre code{
 }
 .imp-idx a:hover,.imp-idx a:focus-visible{color:var(--ink)}
 @media(min-width:640px){
-  .imp-idx{display:flex;gap:clamp(30px,5vw,72px)}
-  .imp-idx .imp-set{display:block}
+  .imp-idx{display:flex;gap:clamp(26px,4vw,72px)}
+  .imp-idx .imp-set{display:block;min-width:9.4em}
   .imp-idx .imp-lbl{display:flex}
-  .imp-idx a{display:block;min-height:0;padding:2px 0;border-top:0}
+}
+/* The compact index is for a pointer. A tablet at 768 is a thumb, and the
+   entries there were 25px — so the 40px rows and their rules hold until 900,
+   where the page is unambiguously a desk. */
+@media(min-width:900px){
+  .imp-idx a{display:block;min-height:0;padding:5px 0;border-top:0}
 }
 
-/* The colophon line: one rule of meta items, not a paragraph. It used to be a
-   single 70ch run-on that wrapped to four lines on a desktop and far more on a
-   phone, which gave fine print more vertical weight than the links above it. */
+/* THE DANGLING SEPARATOR THIS FIXES, and the stack the owner disliked.
+
+   The rights line was three flex items with the middot generated between them.
+   As ::before on the FOLLOWING item a wrapped run carried the middot to the
+   head of the new line, and at 1440 the last line of the page literally began
+   "· No outbound requests". Moving it to ::after only moved the problem: at
+   768 each item takes a line of its own, so every line then ENDED with a
+   separator pointing at nothing. And on a phone the three items stacked into
+   three full-width statements, which gave fine print the same weight as the
+   links above it.
+
+   It is one paragraph now — the imprint's rights line, as it would be set in
+   print. The separators are real characters in the text, glued to the word
+   before them by a non-breaking space, so they wrap the way punctuation wraps
+   and there is no state in which one is stranded. Four tight lines at 390
+   instead of five spaced ones, two at 1440.
+
+   Colour moved from --faint to --muted: on this paper --faint measures 4.33:1
+   at 13px, just under the 4.5:1 AA floor. Fine print is still text. */
 .fine{margin:clamp(14px,2.2vw,20px) 0 0;padding-top:14px;border-top:1px solid var(--rule);
-  display:flex;flex-wrap:wrap;gap:4px 0;font-size:13px;color:var(--faint)}
-.fine span{display:inline-block}
-/* THE ORPHAN THIS FIXES. The separator used to be ::before on the FOLLOWING
-   item, so when the run wrapped it carried the middot to the head of the new
-   line — at 1440 the last line of the colophon literally began "· No outbound
-   requests". As ::after on the item it follows, glued by a non-breaking space,
-   a middot can only ever end a line. */
-.fine span:not(:last-child)::after{content:"\00a0·";margin-right:.55em;color:var(--rule-3)}
-@media (max-width:560px){
-  /* Stacked on a phone, where a middot rule would wrap into orphans. */
-  .fine{display:block}
-  .fine span{display:block;margin-top:5px}
-  .fine span:not(:last-child)::after{content:none}
-}
+  font-size:13px;line-height:1.5;color:var(--muted)}
+.fine .sep{color:var(--rule-3)}
 </style>
 </head>
 <body>
@@ -664,7 +720,7 @@ pre code{
 
       <figure class="fig">
         <div class="fig-scroll swipe">
-          <svg viewBox="0 0 700 330" role="img" aria-labelledby="fig1t fig1d">
+          <svg viewBox="0 0 700 264" role="img" aria-labelledby="fig1t fig1d">
             <title id="fig1t">Authority ranking from inbound citations weighted by court tier</title>
             <desc id="fig1d">Four citing courts on the left — Apex weighted 1.00, Appellate 0.80, High Court 0.50 and Lower 0.10 — send citation edges of increasing thickness into a single judgment at the centre. On the right, the judgment's own outbound citations leave towards the cases it relies on.</desc>
 
@@ -706,11 +762,9 @@ pre code{
             <rect x="612" y="198" width="80" height="34" rx="2" class="box"/>
             <text x="652" y="220" text-anchor="middle">cites</text>
 
-            <line x1="8" y1="278" x2="692" y2="278" stroke="var(--rule)" stroke-width="1"/>
-            <text x="8" y="302">Weights are constants in molao-core, shared by every jurisdiction.</text>
-            <text x="8" y="322">A region profile picks a court's tier; it cannot re-weight a tier.</text>
           </svg>
         </div>
+        <p class="fig-note">Weights are constants in <code>molao-core</code>, shared by every jurisdiction. A region profile picks a court's tier; it cannot re-weight a tier.</p>
         <figcaption><span class="lbl">Figure 1</span> Authority ranking is inbound citations weighted by the citing court's place in the hierarchy — an appellate judgment relying on a case says more about that case than a first-instance one does. <strong>Deliberately coarse:</strong> no constant captures a theory of precedent, and this one does not pretend to.</figcaption>
       </figure>
 
@@ -737,9 +791,9 @@ pre code{
       <div class="cols">
         <figure class="fig">
           <div class="fig-scroll swipe">
-            <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig2t fig2d">
+            <svg viewBox="0 0 700 252" role="img" aria-labelledby="fig2t fig2d">
               <title id="fig2t">A release is signed by k of n independent organisations</title>
-              <desc id="fig2d">A manifest naming the corpus root, graph root and previous release is signed by three of five independent signers; two have not signed. Below, a note records that a threshold of one is refused by the verifier even when every signature is valid.</desc>
+              <desc id="fig2d">A manifest naming the corpus root, graph root and previous release is signed by three of five independent signers; two have not signed.</desc>
 
               <rect x="8" y="60" width="210" height="128" rx="2" class="paper" stroke-width="1.5"/>
               <text x="24" y="86" class="strong">Manifest</text>
@@ -776,19 +830,15 @@ pre code{
               <path d="M660 30 L 672 30 L 672 150 L 660 150" class="ln-2" stroke-width="1.5"/>
               <text x="612" y="96" class="seal">3 of 5</text>
 
-              <line x1="8" y1="268" x2="692" y2="268" stroke="var(--rule)"/>
-              <text x="8" y="296" class="strong">Refused in code, however valid the signatures:</text>
-              <text x="8" y="320">threshold &lt; 2 · threshold &gt; signers · duplicate keys in a set</text>
-              <text x="8" y="344">one key counts once, however many times it signs</text>
-              <text x="8" y="368">signatures from outside the set are ignored</text>
             </svg>
           </div>
+          <p class="fig-note"><strong>Refused in code, however valid the signatures:</strong> threshold &lt; 2 · threshold &gt; signers · duplicate keys in a set · one key counts once, however many times it signs · signatures from outside the set are ignored.</p>
           <figcaption><span class="lbl">Figure 2</span> A threshold of one is a single point of authority wearing a quorum's clothes, so <code>verify()</code> refuses it. <strong>No single party can publish a release, including the project that wrote the code</strong> — that is not a policy statement, it is what the function does.</figcaption>
         </figure>
 
         <figure class="fig">
           <div class="fig-scroll swipe">
-            <svg viewBox="0 0 700 400" role="img" aria-labelledby="fig3t fig3d">
+            <svg viewBox="0 0 700 302" role="img" aria-labelledby="fig3t fig3d">
               <title id="fig3t">Releases chain by hash, so a fork is detectable</title>
               <desc id="fig3d">Three releases in sequence, each naming its predecessor's hash. A fourth, divergent release branches from the second and is marked as detectable against any known head.</desc>
 
@@ -824,11 +874,9 @@ pre code{
               <text x="268" y="256">previous: 8a88e3dd…</text>
               <text x="268" y="278">root: 9911ee00…</text>
 
-              <line x1="12" y1="320" x2="688" y2="320" stroke="var(--rule)"/>
-              <text x="12" y="348">Two heads claiming the same predecessor is a fork,</text>
-              <text x="12" y="372">and it is detectable against any head you already hold.</text>
             </svg>
           </div>
+          <p class="fig-note">Two heads claiming the same predecessor is a fork, and it is detectable against any head you already hold.</p>
           <figcaption><span class="lbl">Figure 3</span> Chaining is implemented. What is <strong>designed, not built</strong> is the public append-only log — the independent record, monitored by non-signers, that would also catch a quorum quietly rewriting history. Until it exists, split-view detection is manual: compare your head against another node's.</figcaption>
         </figure>
       </div>
@@ -1068,8 +1116,7 @@ pre code{
     <div class="imprint">
       <div class="imp-id">
         <p class="imp-lbl">
-          <img src="./assets/vulos-logo.png" width="20" height="20" alt="">
-          <a href="https://vulos.org">Part of VulOS</a>
+          <a href="https://vulos.org"><img src="./assets/vulos-logo.png" width="20" height="20" alt="">Part of VulOS</a>
         </p>
         <p class="imp-say">Open, self-hostable software. Molao runs standalone by design, and bills nothing, hosts nothing, and has no paid tier.</p>
       </div>
@@ -1088,11 +1135,7 @@ pre code{
         </div>
       </nav>
     </div>
-    <p class="fine">
-      <span>MIT or Apache-2.0 · © Molao contributors</span>
-      <span>The judgments are nobody's to license — they are the work of the courts</span>
-      <span>No outbound requests: fonts, mark and figures all served from this origin</span>
-    </p>
+    <p class="fine">MIT or Apache-2.0&nbsp;<span class="sep">·</span> © Molao contributors&nbsp;<span class="sep">·</span> The judgments are nobody's to license — they are the work of the courts&nbsp;<span class="sep">·</span> No outbound requests: fonts, mark and figures all served from this origin</p>
   </div>
 </footer>
 
