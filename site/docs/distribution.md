@@ -107,7 +107,7 @@ and is described in full in
 `molao release fetch --from <dir> --into <dir> --signers <set.json>` does all
 of it and **writes nothing** if any check fails. To go further — to check the
 release against a corpus you hold, and to re-run the pinned extractor over its
-text — use `molao verify --db`, which reports seven steps individually.
+text — use `molao verify --db`, which reports eight steps individually.
 
 A release that fails any of these is rejected regardless of where it came
 from. Trusting a transport is never a substitute for this, and Molao does not

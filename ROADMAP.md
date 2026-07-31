@@ -103,9 +103,9 @@ real corpus yet, and the cache-sharing path is design, not a running feature.
 
 ## Phase 2 — Verification end to end · Built, never run on a real release
 
-`molao verify` performs **seven** steps, each reporting PASS / FAIL / SKIP with
+`molao verify` performs **eight** steps, each reporting PASS / FAIL / SKIP with
 the evidence it examined, and a SKIP is not a pass — the command exits 0 only
-when all seven pass, 1 on failure, and 2 on an incomplete run.
+when all eight pass, 1 on failure, and 2 on an incomplete run.
 
 - Corpus root computation over sorted document ids · **built**
 - Graph root computation, and re-running the pinned `EXTRACTOR_VERSION` to
@@ -115,12 +115,15 @@ when all seven pass, 1 on failure, and 2 on an incomplete run.
   own tampering)
 - A single `molao verify` command performing every step · **built**
 - Signer-set binding: a manifest names the set that signed it
-  (`molao-release-v2`), so a roster mismatch is reported as such · **built**
+  (`molao-release-v3`), so a roster mismatch is reported as such · **built**
+- Region-profile binding: a manifest records the profile the extractor ran
+  under, so a node that cannot reproduce the graph says so instead of
+  reporting a bare root disagreement · **built**
 - Reproducible-build tooling so two builders can prove they agree · **not
   built**
 
 `molao-core`'s roots are defined once and shared, rather than transcribed per
-crate as they were. The seven steps were each mutation-tested individually —
+crate as they were. The eight steps were each mutation-tested individually —
 including with backstops disabled, so that a guard sitting behind a broader
 integrity check could not read as live when it was dead.
 

@@ -120,7 +120,7 @@ uses fewer forms simply matches fewer of them.
 > vector+keyword search cache, rebuildable and unsigned, never part of a
 > release). All three are now wired into the node — `molao release
 > publish/sign/fetch/torrent` package and move a release, and `molao verify`
-> checks one in seven steps, including re-running the pinned extractor over
+> checks one in eight steps, including re-running the pinned extractor over
 > the stored text. **But none of it has carried real data**: no release has
 > been published, neither transport has moved one, and nothing has run against
 > a real jurisdiction. Treatment attestations are **built but unused** — the

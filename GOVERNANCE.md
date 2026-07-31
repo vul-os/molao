@@ -45,7 +45,7 @@ signer set have signed its manifest. Enforced in code, in
 - Signatures from keys outside the set are ignored, however valid.
 
 `epoch` is bumped whenever membership changes, and a manifest names the set it
-was signed under (`molao-release-v2` carries `SignerSet::fingerprint()`), so a
+was signed under (`molao-release-v3` carries `SignerSet::fingerprint()`), so a
 release and a roster that do not match each other say so instead of failing as
 a baffling "0 valid signatures".
 
@@ -218,7 +218,7 @@ There is no rotation ceremony, no defined response to a compromised key, and no
 stated position on the status of signatures that key already made.
 
 What *does* exist: a manifest now names the signer set it was signed under
-(`molao-release-v2` carries `SignerSet::fingerprint()`), so signatures can at
+(`molao-release-v3` carries `SignerSet::fingerprint()`), so signatures can at
 least be scoped to the roster in force at the time rather than floating free.
 That is a consistency check, not an authority check — it can report a roster
 mismatch, but it cannot tell a reader that the set they hold is the current
