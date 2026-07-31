@@ -46,7 +46,19 @@ const browser = await chromium.launch();
 
 // Instrumented page: returns the recorders so each check can read them.
 async function open(w, h, scheme) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: scheme, deviceScaleFactor: 1 });
+  // `reducedMotion: 'reduce'` is load-bearing here for the same reason it is in
+  // check-site.mjs, and its absence was a real intermittent failure: the page
+  // sets `scroll-behavior: smooth`, so clicking `#burger` straight after a
+  // scroll raced the animation and the drawer assertion failed roughly one run
+  // in eight. The page was fine; the harness was measuring mid-animation. A
+  // check that fails at random teaches people to re-run it until it passes,
+  // which is worse than not having it.
+  const ctx = await browser.newContext({
+    viewport: { width: w, height: h },
+    colorScheme: scheme,
+    deviceScaleFactor: 1,
+    reducedMotion: 'reduce',
+  });
   const page = await ctx.newPage();
   const external = [], failed = [], consoleErrs = [];
   page.on('request', r => { if (!r.url().startsWith(base) && !r.url().startsWith('data:')) external.push(r.url()); });
