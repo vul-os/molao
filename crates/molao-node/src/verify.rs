@@ -1,4 +1,4 @@
-//! Release verification for `molao verify` — all seven steps.
+//! Release verification for `molao verify` — all eight steps.
 //!
 //! Verification answers a bounded question: **is the corpus on this disk the
 //! one a quorum of the signer set signed?** It says nothing about whether the
@@ -12,11 +12,12 @@
 //! release *does* carry is a fingerprint of the set it was signed under, which
 //! is a commitment rather than a list — see step 2.
 //!
-//! ## Seven steps, reported one by one
+//! ## Eight steps, reported one by one
 //!
 //! [`docs/RELEASES.md`](../../../docs/RELEASES.md) describes the flow a reader
-//! should follow. These are its mechanical parts. It listed six; step 2 is a
-//! seventh that became checkable when `Manifest::signer_set` was added.
+//! should follow. These are its mechanical parts. It listed six; step 2 became
+//! checkable when `Manifest::signer_set` was added, and step 7 when
+//! `Manifest::region_profile` was.
 //!
 //! | # | Step | Needs |
 //! |---|---|---|
@@ -26,7 +27,8 @@
 //! | 4 | the release chains onto the head you already hold | `--previous`, or a genesis release |
 //! | 5 | every document re-hashes to the id it claims | `--db` |
 //! | 6 | `corpus_root` and `doc_count` match the documents held | `--db` |
-//! | 7 | re-running the pinned extractor reproduces `graph_root` | `--db` |
+//! | 7 | this node extracts under the region profile the release names | nothing |
+//! | 8 | re-running the pinned extractor reproduces `graph_root` | `--db` |
 //!
 //! A step is reported `PASS`, `FAIL`, or `SKIP`, and **`SKIP` is not a pass**.
 //! Running three checks and printing OK is the exact failure this per-step
@@ -47,11 +49,11 @@
 //! its own: the composed check would catch it and step 2 would look alive while
 //! being dead. Each step must be able to go red by itself.
 //!
-//! ## Why step 7 is not "compare two strings"
+//! ## Why step 8 is not "compare two strings"
 //!
 //! `graph_root` is only worth anything because the graph is reproducible: the
 //! manifest pins an `extractor_version`, and anyone can re-run that version over
-//! the same text and must get byte-identical output. So step 7 does exactly
+//! the same text and must get byte-identical output. So step 8 does exactly
 //! that — it re-extracts every citation from the stored paragraph text with
 //! `molao-cite`, resolves them, rebuilds the edge set, and recomputes the root.
 //! It never reads the stored citation table for its answer; it *also* rebuilds
@@ -61,6 +63,25 @@
 //!
 //! A binary whose extractor is not the pinned one cannot perform this step and
 //! says so. It does not compare the roots anyway and call it a pass.
+//!
+//! ## Why the region profile is a step of its own
+//!
+//! `extractor_version` pins the citation grammar. It does not pin the court
+//! codes and law-report series the grammar matches against — that is profile
+//! data, supplied by the operator or compiled in, and it decides whether a
+//! neutral citation is kept and whether a reported citation is found at all. A
+//! node re-extracting under a different profile therefore computes a different
+//! `graph_root` from an identical corpus. Before the manifest recorded the
+//! profile, that arrived as a bare root disagreement, indistinguishable from a
+//! tampered corpus and with nothing to point the reader at the actual cause.
+//!
+//! Step 7 answers it by name, and a mismatch is a `SKIP` rather than a `FAIL`
+//! — the same verdict an unpinned `extractor_version` gets in step 8, and for
+//! the same reason. The release may be perfectly good; what is true is that
+//! *this node cannot check it*, which is what `SKIP` means here. It is not a
+//! pass: `SKIP` makes the run `Incomplete` and exits 2. Step 8 then skips as
+//! well, because a root recomputed under the wrong registry is not evidence
+//! about the right one.
 
 use anyhow::{Context, Result};
 use molao_core::doc::DocId;
@@ -74,7 +95,7 @@ use std::path::Path;
 /// exactly this many, numbered 1 to `STEP_COUNT`, is a bug in this module and
 /// is rejected rather than printed — a verifier that quietly dropped a step
 /// would report a narrower check under a wider name.
-pub const STEP_COUNT: usize = 7;
+pub const STEP_COUNT: usize = 8;
 
 /// The result of one step.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,13 +164,14 @@ const STEP_NAMES: [&str; STEP_COUNT] = [
     "chain",
     "documents",
     "corpus root",
+    "region profile",
     "graph root",
 ];
 
 /// The overall answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
-    /// All seven steps ran and passed.
+    /// All eight steps ran and passed.
     Verified,
     /// At least one step failed.
     Failed,
@@ -207,7 +229,7 @@ impl Report {
         self.outcome() == Outcome::Verified
     }
 
-    /// Reject a report that is not a full seven numbered 1..=7, exactly once
+    /// Reject a report that is not a full eight numbered 1..=8, exactly once
     /// each. Called before anything renders or acts on one.
     pub fn check_shape(&self) -> Result<()> {
         anyhow::ensure!(
@@ -289,7 +311,8 @@ pub fn verify(inputs: &Inputs<'_>) -> Report {
         step_4_chain(inputs.release, inputs.previous),
         step_5_documents(inputs.corpus),
         step_6_corpus_root(manifest, inputs.corpus),
-        step_7_graph_root(manifest, inputs.corpus),
+        step_7_region_profile(manifest),
+        step_8_graph_root(manifest, inputs.corpus),
     ];
     Report {
         release: manifest.release,
@@ -541,10 +564,50 @@ fn document_ids(corpus: &Corpus) -> Result<Vec<DocId>> {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7 — graph root, by re-running the pinned extractor
+// Step 7 — this node extracts under the profile the release names
 // ---------------------------------------------------------------------------
 
-fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
+/// The profile this node's extractor is bound to, and its fingerprint.
+///
+/// Read through `molao_cite`, which reports the profile the cached extractor
+/// *actually* bound rather than the one `region::default_profile()` would
+/// resolve now. The two differ in a process that installed profiles late, and
+/// only the former describes any graph this node produces or recomputes.
+fn local_profile() -> (&'static molao_core::region::RegionProfile, String) {
+    let p = molao_cite::extraction_profile();
+    let fp = molao_cite::extraction_profile_fingerprint();
+    (p, fp)
+}
+
+fn step_7_region_profile(manifest: &Manifest) -> Finding {
+    let (profile, held) = local_profile();
+    let detail = format!(
+        "release names region profile {}, this node extracts under {} ({}, {} court(s), \
+         {} series)",
+        short(&manifest.region_profile),
+        short(&held),
+        profile.code,
+        profile.courts.len(),
+        profile.series.len(),
+    );
+    // A mismatch is not evidence against the release — see the module docs. It
+    // is this node saying it cannot perform the reproduction, which is a SKIP,
+    // and a SKIP is not a pass.
+    let status = match manifest.check_region_profile(&held) {
+        Ok(()) => StepStatus::Pass,
+        Err(e) => StepStatus::Skip(format!(
+            "{e} — re-run with `--profiles <DIR>` pointing at the registry this release was \
+             built against, or ask the publisher which one that is"
+        )),
+    };
+    finding(status, detail)
+}
+
+// ---------------------------------------------------------------------------
+// Step 8 — graph root, by re-running the pinned extractor
+// ---------------------------------------------------------------------------
+
+fn step_8_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
     // A binary that is not the pinned extractor cannot perform this step. It
     // must say so rather than compare roots anyway: agreeing by accident and
     // agreeing by reproduction are not the same claim.
@@ -555,6 +618,19 @@ fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
                 manifest.extractor_version,
                 molao_cite::EXTRACTOR_VERSION
             )),
+            "not examined",
+        );
+    }
+    // Same argument one level along: the profile supplies the court codes and
+    // series the pinned grammar matches against, so a node holding a different
+    // one is not re-running the extraction the manifest describes. Recomputing
+    // a root under the wrong registry and comparing it would produce a
+    // disagreement that says nothing about the release — which is exactly the
+    // unexplained failure step 7 exists to replace.
+    let (_, held_profile) = local_profile();
+    if let Err(e) = manifest.check_region_profile(&held_profile) {
+        return finding(
+            StepStatus::Skip(format!("{e} — see step 7")),
             "not examined",
         );
     }
@@ -572,7 +648,7 @@ fn step_7_graph_root(manifest: &Manifest, corpus: Option<&Corpus>) -> Finding {
     };
 
     let computed = roots::graph_root(&reextracted);
-    let profile = molao_core::region::default_profile();
+    let (profile, _) = local_profile();
     let detail = format!(
         "{} edge(s) re-extracted with {} under region profile {} ({}), recomputed root {computed}",
         reextracted.len(),
@@ -780,6 +856,7 @@ mod tests {
             doc_count: c.nodes().unwrap().len() as u64,
             graph_root: roots::graph_root(&reextract_edges(c).unwrap()),
             extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
+            region_profile: molao_cite::extraction_profile_fingerprint(),
             signer_set: set.fingerprint(),
         }
     }
@@ -798,14 +875,14 @@ mod tests {
     // -- shape ------------------------------------------------------------
 
     #[test]
-    fn a_report_is_always_exactly_seven_numbered_steps() {
+    fn a_report_is_always_exactly_step_count_numbered_steps() {
         let c = corpus();
         let report = full(&c);
         report.check_shape().expect("well-formed report");
         assert_eq!(report.steps.len(), STEP_COUNT);
         assert_eq!(
             report.steps.iter().map(|s| s.number).collect::<Vec<_>>(),
-            vec![1, 2, 3, 4, 5, 6, 7]
+            (1..=STEP_COUNT).collect::<Vec<_>>()
         );
         assert_eq!(
             report.steps.iter().map(|s| s.name).collect::<Vec<_>>(),
@@ -816,6 +893,7 @@ mod tests {
                 "chain",
                 "documents",
                 "corpus root",
+                "region profile",
                 "graph root"
             ]
         );
@@ -877,13 +955,15 @@ mod tests {
         forked.previous = Some("ff".repeat(32));
         let mut old_extractor = manifest_for(&good);
         old_extractor.extractor_version = "molao-cite@0.0.1".into();
+        let mut foreign_profile = manifest_for(&good);
+        foreign_profile.region_profile = FOREIGN_PROFILE.into();
 
         let scenarios: Vec<(&str, Report)> = vec![
             ("all pass", full(&good)),
             (
-                // Non-genesis, no head supplied, no corpus: every skippable
-                // step skips at once.
-                "everything skippable skipped",
+                // Non-genesis, no head supplied, no corpus: every step that
+                // a missing input can skip skips at once.
+                "everything the inputs can skip, skipped",
                 verify(&Inputs {
                     release: &sign(&successor, &pairs, 2),
                     signers: &set,
@@ -954,10 +1034,19 @@ mod tests {
                     corpus: Some(&good),
                 }),
             ),
+            (
+                "extracted under another region profile",
+                verify(&Inputs {
+                    release: &sign(&foreign_profile, &pairs, 2),
+                    signers: &set,
+                    previous: None,
+                    corpus: Some(&good),
+                }),
+            ),
         ];
 
         // Covering nothing must not read as passing.
-        assert_eq!(scenarios.len(), 9, "the scenario matrix lost entries");
+        assert_eq!(scenarios.len(), 10, "the scenario matrix lost entries");
 
         let mut seen_pass = [false; STEP_COUNT];
         let mut seen_fail = [false; STEP_COUNT];
@@ -977,20 +1066,42 @@ mod tests {
             }
         }
 
-        // Every step must have been seen passing *and* failing somewhere above,
-        // or a branch went unexercised — which is exactly how the numbering bug
-        // survived.
-        for (i, seen) in seen_pass.iter().enumerate() {
-            assert!(seen, "step {} was never seen passing", i + 1);
-        }
-        for (i, seen) in seen_fail.iter().enumerate() {
-            assert!(seen, "step {} was never seen failing", i + 1);
-        }
-        // Steps 4 to 7 are the ones that can be skipped.
-        for (i, seen) in seen_skip.iter().enumerate().skip(3) {
-            assert!(seen, "step {} was never seen skipped", i + 1);
+        // Every verdict each step can produce must have been produced above,
+        // and no step may produce one it is not supposed to be able to. Exact
+        // rather than "at least", in both directions: an unexercised branch is
+        // how the numbering bug survived, and a step reaching a verdict it has
+        // no business reaching is a defect this matrix is the only thing
+        // positioned to notice.
+        for (i, (pass, fail, skip)) in ACHIEVABLE.iter().enumerate() {
+            let n = i + 1;
+            assert_eq!(seen_pass[i], *pass, "step {n} ({}) PASS", STEP_NAMES[i]);
+            assert_eq!(seen_fail[i], *fail, "step {n} ({}) FAIL", STEP_NAMES[i]);
+            assert_eq!(seen_skip[i], *skip, "step {n} ({}) SKIP", STEP_NAMES[i]);
         }
     }
+
+    /// The verdicts each step can reach: `(PASS, FAIL, SKIP)`.
+    ///
+    /// Steps 1 to 3 answer questions about the release and the roster, which
+    /// are always answerable from what a verification is given, so they never
+    /// skip. Steps 4, 5, 6 and 8 need an input a reader may not have yet.
+    ///
+    /// **Step 7 never fails, and that is deliberate.** A release extracted
+    /// under a region profile this node does not hold is not evidence the
+    /// release is bad — it is this node saying it cannot reproduce the graph,
+    /// which is what SKIP means here and what exit code 2 exists to
+    /// distinguish. Recording it as a FAIL would report a configuration
+    /// difference as a corrupt release. Recording it as a PASS would be worse.
+    const ACHIEVABLE: [(bool, bool, bool); STEP_COUNT] = [
+        (true, true, false), // 1 signer set
+        (true, true, false), // 2 signer-set binding
+        (true, true, false), // 3 signatures
+        (true, true, true),  // 4 chain
+        (true, true, true),  // 5 documents
+        (true, true, true),  // 6 corpus root
+        (true, false, true), // 7 region profile
+        (true, true, true),  // 8 graph root
+    ];
 
     #[test]
     fn check_shape_rejects_a_report_that_lost_a_step() {
@@ -1040,14 +1151,17 @@ mod tests {
             !report.ok(),
             "an unchecked release must not read as verified"
         );
-        // Exactly the three corpus steps are skipped.
+        // Exactly the three corpus steps are skipped. Step 7 is not one of
+        // them: comparing region-profile fingerprints needs no corpus, so a
+        // reader with no database still learns whether they could reproduce
+        // this graph if they had one.
         let skipped: Vec<usize> = report
             .steps
             .iter()
             .filter(|s| matches!(s.status, StepStatus::Skip(_)))
             .map(|s| s.number)
             .collect();
-        assert_eq!(skipped, vec![5, 6, 7]);
+        assert_eq!(skipped, vec![5, 6, 8]);
     }
 
     #[test]
@@ -1342,8 +1456,121 @@ mod tests {
 
     // -- step 7 ------------------------------------------------------------
 
+    /// A fingerprint no profile has, for standing in as "somebody else's court
+    /// registry" without needing a second one installed in this process.
+    const FOREIGN_PROFILE: &str =
+        "ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00ab00";
+
     #[test]
-    fn step_7_agrees_with_the_graph_crates_own_root() {
+    fn step_7_passes_when_the_release_names_this_nodes_region_profile() {
+        let c = corpus();
+        let step = step_7_region_profile(&manifest_for(&c));
+        assert_eq!(step.status, StepStatus::Pass, "{step:?}");
+        // The evidence has to say what was compared, not merely "PASS".
+        assert!(step.detail.contains("region profile"), "{step:?}");
+        assert!(step.detail.contains("court(s)"), "{step:?}");
+    }
+
+    #[test]
+    fn step_7_names_a_foreign_region_profile_instead_of_leaving_it_to_step_8() {
+        // The whole point: the reader is told the registries differ, in band,
+        // rather than being handed a root that disagrees for no stated reason.
+        let c = corpus();
+        let mut m = manifest_for(&c);
+        m.region_profile = FOREIGN_PROFILE.into();
+        let step = step_7_region_profile(&m);
+        assert!(matches!(step.status, StepStatus::Skip(_)), "{step:?}");
+        let msg = step.status.message().unwrap();
+        assert!(msg.contains(FOREIGN_PROFILE), "{msg}");
+        assert!(msg.contains("region profile"), "{msg}");
+        assert!(msg.contains("--profiles"), "{msg}");
+    }
+
+    #[test]
+    fn a_foreign_region_profile_stops_step_8_comparing_roots_at_all() {
+        // A root recomputed under the wrong registry is not evidence about the
+        // right one. Step 8 must decline rather than compare and call the
+        // difference a corpus failure — which is the misdiagnosis this whole
+        // field exists to remove.
+        let c = corpus();
+        let mut m = manifest_for(&c);
+        m.region_profile = FOREIGN_PROFILE.into();
+        let step = step_8_graph_root(&m, Some(&c));
+        assert!(matches!(step.status, StepStatus::Skip(_)), "{step:?}");
+        assert!(
+            step.status.message().unwrap().contains("step 7"),
+            "{step:?}"
+        );
+        assert_eq!(step.detail, "not examined");
+    }
+
+    #[test]
+    fn a_foreign_region_profile_makes_the_whole_run_incomplete_never_verified() {
+        let c = corpus();
+        let (set, pairs) = signer_set();
+        let mut m = manifest_for(&c);
+        m.region_profile = FOREIGN_PROFILE.into();
+        let release = sign(&m, &pairs, 2);
+        let report = verify(&Inputs {
+            release: &release,
+            signers: &set,
+            previous: None,
+            corpus: Some(&c),
+        });
+        report.check_shape().unwrap();
+        assert_eq!(report.outcome(), Outcome::Incomplete);
+        assert_ne!(report.outcome().exit_code(), 0, "SKIP is not a pass");
+        assert_eq!(report.passed(), STEP_COUNT - 2);
+        // ...and the corpus itself was still checked, because no step
+        // short-circuits another.
+        assert_eq!(report.steps[4].status, StepStatus::Pass, "documents");
+        assert_eq!(report.steps[5].status, StepStatus::Pass, "corpus root");
+    }
+
+    #[test]
+    fn the_manifest_a_release_build_produces_names_the_profile_that_extracted_it() {
+        // Two code paths, one value. The builder writes
+        // `molao_cite::extraction_profile_fingerprint()` and step 7 reads it
+        // back; if they could ever answer differently, every release this node
+        // built would fail its own verification, or worse, pass under a profile
+        // that did not produce it.
+        let c = corpus();
+        let m = manifest_for(&c);
+        assert_eq!(
+            m.region_profile,
+            molao_cite::extraction_profile_fingerprint()
+        );
+        assert_eq!(m.region_profile.len(), 64);
+        assert_eq!(step_7_region_profile(&m).status, StepStatus::Pass);
+        assert_eq!(step_8_graph_root(&m, Some(&c)).status, StepStatus::Pass);
+    }
+
+    #[test]
+    fn the_region_profile_is_inside_the_signatures_over_a_release() {
+        // Otherwise step 7 checks a label anyone in the middle can rewrite to
+        // whatever the victim's node happens to resolve, and the check is
+        // theatre.
+        let c = corpus();
+        let (set, pairs) = signer_set();
+        let mut m = manifest_for(&c);
+        let release = sign(&m, &pairs, 2);
+        assert_eq!(release.verify(&set).unwrap(), 2);
+
+        m.region_profile = FOREIGN_PROFILE.into();
+        let tampered = SignedRelease {
+            manifest: m,
+            signatures: release.signatures.clone(),
+        };
+        assert!(matches!(
+            tampered.verify(&set),
+            Err(molao_core::release::ReleaseError::ThresholdNotMet { got: 0, .. })
+        ));
+    }
+
+    // -- step 8 ------------------------------------------------------------
+
+    #[test]
+    fn step_8_agrees_with_the_graph_crates_own_root() {
         // molao-graph computes graph_root from the stored edge table; this
         // module recomputes it from re-extracted text through molao-core. Three
         // code paths, one value — otherwise `extractor_version` pins nothing.
@@ -1356,7 +1583,7 @@ mod tests {
     }
 
     #[test]
-    fn step_7_counts_paragraphs_not_citations() {
+    fn step_8_counts_paragraphs_not_citations() {
         // The fixture cites [2020] ZACC 1 from two of three paragraphs.
         let c = corpus();
         let edges = reextract_edges(&c).unwrap();
@@ -1365,26 +1592,26 @@ mod tests {
     }
 
     #[test]
-    fn step_7_fails_when_the_manifest_names_a_different_graph() {
+    fn step_8_fails_when_the_manifest_names_a_different_graph() {
         let c = corpus();
         let mut m = manifest_for(&c);
         m.graph_root = "ab".repeat(32);
-        let step = step_7_graph_root(&m, Some(&c));
+        let step = step_8_graph_root(&m, Some(&c));
         assert!(matches!(step.status, StepStatus::Fail(_)), "{step:?}");
         assert!(step.detail.contains("re-extracted"));
     }
 
     #[test]
-    fn step_7_fails_when_the_citation_table_disagrees_with_the_paragraph_text() {
+    fn step_8_fails_when_the_citation_table_disagrees_with_the_paragraph_text() {
         // Delete a stored citation row. The paragraph text still cites, so
         // re-extraction still finds the edge — and the two must disagree.
         let c = corpus();
         let m = manifest_for(&c);
-        assert_eq!(step_7_graph_root(&m, Some(&c)).status, StepStatus::Pass);
+        assert_eq!(step_8_graph_root(&m, Some(&c)).status, StepStatus::Pass);
         c.connection()
             .execute("DELETE FROM citations WHERE from_para = 2", [])
             .unwrap();
-        let step = step_7_graph_root(&m, Some(&c));
+        let step = step_8_graph_root(&m, Some(&c));
         assert!(matches!(step.status, StepStatus::Fail(_)), "{step:?}");
         assert!(
             step.status.message().unwrap().contains("disagree"),
@@ -1393,11 +1620,11 @@ mod tests {
     }
 
     #[test]
-    fn step_7_skips_rather_than_guesses_when_the_pinned_extractor_is_not_this_one() {
+    fn step_8_skips_rather_than_guesses_when_the_pinned_extractor_is_not_this_one() {
         let c = corpus();
         let mut m = manifest_for(&c);
         m.extractor_version = "molao-cite@0.0.1-not-this-binary".into();
-        let step = step_7_graph_root(&m, Some(&c));
+        let step = step_8_graph_root(&m, Some(&c));
         assert!(matches!(step.status, StepStatus::Skip(_)), "{step:?}");
         assert!(step.status.message().unwrap().contains("molao-cite@"));
     }

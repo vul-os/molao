@@ -61,6 +61,37 @@ use std::sync::LazyLock;
 /// recomputation silently becomes verification of nothing.
 pub const EXTRACTOR_VERSION: &str = concat!("molao-cite@", env!("CARGO_PKG_VERSION"));
 
+/// The region profile [`extract`] is **actually running under**, recorded in
+/// every release manifest alongside [`EXTRACTOR_VERSION`].
+///
+/// [`EXTRACTOR_VERSION`] pins the grammar. It does not pin the court codes and
+/// law-report series the grammar matches against — those are profile data, and
+/// they decide whether a neutral citation is kept and whether a reported
+/// citation is found at all. Two nodes on the same extractor version resolving
+/// different profiles therefore compute different graphs over one corpus. A
+/// release has to record both or "re-run that exact version and get a
+/// byte-identical graph" is not a checkable claim.
+///
+/// This deliberately reports [`Extractor::profile`] of the cached default
+/// extractor, **not** [`region::default_profile`]. The two can differ: the
+/// extractor binds its profile on first use, so a process that calls
+/// `region::install` after something has already extracted a citation leaves
+/// them disagreeing — and it is this one, not the other, that produced the
+/// graph. Reporting the profile a node *would* resolve rather than the one it
+/// *used* is the shape of a bug this value exists to make impossible.
+///
+/// It forces the extractor's initialisation, for the same reason: a fingerprint
+/// taken before the binding could describe a profile that never ran.
+pub fn extraction_profile() -> &'static RegionProfile {
+    DEFAULT_EXTRACTOR.profile()
+}
+
+/// [`RegionProfile::fingerprint`] of [`extraction_profile`] — the value a
+/// release manifest carries.
+pub fn extraction_profile_fingerprint() -> String {
+    extraction_profile().fingerprint()
+}
+
 /// A citation, normalised.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -647,6 +678,28 @@ mod tests {
     #[test]
     fn the_default_extractor_is_the_default_profile() {
         assert_eq!(DEFAULT_EXTRACTOR.profile().code, "ZA");
+    }
+
+    #[test]
+    fn the_reported_extraction_profile_is_the_one_the_free_function_uses() {
+        // The value a manifest records must come from the extractor that
+        // produced the graph, not from a second lookup that could answer
+        // differently. Pointer equality, because both are `&'static` and any
+        // divergence at all is the defect.
+        assert!(std::ptr::eq(
+            extraction_profile(),
+            DEFAULT_EXTRACTOR.profile()
+        ));
+        assert_eq!(
+            extraction_profile_fingerprint(),
+            DEFAULT_EXTRACTOR.profile().fingerprint()
+        );
+        // A fingerprint that did not distinguish profiles would record nothing.
+        assert_ne!(
+            extraction_profile_fingerprint(),
+            region::GENERIC.fingerprint()
+        );
+        assert_eq!(extraction_profile_fingerprint().len(), 64);
     }
 
     #[test]

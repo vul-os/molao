@@ -264,6 +264,12 @@ async fn version(State(state): State<Arc<AppState>>) -> ApiResult {
         "name": "molao",
         "version": env!("CARGO_PKG_VERSION"),
         "extractor_version": molao_cite::EXTRACTOR_VERSION,
+        // Both halves of what makes a graph reproducible. The version pins the
+        // grammar, the profile pins the registry it matched against; a client
+        // comparing only the first would think two nodes agreed when they do
+        // not. See molao_core::release::Manifest::region_profile.
+        "region_profile": molao_cite::extraction_profile_fingerprint(),
+        "region_profile_code": molao_cite::extraction_profile().code,
         "release": state.release.as_ref().map(|r| r.manifest.release),
         "corpus_root": if state.corpus_root.is_empty() { Value::Null } else { json!(state.corpus_root) },
     })))
@@ -836,6 +842,7 @@ async fn case_treatment(
             "kind": "recomputable",
             "note": MECHANICAL_NOTE,
             "extractor_version": molao_cite::EXTRACTOR_VERSION,
+            "region_profile": molao_cite::extraction_profile_fingerprint(),
             "graph_root": state.graph.graph_root(),
             "cited_by_count": cited_by.len(),
             "cited_by": cited_by.iter().map(|c| json!({

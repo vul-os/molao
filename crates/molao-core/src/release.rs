@@ -20,6 +20,16 @@
 //! and the chain but not the authority behind them, and a release signed under
 //! a rotated-out set verified silently against anyone still holding it.
 //!
+//! A manifest names the *region profile* the graph was extracted under, the
+//! same way and for a parallel reason. `extractor_version` pins the citation
+//! grammar; it does not pin the court codes and law-report series the grammar
+//! matches against, and those decide what the extractor finds. Two nodes on one
+//! extractor version resolving different profiles produced different
+//! `graph_root` values over the same corpus, which made "anyone can re-run that
+//! exact version and must get a byte-identical graph" false for an input nobody
+//! recorded — and the resulting disagreement was indistinguishable from a
+//! corrupted corpus. Now it is named.
+//!
 //! Releases chain: each names its predecessor's hash. A node that has followed
 //! the chain can detect a fork, and a node that has not can compare its head
 //! against any peer's. Combined with an append-only public log, silently
@@ -152,6 +162,36 @@ pub struct Manifest {
     /// recomputation rather than by trust — the property embeddings can never
     /// have, which is why no embedding artifact is part of a release.
     pub extractor_version: String,
+    /// [`crate::region::RegionProfile::fingerprint`] of the region profile the
+    /// extractor was applied against.
+    ///
+    /// The other half of what [`Manifest::extractor_version`] claims. That
+    /// field pins the citation *grammar*; this one pins the **court codes and
+    /// law-report series the grammar matched against**, which decide whether a
+    /// neutral citation is kept and whether a reported citation is found at
+    /// all. Both are extraction output. Two nodes on the same extractor version
+    /// resolving different profiles compute different `graph_root` values over
+    /// one corpus, so a release recording only the version asserted a
+    /// reproducibility no reader could actually test — the profile was an
+    /// unrecorded input, and a root disagreement caused by it looked like
+    /// corruption.
+    ///
+    /// **One profile, not the set a node loaded.** Only the profile the
+    /// extractor ran under reaches the graph; a node's other profiles do not.
+    /// Recording the whole set would fail two nodes that computed byte-identical
+    /// graphs merely because one of them also had a jurisdiction loaded it never
+    /// used, and a check that cries wolf is a check operators learn to skip.
+    ///
+    /// Like [`Manifest::signer_set`] this is a fingerprint rather than the
+    /// thing, and for a related reason: a release carrying its own court
+    /// registry would be a release that defined the data it was derived from.
+    /// The reader supplies the profile — `--profiles`, or the compiled-in
+    /// fallback — and this says whether it is the right one.
+    ///
+    /// What it cannot do: make a profile *available*. A reader whose node
+    /// resolves a different profile learns that it does, by name, and has to go
+    /// and get the right one. That is a smaller problem than not knowing.
+    pub region_profile: String,
     /// [`SignerSet::fingerprint`] of the set this release was signed under.
     ///
     /// **Not the set itself, and not a way to obtain it.** A release that
@@ -182,18 +222,25 @@ impl Manifest {
     /// signature over a representation that can shift is a signature over
     /// nothing. Length-prefixed fields, fixed order, no escaping ambiguity.
     ///
-    /// ## v2
+    /// ## v3
     ///
-    /// The format tag is `molao-release-v2`. v1 had no `signer_set` field, so
-    /// its signatures covered the corpus and the chain but never the authority
-    /// that vouched for them. Adding a field to a signed encoding is a breaking
-    /// change and gets a new tag rather than a quiet append — a v1 signature
-    /// must not accidentally validate a v2 manifest or the reverse. Nothing was
-    /// ever published under v1: there is no public signed release, which is
-    /// exactly why the format could still be fixed.
+    /// The format tag is `molao-release-v3`. Each bump added a field that
+    /// signatures had to cover and could not cover by appending quietly — a
+    /// signature over one version's encoding must not validate another's, in
+    /// either direction:
+    ///
+    /// | Tag | Added | Why the old tag was not enough |
+    /// |---|---|---|
+    /// | v1 | — | — |
+    /// | v2 | `signer_set` | signatures covered the corpus and the chain but never the authority that vouched for them, so a quorum of a rotated-out roster verified silently |
+    /// | v3 | `region_profile` | `extractor_version` pinned the grammar but not the court and series registry it matched against, so "re-run this version and get the same graph" was false between nodes resolving different profiles |
+    ///
+    /// Nothing has ever been published under any of them: there is no public
+    /// signed release, which is exactly why the format could still be fixed.
+    /// Once one exists, a further field is a migration rather than an edit.
     pub fn signing_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        out.extend_from_slice(b"molao-release-v2\n");
+        out.extend_from_slice(b"molao-release-v3\n");
         push_field(&mut out, self.release.to_string().as_bytes());
         push_field(&mut out, self.previous.as_deref().unwrap_or("").as_bytes());
         push_field(&mut out, self.created_at.as_bytes());
@@ -201,8 +248,31 @@ impl Manifest {
         push_field(&mut out, self.doc_count.to_string().as_bytes());
         push_field(&mut out, self.graph_root.as_bytes());
         push_field(&mut out, self.extractor_version.as_bytes());
+        push_field(&mut out, self.region_profile.as_bytes());
         push_field(&mut out, self.signer_set.as_bytes());
         out
+    }
+
+    /// Does this release name the region profile `fingerprint` describes?
+    ///
+    /// The counterpart of [`SignerSet::check_binds`], and separate from any
+    /// root comparison for the same reason: it distinguishes "this corpus is
+    /// not the one that was signed" from "you and the publisher extracted
+    /// against different court registries", which have completely different
+    /// fixes and used to be indistinguishable — the second surfaced as the
+    /// first, as a `graph_root` that disagreed for no visible reason.
+    ///
+    /// A mismatch is not evidence the release is bad. It means this node cannot
+    /// reproduce the graph, which is a different statement and is reported as
+    /// one — see `molao verify` step 7.
+    pub fn check_region_profile(&self, fingerprint: &str) -> Result<(), ReleaseError> {
+        if self.region_profile != fingerprint {
+            return Err(ReleaseError::RegionProfileMismatch {
+                named: self.region_profile.clone(),
+                held: fingerprint.to_string(),
+            });
+        }
+        Ok(())
     }
 
     /// Hash of this manifest — what the next release names as `previous`.
@@ -324,6 +394,12 @@ pub enum ReleaseError {
          one of you is working from a superseded roster"
     )]
     SignerSetMismatch { named: String, held: String },
+    #[error(
+        "this release's graph was extracted under region profile {named}, but this node \
+         extracts under {held} — the court and series registries differ, so this node cannot \
+         reproduce the graph and a root comparison would mean nothing"
+    )]
+    RegionProfileMismatch { named: String, held: String },
     #[error("release has {got} valid signature(s), needs {need}")]
     ThresholdNotMet { got: usize, need: usize },
     #[error("malformed public key")]
@@ -358,6 +434,7 @@ mod tests {
             doc_count: 130_161,
             graph_root: "bb".repeat(32),
             extractor_version: "molao-cite@0.1.0".into(),
+            region_profile: "dd".repeat(32),
             signer_set: set.fingerprint(),
         }
     }
@@ -726,15 +803,18 @@ mod tests {
     // computed once, never regenerated from the code under test.
     //
     // **If one of these fails, the release format has changed.** That is a
-    // breaking change to `molao-release-v2` and needs a new format tag, not a
+    // breaking change to `molao-release-v3` and needs a new format tag, not a
     // new constant here.
     //
-    // These vectors were regenerated exactly once, when `signer_set` was added
-    // and the tag moved from v1 to v2 — a deliberate break, taken while there
-    // is still no public signed release to invalidate. Everything below was
-    // computed outside this crate, with independent BLAKE3 and Ed25519
-    // implementations, so a bug shared between the encoder and the signer here
-    // cannot make the vectors agree with themselves.
+    // These vectors have been regenerated exactly twice, each time for a
+    // deliberate break taken while there is still no public signed release to
+    // invalidate: once when `signer_set` was added (v1 to v2), once when
+    // `region_profile` was added (v2 to v3). Everything below was computed
+    // outside this crate, with independent BLAKE3 and Ed25519 implementations,
+    // so a bug shared between the encoder and the signer here cannot make the
+    // vectors agree with themselves. The generator reproduces the superseded v2
+    // vectors byte for byte before emitting v3 ones, which is what establishes
+    // that it encodes this format rather than one of its own.
     // -----------------------------------------------------------------------
 
     /// The vector signer set: threshold 2, epoch 1, the three keys below.
@@ -757,6 +837,15 @@ mod tests {
     const VECTOR_SIGNER_SET_FINGERPRINT: &str =
         "bdfffb5c96aeec2e5f9725e01fb2780334fa47999110f461c8a5ff7f7fc55416";
 
+    /// The vector manifest's `region_profile`. A fixed literal rather than a
+    /// real profile's fingerprint: pinning, say, `region::ZA` here would tie
+    /// this vector to a court registry that is allowed to change (with an
+    /// `EXTRACTOR_VERSION` bump), and a known-answer vector that a legitimate
+    /// data edit forces someone to rewrite is a vector nobody trusts.
+    /// `RegionProfile::fingerprint` has its own vector, in `region.rs`.
+    const VECTOR_REGION_PROFILE: &str =
+        "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
     /// The vector manifest. Fixed values, deliberately not the one the other
     /// tests use, so nobody edits it to make a test pass.
     fn vector_manifest() -> Manifest {
@@ -768,47 +857,51 @@ mod tests {
             doc_count: 130_161,
             graph_root: "bb".repeat(32),
             extractor_version: "molao-cite@0.1.0".into(),
+            region_profile: VECTOR_REGION_PROFILE.to_string(),
             signer_set: VECTOR_SIGNER_SET_FINGERPRINT.to_string(),
         }
     }
 
     /// `signing_bytes` for [`vector_manifest`], hex.
     const VECTOR_SIGNING_BYTES: &str = "\
-6d6f6c616f2d72656c656173652d76320a000000000000000234320000000000000040313131313131313131313131313131\
+6d6f6c616f2d72656c656173652d76330a000000000000000234320000000000000040313131313131313131313131313131\
 3131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313100\
 00000000000014323032362d30372d32305431303a30303a30305a0000000000000040616161616161616161616161616161\
 6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616100\
 0000000000000631333031363100000000000000406262626262626262626262626262626262626262626262626262626262\
 626262626262626262626262626262626262626262626262626262626262626262626200000000000000106d6f6c616f2d63\
-69746540302e312e300000000000000040626466666662356339366165656332653566393732356530316662323738303333\
-34666134373939393131306634363163386135666637663766633535343136";
+69746540302e312e300000000000000040636363636363636363636363636363636363636363636363636363636363636363\
+6363636363636363636363636363636363636363636363636363636363636300000000000000406264666666623563393661\
+6565633265356639373235653031666232373830333334666134373939393131306634363163386135666637663766633535\
+343136";
 
     /// `hash()` of [`vector_manifest`] — what release 43 must name as its
     /// `previous`, on every platform and every future version of this crate.
-    const VECTOR_HASH: &str = "3b68fc057ab2b004455ff98b9f738a102bb5c59adc3718ba7bfa52c160fa808c";
+    const VECTOR_HASH: &str = "aac1cb19e0ac032edf51d8a62a3501be7d8a4d1c881b2d1b8d8851c7e651100e";
 
-    /// The `molao-release-v1` tag, before `signer_set` existed. Kept so the
-    /// break is explicit and a silent revert to a format whose signatures do
-    /// not cover the signing roster fails loudly.
+    /// The superseded tags. Kept so each break stays explicit and a silent
+    /// revert to a format whose signatures do not cover everything they must
+    /// fails loudly rather than shipping.
     const V1_TAG: &[u8] = b"molao-release-v1\n";
+    const V2_TAG: &[u8] = b"molao-release-v2\n";
 
     /// Ed25519 keys from seeds `[1; 32]`, `[2; 32]`, `[3; 32]`, and their
     /// signatures over [`VECTOR_SIGNING_BYTES`].
     const VECTOR_SIGNERS: &[(&str, &str)] = &[
         (
             "8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c",
-            "560364061d426f1d8f1e4eca64a14db8e6fcaafeb78566e3dd4564ba612cd63e\
-             38b9cc7295d1a65c65fa11d69adbe39bfdea8cfa56a58dbae1dc4bb0d6f0bd04",
+            "3115ccfd5f9cd730c0071e0147ed54d3761cbaec54c2845e2e47a6c7b8c7dfee\
+             d1da4c88cec331e4a21a69b38de36a2b1746850bdad96a7d3d629b3f2a05fc08",
         ),
         (
             "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
-            "0c4bb938ec05f987595aac297f123e38fc2177ce77cd9002c5f1d33025c4f961\
-             b4ce966149831112bdc741944fad60ca348a05aa8c646dffb51851a1ef30970e",
+            "509fa28b745c3f3935bb1124275c45f119ed9f0302fe282aab394ebeda8f93d8\
+             786ad9ac8ca931d0d51175493fed3a5f8dc7066256ca4b3628a2013dc815a400",
         ),
         (
             "ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1",
-            "dbe659e4c978f39ce021442f009076dbe62a070d26b9f422a898cbe03a389167\
-             478ff4b6bacf496e4522223ca96224f26e3b725198bca4b7f501af7b8c40d409",
+            "aa46dbd31ae0585585bd2746ead3e7ab9e54ada7233abcaa20295d6bb03cd0d5\
+             295e8eb0acf70e6d3df52a8008e9c7671527b61401c35e6c28730639aa329405",
         ),
     ];
 
@@ -824,27 +917,92 @@ mod tests {
         assert_eq!(
             hex::encode(m.signing_bytes()),
             unwrap_hex(VECTOR_SIGNING_BYTES),
-            "the molao-release-v2 signing encoding has changed; every signature \
+            "the molao-release-v3 signing encoding has changed; every signature \
              ever produced over a Molao manifest is now invalid"
         );
         assert_eq!(m.hash(), VECTOR_HASH, "the manifest hash has changed");
     }
 
     #[test]
-    fn the_signing_encoding_is_v2_and_covers_the_signer_set() {
+    fn the_signing_encoding_is_v3_and_covers_the_signer_set_and_the_profile() {
         let m = vector_manifest();
         let bytes = m.signing_bytes();
-        assert!(bytes.starts_with(b"molao-release-v2\n"));
+        assert!(bytes.starts_with(b"molao-release-v3\n"));
         assert!(
             !bytes.starts_with(V1_TAG),
             "reverting to v1 would ship signatures that do not cover the roster \
              that produced them"
         );
-        // The field is genuinely in the preimage, not merely on the struct.
-        let mut other = m.clone();
-        other.signer_set = "00".repeat(32);
-        assert_ne!(other.signing_bytes(), bytes);
-        assert_ne!(other.hash(), m.hash());
+        assert!(
+            !bytes.starts_with(V2_TAG),
+            "reverting to v2 would ship signatures that do not cover the region \
+             profile the graph was extracted under"
+        );
+        // Each field is genuinely in the preimage, not merely on the struct.
+        for edit in [
+            |m: &mut Manifest| m.signer_set = "00".repeat(32),
+            |m: &mut Manifest| m.region_profile = "00".repeat(32),
+        ] {
+            let mut other = m.clone();
+            edit(&mut other);
+            assert_ne!(other.signing_bytes(), bytes);
+            assert_ne!(other.hash(), m.hash());
+        }
+    }
+
+    #[test]
+    fn the_region_profile_binding_is_covered_by_the_signatures_not_merely_carried() {
+        // Same argument as for `signer_set`: an unauthenticated label is one a
+        // man-in-the-middle edits to match whatever profile the victim's node
+        // resolves, and the reader is back to comparing roots in the dark.
+        let (set, pairs) = three_of_five();
+        let m = manifest_bound_to(&set);
+        let signatures: Vec<_> = pairs[..3].iter().map(|(sk, pk)| sign(&m, sk, pk)).collect();
+
+        let mut relabelled = m.clone();
+        relabelled.region_profile = "ef".repeat(32);
+        let release = SignedRelease {
+            manifest: relabelled,
+            signatures,
+        };
+        assert_eq!(
+            release.verify_signatures(&set),
+            Err(ReleaseError::ThresholdNotMet { got: 0, need: 3 }),
+            "region_profile must be inside signing_bytes"
+        );
+    }
+
+    #[test]
+    fn a_release_extracted_under_another_region_profile_is_named_not_guessed() {
+        let m = manifest();
+        assert!(m.check_region_profile(&m.region_profile.clone()).is_ok());
+        match m.check_region_profile(&"ab".repeat(32)) {
+            Err(ReleaseError::RegionProfileMismatch { named, held }) => {
+                assert_eq!(named, m.region_profile);
+                assert_eq!(held, "ab".repeat(32));
+            }
+            other => panic!("expected a region-profile mismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_region_profile_check_is_not_folded_into_signature_verification() {
+        // It must stay a separate call, for the reason steps 2 and 3 are
+        // separate: if `verify` also checked the profile, a break in the
+        // profile check could never be observed on its own. A release extracted
+        // under a profile this reader does not have is still a properly signed
+        // release, and says so.
+        let (set, pairs) = three_of_five();
+        let m = manifest();
+        let release = SignedRelease {
+            signatures: pairs[..3].iter().map(|(sk, pk)| sign(&m, sk, pk)).collect(),
+            manifest: m,
+        };
+        assert_eq!(release.verify(&set).unwrap(), 3);
+        assert!(matches!(
+            release.manifest.check_region_profile(&"ab".repeat(32)),
+            Err(ReleaseError::RegionProfileMismatch { .. })
+        ));
     }
 
     #[test]

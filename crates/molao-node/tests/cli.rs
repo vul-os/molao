@@ -16,6 +16,11 @@ use std::process::Command;
 /// Path to the binary cargo just built for this test.
 const MOLAO: &str = env!("CARGO_BIN_EXE_molao");
 
+/// How many steps a full verification prints. Taken from the library rather
+/// than written out, so that adding a step cannot leave these tests asserting
+/// a subset of the run while still reading as "every step".
+use molao_node::verify::STEP_COUNT;
+
 fn workdir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("molao-cli-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -60,6 +65,7 @@ fn manifest_bound_to(set: &SignerSet) -> Manifest {
         doc_count: 15,
         graph_root: "bb".repeat(32),
         extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
+        region_profile: molao_cite::extraction_profile_fingerprint(),
         signer_set: set.fingerprint(),
     }
 }
@@ -116,8 +122,15 @@ fn verify_without_a_corpus_is_incomplete_rather_than_ok() {
     );
     // The steps that did run are reported as having run, and the ones that did
     // not say why.
-    assert_eq!(stdout.matches("PASS").count(), 3, "{stdout}");
-    assert_eq!(stdout.matches("SKIP").count(), 4, "{stdout}");
+    // Steps 1, 2, 3 and 7 need nothing but the release and the signer set;
+    // everything that wanted `--db` or a head said so.
+    assert_eq!(stdout.matches("PASS").count(), 4, "{stdout}");
+    assert_eq!(stdout.matches("SKIP").count(), STEP_COUNT - 4, "{stdout}");
+    assert!(
+        stdout.contains("region profile"),
+        "a reader with no corpus still learns whether they could reproduce the \
+         graph if they had one: {stdout}"
+    );
     assert!(stdout.contains("--db"), "{stdout}");
     // The honest-status line must not be quietly dropped: a verifier that reads
     // as blessing the law is the failure mode that matters here.
@@ -213,7 +226,7 @@ fn a_packaged_release_signs_verifies_fetches_and_exports() {
         );
     }
 
-    // All seven steps, against the corpus the release was built from.
+    // Every step, against the corpus the release was built from.
     let verified = run(vec![
         "verify".as_ref(),
         out.join("signed-release.json").as_ref(),
@@ -226,11 +239,14 @@ fn a_packaged_release_signs_verifies_fetches_and_exports() {
     let stdout = String::from_utf8_lossy(&verified.stdout);
     assert_eq!(
         stdout.matches("PASS").count(),
-        7,
+        STEP_COUNT,
         "every step must pass: {stdout}"
     );
     assert_eq!(stdout.matches("SKIP").count(), 0, "{stdout}");
     assert!(stdout.contains("re-extracted"), "{stdout}");
+    // The release the binary built names the profile the binary extracts
+    // under, end to end through the real `release build` -> `verify` path.
+    assert!(stdout.contains("region profile"), "{stdout}");
 
     // Fetch it over a transport and verify on receipt.
     ok(

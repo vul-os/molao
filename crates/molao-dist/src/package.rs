@@ -89,6 +89,16 @@ pub struct CorpusInput {
     pub previous: Option<String>,
     pub created_at: String,
     pub extractor_version: String,
+    /// `RegionProfile::fingerprint()` of the profile the extractor ran under
+    /// when it produced [`CorpusInput::graph`].
+    ///
+    /// Supplied by the caller rather than read from
+    /// `molao_core::region::default_profile()` here, because this crate is not
+    /// the crate that extracted the graph and asking it what profile *it* would
+    /// resolve would record a guess. `molao_cite::extraction_profile_fingerprint`
+    /// is the value: the profile the extractor actually bound, which is the
+    /// only one that describes the edges being packaged.
+    pub region_profile: String,
     /// `SignerSet::fingerprint()` of the set this release will be signed
     /// under. Required at packaging time, not at signing time: it is inside
     /// the manifest's signing bytes, so it has to be decided before there is
@@ -257,6 +267,7 @@ pub fn pack(corpus: &CorpusInput) -> Result<PackagedRelease, PackageError> {
         doc_count: ids.len() as u64,
         graph_root,
         extractor_version: corpus.extractor_version.clone(),
+        region_profile: corpus.region_profile.clone(),
         signer_set: corpus.signer_set.clone(),
     };
 
@@ -416,6 +427,7 @@ mod tests {
             previous: None,
             created_at: "2026-07-20T10:00:00Z".into(),
             extractor_version: "molao-cite@0.1.0".into(),
+            region_profile: "dd".repeat(32),
             signer_set: "5e".repeat(32),
         }
     }

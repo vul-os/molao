@@ -1082,6 +1082,11 @@ fn run_release_publish(
         previous,
         created_at: created_at.to_string(),
         extractor_version: molao_cite::EXTRACTOR_VERSION.to_string(),
+        // The profile the extractor *bound*, not the one this process would
+        // resolve now: `reextract_edges` above ran under the former, and a
+        // manifest that named the latter would describe a registry that did not
+        // produce these edges.
+        region_profile: molao_cite::extraction_profile_fingerprint(),
         signer_set: read_signer_set_fingerprint()?,
     };
     let packaged = molao_dist::pack(&input).map_err(|e| anyhow!("packaging the release: {e}"))?;
@@ -1097,6 +1102,11 @@ fn run_release_publish(
     println!("  corpus root    {}", packaged.manifest.corpus_root);
     println!("  graph root     {}", packaged.manifest.graph_root);
     println!("  extractor      {}", packaged.manifest.extractor_version);
+    println!(
+        "  region profile {} ({})",
+        packaged.manifest.region_profile,
+        molao_cite::extraction_profile().code
+    );
     println!("  signer set     {}", packaged.manifest.signer_set);
     println!("  manifest hash  {}", packaged.manifest.hash());
     println!();
@@ -1310,7 +1320,10 @@ fn run_release_attest(dir: &std::path::Path) -> Result<()> {
     molao_dist::verify_file_set(&manifest, &index, |h| blobs.get(h).cloned())
         .map_err(|e| anyhow!("this release directory does not verify: {e}"))?;
 
-    let profile = molao_core::region::default_profile();
+    // The profile the extractor bound, not the one this process would resolve
+    // now — see molao_cite::extraction_profile. Identical in every ordinary
+    // invocation; where they differ, only this one describes real output.
+    let profile = molao_cite::extraction_profile();
     let mut h = blake3::Hasher::new();
     let mut field = |bytes: &[u8]| {
         h.update(&(bytes.len() as u64).to_be_bytes());
@@ -1337,7 +1350,19 @@ fn run_release_attest(dir: &std::path::Path) -> Result<()> {
     println!("created at     {}", manifest.created_at);
     println!("extractor      {}", manifest.extractor_version);
     println!("core version   {}", molao_core::VERSION);
+    println!("manifest names region profile {}", manifest.region_profile);
     println!("region profile {} {}", profile.code, profile.fingerprint());
+    if manifest.region_profile != profile.fingerprint() {
+        // Not fatal here: `attest` reports what a build produced, and two
+        // builders comparing attestations is the point. But a builder whose own
+        // registry is not the one the manifest names cannot have produced this
+        // graph, and must not discover that by way of a mismatching digest.
+        println!(
+            "  WARNING: this builder's region profile is not the one the manifest names — \
+             the attestation below cannot match one produced under the right registry. \
+             Run `molao verify` (step 7) for the detail."
+        );
+    }
     println!("files          {}", index.files.len());
     println!();
     println!("attestation    {attestation}");

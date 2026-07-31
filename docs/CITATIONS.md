@@ -35,18 +35,47 @@ produce a byte-identical result. That is what makes the citation graph
 contributable by anyone and checkable by everyone.
 
 > [!IMPORTANT]
-> **The profile is a second input, and it is easy to miss.** `EXTRACTOR_VERSION`
-> pins the *grammar*; the region profile supplies the *court codes and
-> law-report series* the grammar matches against. `molao-corpus` extracts with
-> the process-global default profile, so two nodes running the same extractor
-> version but resolving different profiles — one started with `--profiles`, one
-> without — can compute different `graph_root` values over the same corpus.
+> **The profile is a second input, and a release records it.**
+> `EXTRACTOR_VERSION` pins the *grammar*; the region profile supplies the
+> *court codes and law-report series* the grammar matches against. Both are
+> extraction output. `molao-corpus` extracts with the process-global default
+> profile, so two nodes running the same extractor version but resolving
+> different profiles — one started with `--profiles`, one without — compute
+> different `graph_root` values over the same corpus.
 >
-> Reproducing a graph therefore requires both. `molao verify` prints the region
-> profile code and its fingerprint alongside the recomputed root for exactly
-> this reason, so a profile mismatch is reported rather than appearing as an
-> unexplained root disagreement. `molao regions` shows what an invocation
-> resolves and where each profile came from.
+> That is not hypothetical. The same two judgments, ingested twice, differing
+> only in whether the `SA` series is in the registry:
+>
+> ```
+> corpus root    ab825ced3b285212234cb6132d0c57d2d157ad089e00f0a8384fb6e7f3bc5b39
+> graph root     4a7bc84e95f970438565381c90b11f6988f799543874553d7c96e72790f5449d
+> region profile 2ce45543e427382958aad2b8d36472bd07ee586b26a045eb6830d47d4c6836c8
+>
+> corpus root    ab825ced3b285212234cb6132d0c57d2d157ad089e00f0a8384fb6e7f3bc5b39
+> graph root     00f0eab817d468e2aab8a00b70a367b428ae1c05a1ad33ff9787b66cbe410b4c
+> region profile a4df6fc5a333481a8b84b470c0984b5c7f6ee5ce4b9cf6afa64fe93c02c5bab3
+> ```
+>
+> One corpus, one extractor version, two graphs. Without the third line there
+> is nothing in the release to explain the second.
+>
+> So a manifest carries `region_profile`, a `RegionProfile::fingerprint()`
+> beside `extractor_version` and inside the signing bytes, and reproducing a
+> graph means matching both. `molao verify` checks it as **step 7** and reports
+> a difference by name rather than as an unexplained root disagreement; see
+> [RELEASES.md](RELEASES.md#verifying-a-release-yourself). `molao regions`
+> shows what an invocation resolves and where each profile came from.
+>
+> **It is the profile the extractor ran under, not the set a node loaded.**
+> Only that one profile reaches the graph. Recording a node's whole profile set
+> would fail two nodes whose graphs are byte-identical merely because one of
+> them also had a jurisdiction loaded that it never used.
+>
+> The fingerprint covers the entire profile, so *any* registry edit changes it
+> — including one that could not have changed the graph for the corpus in
+> front of you. That is the same granularity `EXTRACTOR_VERSION` already has,
+> and deliberately: agreeing by accident and agreeing by reproduction are not
+> the same claim.
 
 Concretely:
 
@@ -59,7 +88,9 @@ Concretely:
   silently becomes verification of nothing.
 
 `EXTRACTOR_VERSION` is `molao-cite@` plus the crate version, e.g.
-`molao-cite@0.1.0`. A release manifest records it.
+`molao-cite@0.1.0`. A release manifest records it, and records the region
+profile's fingerprint next to it — see above. Neither alone describes an
+extraction.
 
 ## The four forms
 

@@ -1705,6 +1705,42 @@ mod tests {
         );
     }
 
+    /// A fixed profile and the digest it must always produce.
+    ///
+    /// Every other assertion about `fingerprint()` compares one output of this
+    /// function against another, so all of them would still pass if the
+    /// `molao-region-v1` encoding changed wholesale — and since a release
+    /// manifest records this value, a changed encoding would mean every
+    /// manifest ever signed names a profile nobody can match, exactly the
+    /// failure `VECTOR_SIGNER_SET_FINGERPRINT` exists to catch for the signer
+    /// set. This is the fixed point: computed outside this crate, with an
+    /// independent BLAKE3, never regenerated from the code under test.
+    ///
+    /// It is a made-up jurisdiction on purpose. Pinning a real profile would
+    /// tie the vector to a court registry that is allowed to change, and a
+    /// vector a legitimate data edit forces someone to rewrite is a vector
+    /// nobody trusts.
+    const VECTOR_PROFILE_TOML: &str = "code = \"XX\"\nname = \"Vector Jurisdiction\"\n\n\
+         [[courts]]\ncode = \"XXSC\"\nname = \"Supreme Court of Nowhere\"\ntier = \"apex\"\n\n\
+         [[courts]]\ncode = \"XXHC\"\nname = \"High Court of Nowhere\"\ntier = \"high_court\"\n\
+         seat = \"Port Vector\"\n\n\
+         [[series]]\nabbr = \"VLR\"\nname = \"Vector Law Reports\"\n\n\
+         [[series]]\nabbr = \"OVR\"\nname = \"Old Vector Reports\"\nno_volume = true\n";
+
+    const VECTOR_REGION_FINGERPRINT: &str =
+        "a94de48f634b6a2c0d125968ad1fcda7651bfd3b69090ed83fb64dd282860ced";
+
+    #[test]
+    fn the_region_fingerprint_encoding_is_unchanged() {
+        let p = RegionProfile::from_toml(VECTOR_PROFILE_TOML).expect("the vector profile parses");
+        assert_eq!(
+            p.fingerprint(),
+            VECTOR_REGION_FINGERPRINT,
+            "the molao-region-v1 fingerprint encoding has changed; every release \
+             manifest now names a region profile nobody can match"
+        );
+    }
+
     /// Every pan-African profile is reachable by its ISO code, and the reference
     /// codes the extractor tests lean on really do resolve to the tier we claim.
     #[test]
