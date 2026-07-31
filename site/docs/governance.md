@@ -118,10 +118,28 @@ An LII will ask this first, because suppression is routine business for them
 and not an edge case. **Molao does not have a complete answer, and the
 incomplete one is stated here rather than discovered later.**
 
-**At acquisition, this is already handled.** The crawler honours `robots.txt`
-including the **per-judgment `Disallow` lines LIIs use for takedowns and
-privacy** ([docs/SOURCES.md](sources.md)). A judgment an LII has
-suppressed at source is not collected.
+**At acquisition, this is handled only where suppression comes first.** The
+crawler honours `robots.txt` including the **per-judgment `Disallow` lines LIIs
+use for takedowns and privacy** ([docs/SOURCES.md](sources.md)). A judgment
+an LII has suppressed at source before we collect it is not collected. **This is
+not a retraction channel:** `robots.txt` is read at fetch time, suppression
+usually follows publication, and nothing re-checks documents already held.
+
+Two things make that channel weaker than it looks, both verified rather than
+assumed:
+
+- **It may not be under the source institution's control.** AustLII's
+  `robots.txt` historically excluded its case-law directories for all agents; a
+  live fetch on 31 July 2026 returned only a Cloudflare-managed file with
+  `Allow: /` and no case-law exclusions at all. CanLII's own privacy policy says
+  it prohibits external indexing of decisions, but its live `robots.txt` grants
+  Googlebot `Allow: /` with no case-law directories excluded. A CDN can replace
+  a hand-maintained file, and the institution may not know.
+- **`robots.txt` was never an indexing control.** Google's own documentation
+  states it "is not a mechanism for keeping a web page out of Google", and that
+  directives other than `allow`, `disallow` and `user-agent` are ignored — so
+  the `Noindex:` lines BAILII publishes have no effect. Judgments from LII sites
+  that disallow crawling are findable in search results today.
 
 **At publication, there is no mechanism at all.** No command removes a judgment
 from a published release, and none could without breaking the property the
@@ -130,24 +148,44 @@ documents whose manifest a quorum has signed and whose identity *is* the hash
 of its contents.
 
 **So the honest position is: Molao can stop distributing a judgment; it cannot
-un-distribute one.** A subsequent release omits it, and that release is the one
+un-distribute one.** Deletion is not merely unsupported — it is *detected*.
+`molao verify` step 6 reads every judgment the corpus lists, so a removed one
+surfaces as "listed but cannot be read" and the release fails verification.
+Compliance-by-deletion and verifiability cannot both hold as the system is
+built. A subsequent release omits it, and that release is the one
 nodes fetch. Anyone already holding the earlier release keeps a complete,
 still-verifiable copy. Compliance is forward-looking — it changes what is
 published next, not what was published before.
 
-This is the same property a printed law report has. Once the volumes are on
-shelves, a later suppression order governs what the next volume prints. That
-observation is context, **not a legal argument, and not a defence** — whether
-"we omitted it from the next release" satisfies a particular order is a
-question of that court's law, and this project cannot answer it. **An
-institution whose own statutory or professional duty is to give effect to
-suppression orders should put this question to its counsel before signing, not
-after.**
+A printed law report has a comparable property — once volumes are on shelves, a
+later order governs what the next volume prints. **That parallel is offered as
+context and is not a legal argument, and its premise is unverified:** a search
+for any published policy on withdrawing, recalling or issuing errata for a bound
+volume found none, from any reporter series. Do not lean on it. What *is*
+documented is narrower and comes from the European Court of Human Rights in
+*Hurbain v Belgium* (2023), where the domestic court required an online archive
+to be anonymised while noting the paper archives remained intact.
+
+What the surveyed authority does show is that **courts have consistently
+required de-indexing or anonymisation rather than deletion** — *Google Spain*
+imposed the obligation on the search engine while expressly declining to reach
+the publisher; *Węgrzynowski* held it "is not the role of judicial authorities to
+engage in rewriting history"; *Biancardi* imposed de-indexing and not removal.
+**No case was located of a court ordering a legal database to delete.** The one
+documented attempt against a database — a US sealing order naming Free Law
+Project in 2020 — was resisted and the court unsealed. "No authority located" is
+not "no such authority exists", and none of this is advice about any particular
+order.
 
 **What is genuinely unresolved, and is the largest open governance question in
 the project:** the obvious design — a separately-signed suppression list,
 distributed out of band from the release, that nodes honour by refusing to
-serve named ids — is **neither built nor designed**. It also cuts against the
+serve named ids — is **neither built nor designed**. It has now been surveyed rather than merely
+left undesigned — [docs/TAKEDOWN.md](takedown.md) sets out the design
+space, why a signed network-wide suppression list is recommended against, and
+three constraints worth adopting now at no cost. Its recommendation is to settle
+this *with* an LII rather than before one, because suppression is routine work
+for them and not for this project. It also cuts against the
 censorship-resistance the rest of the document claims, and reconciling those
 two is real work nobody has done. Raising it is welcome; it will not be
 hand-waved.
