@@ -30,7 +30,7 @@
 <table align="center">
   <tr>
     <td align="center" width="33%"><strong>Free, forever</strong><br><sub>No accounts, no telemetry, no billing, no hosted service. Universities, firms and individuals run nodes. Nobody bills anybody.</sub></td>
-    <td align="center" width="33%"><strong>Verifiable by recomputation</strong><br><sub>Judgment ids are BLAKE3 of canonical text. The citation graph comes from a pinned extractor anyone can re-run and compare byte for byte.</sub></td>
+    <td align="center" width="33%"><strong>Verifiable by recomputation</strong><br><sub>Judgment ids are BLAKE3 of canonical text. The citation graph comes from a pinned extractor anyone can re-run and compare byte for byte, given the same region profiles.</sub></td>
     <td align="center" width="33%"><strong>No single publisher</strong><br><sub>Releases need k-of-n signatures from independent organisations. A threshold below 2 is refused in code — including for us.</sub></td>
   </tr>
 </table>
@@ -158,7 +158,7 @@ uses fewer forms simply matches fewer of them.
         <li>Releases <strong>chain by hash</strong>, so a fork is detectable against any known head</li>
         <li><strong>Provenance on every judgment</strong> — Corroborated, Single source, or Manually entered — because lawyers already reason in reported versus unreported terms</li>
         <li>Contributed documents corroborated by <strong>k-of-n independent re-fetch</strong>: witnesses sign the bytes they saw at the canonical source</li>
-        <li><strong>Deterministic citation extraction</strong> pinned to <code>EXTRACTOR_VERSION</code>, so anyone can rebuild the graph and compare it byte for byte</li>
+        <li><strong>Deterministic citation extraction</strong> pinned to <code>EXTRACTOR_VERSION</code>, so anyone can rebuild the graph and compare it byte for byte — with the same region profiles, which are a second input (<a href="docs/CITATIONS.md#the-contract">why</a>)</li>
         <li>The node verifies bytes and signatures. It <strong>never</strong> claims a judgment is verified law</li>
       </ul>
     </td>

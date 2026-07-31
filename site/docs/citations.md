@@ -29,10 +29,24 @@ fully-populated profile and supplies most of the worked examples here.
 
 ## The contract
 
-`extract(&str) -> Vec<CitationRef>` is **deterministic**. Given the same text
-and the same `EXTRACTOR_VERSION`, every node must produce a byte-identical
-result. That is what makes the citation graph contributable by anyone and
-checkable by everyone.
+`extract(&str) -> Vec<CitationRef>` is **deterministic**. Given the same text,
+the same `EXTRACTOR_VERSION`, **and the same region profile**, every node must
+produce a byte-identical result. That is what makes the citation graph
+contributable by anyone and checkable by everyone.
+
+> [!IMPORTANT]
+> **The profile is a second input, and it is easy to miss.** `EXTRACTOR_VERSION`
+> pins the *grammar*; the region profile supplies the *court codes and
+> law-report series* the grammar matches against. `molao-corpus` extracts with
+> the process-global default profile, so two nodes running the same extractor
+> version but resolving different profiles — one started with `--profiles`, one
+> without — can compute different `graph_root` values over the same corpus.
+>
+> Reproducing a graph therefore requires both. `molao verify` prints the region
+> profile code and its fingerprint alongside the recomputed root for exactly
+> this reason, so a profile mismatch is reported rather than appearing as an
+> unexplained root disagreement. `molao regions` shows what an invocation
+> resolves and where each profile came from.
 
 Concretely:
 
