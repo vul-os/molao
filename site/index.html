@@ -769,10 +769,10 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <div style="height:var(--gap-block)"></div>
 
       <ul class="rules">
-        <li><span class="t">Judgment ids are hashes</span><span class="d">A judgment's id is the BLAKE3 hash of its canonical text. Alter a paragraph and the id no longer matches — which is what makes a judgment received from an untrusted peer safe to keep. Canonicalisation is aggressive on purpose: judgments arrive as RTF, PDF and HTML, and every converter disagrees about whitespace.</span></li>
-        <li><span class="t">The citation graph can be rebuilt</span><span class="d">Citations are extracted by a pinned, versioned, deterministic extractor — no hash-map iteration order in output, no locale, no clock. Anyone can re-run that exact version over the same corpus and must get a byte-identical graph. Any change to extraction behaviour bumps <code>EXTRACTOR_VERSION</code>, including adding a court.</span></li>
-        <li><span class="t">Provenance is plural, and shown</span><span class="d">Contributed documents are corroborated by k-of-n independent re-fetch: witnesses fetch from the canonical source and sign the bytes they saw. One person's upload is not evidence. Every judgment shows its class — <em>Corroborated</em>, <em>Single source</em>, or <em>Manually entered</em> — because lawyers already reason in reported versus unreported terms.</span></li>
-        <li><span class="t">Embeddings are excluded from releases</span><span class="d">Float inference is not reproducible across hardware, so a contributed vector index could never be verified — only trusted. And a poisoned index is worse than a poisoned document: a tampered judgment fails its hash check immediately, while a tampered index leaves every judgment byte-perfect and simply never returns the case that would have lost you the argument. A node may build its own <strong>unsigned, rebuildable</strong> local cache; that is a different thing and does not reopen the question.</span></li>
+        <li><span class="t">Judgment ids are hashes</span><span class="d">A judgment's id is the BLAKE3 hash of its canonical text. Alter a paragraph and the id no longer matches — which is what makes a judgment from an untrusted peer safe to keep. <a href="./docs.html#architecture">How canonicalisation works</a>.</span></li>
+        <li><span class="t">The citation graph can be rebuilt</span><span class="d">A pinned, deterministic extractor: anyone can re-run that exact version over the same corpus and must get a byte-identical graph. <a href="./docs.html#citations">The citation grammar</a>.</span></li>
+        <li><span class="t">Provenance is plural, and shown</span><span class="d">Witnesses fetch from the canonical source and sign the bytes they saw — one person's upload is not evidence. Every judgment shows its class: <em>Corroborated</em>, <em>Single source</em>, or <em>Manually entered</em>. <a href="./docs.html#provenance">Corroboration in full</a>.</span></li>
+        <li><span class="t">Embeddings are excluded from releases</span><span class="d">Float inference is not reproducible across hardware, so a contributed index could only be trusted, never verified — and a poisoned index is worse than a poisoned document, because the text stays byte-perfect while retrieval quietly steers. A node may build its own <strong>unsigned, rebuildable</strong> local cache; that is a different thing. <a href="./docs.html#threat-model">Why, in full</a>.</span></li>
         <li><span class="t">The node verifies bytes and signatures — never legal correctness</span><span class="d">It will never say a judgment is verified law, on screen or anywhere else.</span></li>
       </ul>
     </div>
@@ -903,19 +903,9 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
           <div class="shot"><a class="full" href="./screenshots/judgment.png"><img src="./screenshots/judgment.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></a></div>
           <figcaption><span class="lbl">Plate II · a judgment</span> Numbered paragraphs as printed, with court, case number, coram, parallel reported citations, and the provenance class.</figcaption>
         </figure>
-        <figure class="plate-fig">
-          <div class="shot"><a class="full" href="./screenshots/citations.png"><img src="./screenshots/citations.png" alt="The citations panel showing cases cited and cases citing, each with the paragraph cited from and the pinpoint cited to, including unresolved citations shown as written." loading="lazy" decoding="async"></a></div>
-          <figcaption><span class="lbl">Plate III · citations</span> Both directions, with the paragraph cited from and the pinpoint cited to. Unresolved citations appear as written rather than being dropped.</figcaption>
-        </figure>
-        <figure class="plate-fig">
-          <div class="shot"><a class="full" href="./screenshots/graph.png"><img src="./screenshots/graph.png" alt="The citation graph around one judgment, with edges weighted by the citing court's tier." loading="lazy" decoding="async"></a></div>
-          <figcaption><span class="lbl">Plate IV · the graph</span> The citation graph around one judgment, edges weighted by the citing court's tier.</figcaption>
-        </figure>
-        <figure class="plate-fig">
-          <div class="shot"><a class="full" href="./screenshots/status.png"><img src="./screenshots/status.png" alt="The node status screen: release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed." loading="lazy" decoding="async"></a></div>
-          <figcaption><span class="lbl">Plate V · node status</span> Release number, quorum and threshold, provenance breakdown, court coverage, and whether verification passed — public on <code>/api/status</code>, so a federation's health is visible rather than assumed.</figcaption>
-        </figure>
       </div>
+
+      <p class="stand">Three more plates — <strong>the citations panel</strong> (both directions, with the paragraph cited from and the pinpoint cited to, unresolved citations shown as written rather than dropped), <strong>the citation graph</strong> weighted by the citing court's tier, and <strong>node status</strong> (release, quorum and threshold, provenance breakdown, court coverage, and whether verification passed, public on <code>/api/status</code> so a federation's health is visible rather than assumed) — are in <a href="./docs.html#screenshots">the screenshot chapter</a>.</p>
 
       <div style="height:var(--gap-block)"></div>
 
