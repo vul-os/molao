@@ -300,8 +300,47 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .md hr{border:0;border-top:3px double var(--rule-3);margin:2.2em 0}
 
 .md code{font-family:var(--mono);font-size:max(12.4px,.82em);background:var(--sink);border:1px solid var(--rule);padding:1px 5px;border-radius:3px;color:var(--ink);font-variation-settings:normal;overflow-wrap:anywhere}
-.md pre{background:var(--sink);border:1px solid var(--rule-2);padding:15px 17px;overflow-x:auto;margin:0;border-radius:2px}
-.md pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;color:var(--body);white-space:pre}
+/* THE LEADING BUG THIS FIXES. `code` is an inline box, so the height of each
+   line in a code plate is the PRE's strut, not the code's. The declared
+   line-height on `.md pre code` was therefore dead: <pre> inherited .md's
+   17px/1.68 and every 13.5px line was set at 28.6px — leading of 2.1, which is
+   why the blocks read as a widely spaced list rather than a block of code, and
+   why forty of them carried about a third more height than they needed. The
+   size and the leading have to be declared on the PRE for either to apply. */
+.md pre{background:var(--sink);border:1px solid var(--rule-2);padding:15px 17px;overflow-x:auto;margin:0;border-radius:2px;font-size:13.5px;line-height:1.62}
+.md pre code{background:none;border:0;padding:0;font-size:1em;line-height:inherit;color:var(--body);white-space:pre}
+
+/* ── Syntax highlighting ───────────────────────────────────────────────────
+   Every token below is an existing page variable, not a new colour. The
+   highlighter therefore has no palette of its own: a code block is painted in
+   the same warm law-report register as the seals, the status dots and the
+   rules, and light and dark are one drawing rather than two themes.
+
+   The four that carry meaning are the four already in use elsewhere on this
+   site — amber for the thing being invoked, green for a literal, blue for a
+   number, brick for a type — so nothing here has to be learned twice.
+
+   Contrast was checked against --sink, the code plate's own background, in
+   both schemes: the lowest ratio in the set is 5.1:1 (amber on light paper),
+   above the 4.5:1 AA floor for text this size. --faint would have measured
+   3.9:1, which is why punctuation is --muted and not --faint. */
+.md pre code{
+  --hl-com:var(--muted);  --hl-str:var(--ok);      --hl-num:var(--work);
+  --hl-kw:var(--seal-ink);--hl-typ:var(--stop);    --hl-name:var(--ink);
+  --hl-punct:var(--muted);
+}
+.t-com{color:var(--hl-com)}
+.t-str{color:var(--hl-str)}
+.t-num{color:var(--hl-num)}
+.t-lit{color:var(--hl-num);font-weight:600}
+.t-kw,.t-key{color:var(--hl-kw)}
+.t-typ{color:var(--hl-typ)}
+/* Weight is spent once, on the word being invoked. A Rust line can hold three
+   call sites and setting them all in 600 turns the block into a bold rash;
+   a shell line holds exactly one command, and that one earns it. */
+.t-name{color:var(--hl-name)}
+.t-cmd{color:var(--hl-name);font-weight:600}
+.t-punct{color:var(--hl-punct)}
 
 /* Code figure: a bordered plate with a copy control, so a long shell block
    scrolls inside itself instead of widening the page at 320px. */
@@ -861,6 +900,94 @@ async function renderDiagrams(){
   }
 }
 
+/* ── Syntax highlighting ───────────────────────────────────────────────────
+   A tokeniser for the three languages this documentation actually contains —
+   shell, JSON and Rust — and nothing else.
+
+   It is written rather than fetched because the alternatives were both wrong.
+   A CDN highlighter would make this page's own printed claim ("no fonts,
+   scripts, analytics or images are fetched from anywhere else") false in the
+   first 200ms, and the CSP would block it anyway. A vendored general
+   highlighter is a hundred kilobytes and change for grammars this site will
+   never render — the same trade that put 3.5 MB of mermaid behind a lazy load
+   for one diagram.
+
+   Bare fences stay unpainted on purpose. They hold citation tables and command
+   output, and colouring those would invent a syntax the text does not have. */
+const HL_ALIAS = {sh:'sh', bash:'sh', shell:'sh', zsh:'sh', console:'sh',
+                  json:'json', rust:'rust', rs:'rust'};
+
+/* Sticky (/y) so the scanner can ask "does this rule match AT this index"
+   without slicing the string. lastIndex is set on every attempt, so sharing
+   one regex object across calls is safe. A null class means "consume, do not
+   paint"; 'word' means "paint only if this word opens a command". */
+const HL_RULES = {
+  sh: [
+    [null,    /\s+/y],
+    ['com',   /#[^\n]*/y],
+    ['str',   /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/y],
+    ['key',   /\$\{[^}\n]*\}|\$\w+/y],
+    ['kw',    /--(?=\s|$)|--?[A-Za-z][\w-]*/y],
+    ['punct', /[|&;()<>]+/y],
+    ['word',  /[^\s|&;()<>#"']+/y],
+  ],
+  json: [
+    [null,    /\s+/y],
+    ['key',   /"(?:\\.|[^"\\])*"(?=\s*:)/y],
+    ['str',   /"(?:\\.|[^"\\])*"/y],
+    ['lit',   /\b(?:true|false|null)\b/y],
+    ['num',   /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y],
+    ['punct', /[{}\[\],:]/y],
+  ],
+  rust: [
+    [null,    /\s+/y],
+    ['com',   /\/\/[^\n]*|\/\*[\s\S]*?\*\//y],
+    ['key',   /#!?\[[^\]\n]*\]/y],
+    ['str',   /"(?:\\.|[^"\\])*"/y],
+    ['str',   /'(?:\\.|[^'\\])'/y],
+    ['key',   /'[a-z_]\w*/y],
+    ['name',  /\b[a-z_]\w*!/y],
+    ['kw',    /\b(?:as|async|await|break|const|continue|crate|dyn|else|enum|extern|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|Self|static|struct|super|trait|type|union|unsafe|use|where|while)\b/y],
+    ['typ',   /\b(?:bool|char|str|String|Vec|Option|Result|Box|u8|u16|u32|u64|u128|usize|i8|i16|i32|i64|i128|isize|f32|f64)\b/y],
+    ['typ',   /\b[A-Z]\w*/y],
+    ['num',   /\b\d[\d_]*(?:\.\d+)?(?:[iuf](?:8|16|32|64|128|size))?\b/y],
+    ['name',  /\b[a-z_]\w*(?=\s*\()/y],
+    ['punct', /[{}()\[\];,.:<>=&|+\-*\/!?]+/y],
+    [null,    /\w+/y],
+  ],
+};
+
+function hlEsc(s){
+  return s.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
+}
+
+function highlight(src, lang){
+  const rules = HL_RULES[HL_ALIAS[lang]];
+  if (!rules) return null;
+  // `head` tracks whether the next bare word opens a command. It is true at the
+  // start, after a newline, and after a pipe or separator — which is what makes
+  // `npm` bold in `npm ci && npm run build` but `run` and `build` plain.
+  let out = '', i = 0, head = true;
+  while (i < src.length) {
+    let cls = null, text = null;
+    for (const rule of rules) {
+      rule[1].lastIndex = i;
+      const m = rule[1].exec(src);
+      if (m && m[0]) { cls = rule[0]; text = m[0]; break; }
+    }
+    // No rule claimed this index: emit one character and move on, so an
+    // unexpected byte can never spin the loop.
+    if (text === null) { text = src[i]; cls = null; }
+    if (cls === 'word') cls = head ? 'cmd' : null;
+    out += cls ? '<span class="t-' + cls + '">' + hlEsc(text) + '</span>' : hlEsc(text);
+    i += text.length;
+    if (cls === null && !/\S/.test(text)) { if (text.indexOf('\n') >= 0) head = true; }
+    else if (cls === 'punct') head = true;
+    else head = false;
+  }
+  return out;
+}
+
 function decorate(slug){
   // Headings become deep-linkable: #chapter/section-id.
   const used = new Set();
@@ -917,6 +1044,16 @@ function decorate(slug){
     wrap.className = 'tablewrap';
     t.replaceWith(wrap);
     wrap.appendChild(t);
+  }
+
+  // Code blocks get syntax colour and a copy control. Painting happens before
+  // the copy button is attached, and only rewrites the contents of <code>, so
+  // pre.innerText — what Copy puts on the clipboard — is unchanged.
+  for (const code of content.querySelectorAll('pre > code[class*="language-"]')) {
+    const lang = (code.className.match(/language-([\w+-]+)/) || [])[1];
+    if (!lang || lang === 'mermaid') continue;
+    const painted = highlight(code.textContent, lang.toLowerCase());
+    if (painted !== null) code.innerHTML = painted;
   }
 
   // Code blocks get a copy control.

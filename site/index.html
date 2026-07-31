@@ -420,8 +420,29 @@ figcaption strong{color:var(--muted)}
 .crit td:last-child{color:var(--muted)}
 @media(max-width:560px){.crit td:first-child,.crit th:first-child{width:auto}.crit thead{position:absolute;left:-9999px}.crit tr{display:block;border-bottom:1px solid var(--rule);padding:10px 0}.crit td{display:block;border:0;padding:2px 0}}
 
-pre{background:var(--sink);border:1px solid var(--rule-2);padding:16px 18px;overflow-x:auto;margin:0;border-radius:2px}
-pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;color:var(--body);white-space:pre}
+/* THE LEADING BUG THIS FIXES. `code` is an inline box, so each line in a code
+   plate is as tall as the PRE's strut, not the code's. The line-height
+   declared on `pre code` was dead — <pre> inherited the body's 17.5px/1.66 and
+   every 13.5px line was set at ~29px. Size and leading must be on the PRE. */
+pre{background:var(--sink);border:1px solid var(--rule-2);padding:16px 18px;overflow-x:auto;margin:0;border-radius:2px;font-size:13.5px;line-height:1.62}
+pre code{background:none;border:0;padding:0;font-size:1em;line-height:inherit;color:var(--body);white-space:pre}
+
+/* ── Syntax highlighting ───────────────────────────────────────────────────
+   The one code block on this page is marked up by hand, so the landing ships
+   no tokeniser at all — the documentation viewer, which has forty of them,
+   carries that. What both pages share is this palette, and it is not a palette:
+   every token is a variable the page already defines, so a code block sits in
+   the same warm law-report register as the seals and the status dots, and
+   light and dark are one drawing.
+
+   Contrast measured against --sink, the plate's own background: the lowest in
+   the set is 5.1:1, above the 4.5:1 AA floor at this size. */
+pre code{
+  --hl-kw:var(--seal-ink); --hl-name:var(--ink); --hl-punct:var(--muted);
+}
+.t-kw{color:var(--hl-kw)}
+.t-cmd{color:var(--hl-name);font-weight:600}
+.t-punct{color:var(--hl-punct)}
 
 .honest li{color:var(--muted)}
 .honest .t{display:block}
@@ -973,15 +994,15 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <p class="stand">Rust 1.85 or newer and Node 20 or newer. Nothing else: SQLite is bundled, so there is no database to install and no connection string to configure. A node binds <code>127.0.0.1</code> — serving a network is a deliberate flag, not an accident.</p>
       <div class="cols c2">
         <div>
-<pre><code>git clone https://github.com/vul-os/molao
-cd molao
+<pre><code><span class="t-cmd">git</span> clone https://github.com/vul-os/molao
+<span class="t-cmd">cd</span> molao
 
-cargo build --workspace
-cargo test --workspace
+<span class="t-cmd">cargo</span> build <span class="t-kw">--workspace</span>
+<span class="t-cmd">cargo</span> test <span class="t-kw">--workspace</span>
 
-npm ci &amp;&amp; npm run build
+<span class="t-cmd">npm</span> ci <span class="t-punct">&amp;&amp;</span> <span class="t-cmd">npm</span> run build
 
-cargo run -p molao-node</code></pre>
+<span class="t-cmd">cargo</span> run <span class="t-kw">-p</span> molao-node</code></pre>
         </div>
         <div class="card">
           <h3>What you get, honestly</h3>
