@@ -365,7 +365,11 @@ figcaption strong{color:var(--muted)}
    The drawing stays in the SVG where scrolling is fine. The prose comes out
    into HTML, where it wraps to the reader's measure at any width, and the
    viewBoxes lose the band they occupied. */
-.fig-note{font-size:var(--t-xs);color:var(--muted);line-height:1.5;margin:11px 0 0;padding-top:11px;border-top:1px solid var(--rule)}
+/* Same measure as the figcaption below it: the note and the caption are one
+   block of apparatus under the drawing, and at 1440 the note was running to
+   140 characters a line while the caption stopped at 62ch — two different
+   columns of small print under the same figure. */
+.fig-note{font-size:var(--t-xs);color:var(--muted);line-height:1.5;margin:11px 0 0;padding-top:11px;border-top:1px solid var(--rule);max-width:62ch}
 .fig-note strong{color:var(--ink)}
 .fig-note code{font-size:12.4px}
 
