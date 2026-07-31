@@ -833,23 +833,16 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <div style="height:var(--gap-block)"></div>
 
       <span class="lbl">The map, as it actually stands</span>
+      <p class="stand"><strong>Twelve jurisdictions or groups are mapped</strong> — three usable now (Kenya, Ireland, Scotland and Northern Ireland), four needing a small court-direct adapter, four a jurisdiction away from a usually-free paperwork step, and the LII aggregators off-limits by their own policy. Four rows are shown here; the full per-jurisdiction map, with the licence or robots evidence behind every verdict, is <a href="./docs.html#source-map">the source map</a>.</p>
       <div class="ledger-wrap">
         <table class="ledger">
           <thead>
             <tr><th scope="col">Jurisdiction</th><th scope="col">Status</th><th scope="col">Route and what it needs</th></tr>
           </thead>
           <tbody>
-            <tr><td class="j">Kenya</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n">Kenya Law, court-direct crawl; robots allows the path. Live-proven, though it may paywall.</td></tr>
-            <tr><td class="j">Scotland · Northern Ireland</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n">Court sites under the Open Government Licence, open robots, no AI carve-out. Worth confirming reuse in writing.</td></tr>
-            <tr><td class="j">Ireland</td><td class="s s-ok"><span class="dot"></span>Usable now</td><td class="n"><code>courts.ie</code>; CC-BY by default under public-sector information, robots allow-lists the judgments path.</td></tr>
-            <tr><td class="j">New Zealand</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judgments have <strong>no copyright at all</strong> (Copyright Act 1994 s27(g)) and robots is open — the cleanest source anywhere. It needs a court-direct parser.</td></tr>
+            <tr><td class="j">New Zealand</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judgments have <strong>no copyright at all</strong> (Copyright Act 1994 s27(g)) and robots is open — the cleanest source anywhere.</td></tr>
             <tr><td class="j">South Africa</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Constitutional Court and SCA directly. Judgments are <strong>public domain by statute</strong> — Copyright Act 1978 s12(8)(a) excludes official texts of a legal nature.</td></tr>
-            <tr><td class="j">Ghana</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judiciary e-Judgment portal: court-direct, open robots, no AI block.</td></tr>
             <tr><td class="j">England &amp; Wales · UK Supreme Court</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">National Archives <em>Find Case Law</em>: an official API in Akoma Ntoso XML — the best-structured source anywhere. Computational use needs a <strong>free licence application</strong>.</td></tr>
-            <tr><td class="j">Australia</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Courts grant written scraping permission on request, or reuse the Open Australian Legal Corpus (CC-BY-4.0, permission pre-cleared).</td></tr>
-            <tr><td class="j">Canada (federal)</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Open reuse under the Reproduction of Federal Law Order, but the sites block crawling — so it is a bulk data request to the registry.</td></tr>
-            <tr><td class="j">Most of Africa, as bulk</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">Laws.Africa, the upstream digitiser for the whole network. CC-BY-NC-SA by default; AI terms unpublished, so it is a licence conversation.</td></tr>
-            <tr><td class="j">EU · France · Netherlands · Germany · ECHR</td><td class="s s-work"><span class="dot"></span>Preliminary</td><td class="n">EUR-Lex/CURIA, Légifrance, <code>rechtspraak.nl</code>, <code>rechtsprechung-im-internet.de</code>, HUDOC. Open-data routes, still to be confirmed and adapter-built.</td></tr>
             <tr><td class="j">BAILII · AustLII · NZLII · CanLII · SAFLII, and most African LII sites</td><td class="s s-stop"><span class="dot"></span>Off-limits</td><td class="n">Off-limits by <em>their</em> policy — terms, robots, or an explicit no-AI content signal. Molao honours that and uses them only to resolve citations.</td></tr>
           </tbody>
         </table>
