@@ -30,8 +30,17 @@
 //! The order judgments arrive in is not controllable: a 2024 judgment citing
 //! *Makwanyane* may be ingested days before *Makwanyane* itself. So an edge
 //! that cannot resolve at insert time is stored **unresolved** rather than
-//! dropped, and [`Corpus::relink`] fills in `to_doc` for every citation whose
-//! key has since become resolvable. Ingest, then relink, always.
+//! dropped, and [`Corpus::relink`] points every citation at whatever its key
+//! resolves to now. Ingest, then relink, always.
+//!
+//! Because arrival order is not controllable, nothing derived from the corpus
+//! may depend on it. Two judgments can claim one citation key — a typo in a
+//! case number upstream is enough — and the owner is then decided by **the
+//! lowest `DocId`, not the first arrival**, so the same two judgments resolve
+//! the same way whichever order a node ingested them in. See
+//! [`Corpus::insert_judgment`]. A corpus written by a binary older than that
+//! rule keeps whatever its ingest order gave it; re-ingesting the judgments
+//! settles it, and there is no published corpus that would need it.
 //!
 //! Unresolved citations are kept forever and surfaced in the UI as written.
 //! Hiding them would misrepresent the corpus as more complete than it is —
@@ -415,11 +424,30 @@ impl Corpus {
         {
             let mut key_stmt = tx.prepare(
                 "INSERT INTO citation_keys (citation_key, doc_id) VALUES (?1, ?2) \
-                 ON CONFLICT(citation_key) DO NOTHING",
+                 ON CONFLICT(citation_key) DO UPDATE SET doc_id = min(doc_id, excluded.doc_id)",
             )?;
-            // First registration wins. Two judgments claiming one key means a
-            // typo in a case number somewhere upstream; letting the later one
-            // steal the key would make resolution depend on ingest order.
+            // **The lowest id wins, whichever arrives first.** Two judgments
+            // claiming one key means a typo in a case number somewhere
+            // upstream, and the corpus has no basis for preferring either — but
+            // it must prefer the *same* one on every node, or two nodes holding
+            // an identical corpus resolve that key differently and their
+            // `graph_root` values disagree for a reason neither can see.
+            //
+            // "First registration wins" is not that rule: which judgment
+            // registers first *is* the ingest order, so first-wins is exactly
+            // the order dependence it reads as avoiding. A `DocId` is
+            // `hex(blake3(canonical_text))`, so the minimum over the pair is a
+            // property of the two documents and of nothing else — the same
+            // answer for both ingest orders, on every node, for all time.
+            //
+            // `min()` is applied in the conflict clause rather than by reading
+            // the row first so that it is one statement under the enclosing
+            // transaction: a check-then-write would be a race between two
+            // ingests, and the losing writer would decide the key.
+            //
+            // Because a losing claim leaves no row of its own, `relink` is what
+            // repoints citations that were resolved against a superseded owner
+            // — see there.
             for key in own_citation_keys(j) {
                 key_stmt.execute(rusqlite::params![key, &id])?;
             }
@@ -463,20 +491,34 @@ impl Corpus {
         Ok(found.and_then(|s| s.parse().ok()))
     }
 
-    /// Fill in `to_doc` for every citation whose key has become resolvable.
+    /// Point every citation at whatever its key resolves to **now**.
     ///
     /// Run after any ingest. Cheap and idempotent: a single indexed `UPDATE`
-    /// touching only rows that are still unresolved.
+    /// touching only rows whose stored `to_doc` disagrees with the key table.
     ///
-    /// Returns the number of edges newly resolved.
+    /// It rewrites rather than only fills, and that is load-bearing. A citation
+    /// gets its `to_doc` from a sub-select at insert time, so it records
+    /// whichever judgment owned the key *at that moment* — and a later ingest
+    /// can take the key over, because ownership is the lowest `DocId` rather
+    /// than the first arrival (see `insert_judgment`). If this only filled
+    /// `NULL`s, the citation table would keep the loser's id and the stored
+    /// graph would again depend on ingest order, this time one level down from
+    /// where it was fixed. `molao verify` step 7 requires the citation table and
+    /// a fresh re-extraction to produce the same edge set, so that divergence
+    /// would surface as an unverifiable corpus.
+    ///
+    /// `IS NOT` rather than `<>` so the `NULL` cases are included in both
+    /// directions: an unresolved citation whose target has arrived, and a
+    /// resolved one whose target has been deleted.
+    ///
+    /// Returns the number of edges whose resolution changed.
     pub fn relink(&self) -> Result<usize> {
         let n = self.conn.execute(
             "UPDATE citations \
              SET to_doc = (SELECT doc_id FROM citation_keys k \
                            WHERE k.citation_key = citations.citation_key) \
-             WHERE to_doc IS NULL \
-               AND EXISTS (SELECT 1 FROM citation_keys k \
-                           WHERE k.citation_key = citations.citation_key)",
+             WHERE to_doc IS NOT (SELECT doc_id FROM citation_keys k \
+                                  WHERE k.citation_key = citations.citation_key)",
             [],
         )?;
         Ok(n)
@@ -1040,6 +1082,128 @@ mod tests {
             c.citations_from(&citing.id).unwrap()[0].to_id.as_deref(),
             Some(target.id.to_string().as_str())
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Contested citation keys must not depend on ingest order
+    // -----------------------------------------------------------------------
+
+    /// Two judgments claiming one citation key, plus a third that cites it.
+    /// The two claimants have the same neutral citation and different text, so
+    /// they are two documents with two ids that register the same key.
+    fn contested() -> (Judgment, Judgment, Judgment) {
+        let a = judgment("ZACC", "[1995] ZACC 3", "S v Ndlovu", &["Held for A."]);
+        let b = judgment("ZACC", "[1995] ZACC 3", "S v Ndlovu", &["Held for B."]);
+        assert_ne!(a.id, b.id, "the two claimants must be two documents");
+        let citing = judgment(
+            "ZASCA",
+            "[2020] ZASCA 9",
+            "Mokoena v RAF",
+            &["We follow [1995] ZACC 3."],
+        );
+        (a, b, citing)
+    }
+
+    /// Ingest `order` into a fresh corpus and report what the contested key
+    /// resolves to, and what edge the citing judgment ends up with.
+    fn resolve_after(order: [&Judgment; 3]) -> (Option<DocId>, Vec<(DocId, DocId)>) {
+        let mut c = Corpus::open_in_memory().unwrap();
+        for j in order {
+            c.insert_judgment(j, &[]).unwrap();
+        }
+        c.relink().unwrap();
+        let key = c.resolve("neutral:1995:ZACC:3").unwrap();
+        let edges = c
+            .resolved_edges()
+            .unwrap()
+            .into_iter()
+            .map(|e| (e.from, e.to))
+            .collect();
+        (key, edges)
+    }
+
+    #[test]
+    fn a_contested_citation_key_resolves_the_same_in_either_ingest_order() {
+        // The property: two nodes holding the same three judgments must agree
+        // about what `[1995] ZACC 3` means, even though nothing makes them
+        // ingest in the same order. Otherwise their graph roots differ and the
+        // manifest's reproducibility claim is false for a reason neither node
+        // can report.
+        let (a, b, citing) = contested();
+        let lowest = std::cmp::min(a.id, b.id);
+
+        // All six orders of the three judgments. The interesting ones are not
+        // the two that swap the claimants: they are the ones that put the
+        // citing judgment *between* them, where the insert-time sub-select
+        // records one owner and a later ingest changes it.
+        let orders = [
+            ([&a, &b, &citing], "claimants first, lower one leading"),
+            ([&b, &a, &citing], "claimants first, higher one leading"),
+            ([&a, &citing, &b], "citing between, lower one leading"),
+            ([&b, &citing, &a], "citing between, higher one leading"),
+            ([&citing, &a, &b], "citing first, lower one leading"),
+            ([&citing, &b, &a], "citing first, higher one leading"),
+        ];
+        let forward = resolve_after(orders[0].0);
+        for (order, description) in orders {
+            assert_eq!(
+                resolve_after(order),
+                forward,
+                "resolution changed with the ingest order: {description}"
+            );
+        }
+        assert_eq!(
+            forward.0,
+            Some(lowest),
+            "the owner must be the lowest DocId, which is a property of the \
+             documents rather than of the order they arrived in"
+        );
+        assert_eq!(
+            forward.1,
+            vec![(citing.id, lowest)],
+            "the stored edge must point at the same judgment `resolve` names"
+        );
+    }
+
+    #[test]
+    fn a_later_judgment_with_a_lower_id_takes_the_key_over_and_edges_follow() {
+        // The half that first-registration-wins got wrong on its own terms: the
+        // conflicting row arriving *second* must be able to win, or the rule is
+        // still "whoever got here first". The citation table has to move with
+        // it — `verify` step 7 compares the stored edges against a fresh
+        // re-extraction, so a stale `to_doc` here is an unverifiable corpus.
+        let (a, b, citing) = contested();
+        let (low, high) = if a.id < b.id { (&a, &b) } else { (&b, &a) };
+
+        let mut c = Corpus::open_in_memory().unwrap();
+        c.insert_judgment(high, &[]).unwrap();
+        c.insert_judgment(&citing, &[]).unwrap();
+        assert_eq!(
+            c.citations_from(&citing.id).unwrap()[0].to_id.as_deref(),
+            Some(high.id.to_string().as_str()),
+            "with only one claimant present it resolves to that claimant"
+        );
+
+        c.insert_judgment(low, &[]).unwrap();
+        assert_eq!(c.resolve("neutral:1995:ZACC:3").unwrap(), Some(low.id));
+        assert_eq!(
+            c.relink().unwrap(),
+            1,
+            "relink must repoint the edge that was resolved against the loser"
+        );
+        assert_eq!(
+            c.citations_from(&citing.id).unwrap()[0].to_id.as_deref(),
+            Some(low.id.to_string().as_str())
+        );
+        assert_eq!(
+            c.resolved_edges()
+                .unwrap()
+                .into_iter()
+                .map(|e| (e.from, e.to))
+                .collect::<Vec<_>>(),
+            vec![(citing.id, low.id)]
+        );
+        assert_eq!(c.relink().unwrap(), 0, "and then have nothing left to do");
     }
 
     #[test]
