@@ -411,11 +411,49 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 @media(hover:none){.anchor{opacity:.5}}
 :target{scroll-margin-top:calc(var(--rail-h) + 20px)}
 
-/* Mermaid: rendered only for the one chapter that has a diagram, and the
-   3.5 MB renderer is fetched only then. */
+/* The one diagram in the documentation (docs/ARCHITECTURE.md's fenced
+   ```mermaid block) used to be drawn by a vendored renderer — 3.5 MB,
+   lazy-loaded so the other twenty chapters never paid for it, but still a
+   3.5 MB fetch for anyone who opened this one. It is now a hand-authored
+   SVG in the same visual language as the three figures on the landing page
+   (site/index.html): structural labels live in the SVG, explanatory prose
+   lives in HTML where it can wrap, and colour comes from this page's own
+   custom properties so it is never a stock diagram dropped into a printed
+   page. No engine, no fetch — see renderDiagrams() below. */
 .diagram{border:1px solid var(--rule);background:var(--surface);padding:clamp(12px,2vw,18px);margin:1.5em 0;overflow-x:auto}
 .diagram svg{max-width:none;margin:0 auto}
 .diagram-note{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 0 9px}
+/* The prose column is ~780px at 1440 and the figure is drawn at its designed
+   width regardless (980–1220px, five stages of a real pipeline) — it scrolls
+   inside itself at EVERY breakpoint this page ships, not only at 390. The
+   code-block fade above exists for exactly this failure mode: a block wider
+   than its frame, cut at the edge with no signal that there is more. Same
+   fix, same reasoning, reused rather than re-invented — attached to
+   .arch-scroll itself, since that is the element that actually clips (the
+   .diagram frame around it never overflows: its child fills it exactly and
+   only the child's own child, the oversized svg, forces a scrollbar). */
+.arch-scroll{position:relative;overflow-x:auto;scrollbar-width:thin}
+.arch-scroll::before,.arch-scroll::after{content:"";position:absolute;top:0;bottom:0;width:34px;pointer-events:none;opacity:0;transition:opacity .14s}
+.arch-scroll::before{left:0;background:linear-gradient(to left,transparent,var(--surface))}
+.arch-scroll::after{right:0;background:linear-gradient(to right,transparent,var(--surface))}
+.arch-scroll[data-fade="right"]::after,.arch-scroll[data-fade="both"]::after{opacity:1}
+.arch-scroll[data-fade="left"]::before,.arch-scroll[data-fade="both"]::before{opacity:1}
+/* Same reasoning as .fig-scroll on the landing page: type inside an SVG
+   scales with the viewBox, so a figure squeezed into a 390px viewport would
+   drop its labels well under the 12px floor. min-width keeps the drawing at
+   its designed size and lets the FIGURE scroll sideways instead. */
+.arch-scroll>svg{min-width:980px;width:100%;max-width:1220px;height:auto;margin:0 auto;display:block}
+.arch-scroll svg text{font-family:var(--mono);font-size:13px;fill:var(--muted)}
+.arch-scroll svg text.strong{fill:var(--ink);font-weight:600}
+.arch-scroll svg .box{fill:var(--sink);stroke:var(--rule-2);stroke-width:1.5}
+.arch-scroll svg .paper{fill:var(--surface);stroke:var(--rule-2);stroke-width:1.5}
+.arch-scroll svg .planned{fill:none;stroke:var(--rule-3);stroke-width:1.5;stroke-dasharray:4 4}
+.arch-scroll svg .planned-text{fill:var(--wait);font-weight:600}
+.arch-scroll svg .ln{stroke:var(--rule-2);fill:none;stroke-width:1.5}
+.arch-scroll svg .ln-2{stroke:var(--rule-3);fill:none;stroke-width:1.5}
+.diagram-fignote{font-size:14px;color:var(--muted);line-height:1.55;margin:12px 0 0;padding-top:11px;border-top:1px solid var(--rule);max-width:68ch}
+.diagram-fignote strong{color:var(--ink)}
+.diagram-fignote code{font-size:12.8px}
 
 .notice-err{border:1px solid var(--rule-2);border-left:4px solid var(--stop);background:var(--surface);padding:18px 20px;color:var(--body);font-size:16px}
 .notice-err strong{color:var(--stop)}
@@ -898,70 +936,176 @@ function buildToc(){
 
 if (window.marked && marked.setOptions) marked.setOptions({gfm:true, breaks:false});
 
-let mermaidPromise = null;
-function loadMermaid(){
-  // 3.5 MB of renderer for the one chapter that has a diagram. Twenty of the
-  // twenty-one chapters must not pay for it.
-  if (mermaidPromise) return mermaidPromise;
-  mermaidPromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = './assets/vendor/mermaid.min.js';
-    s.onload = () => resolve(window.mermaid);
-    s.onerror = () => reject(new Error('mermaid failed to load'));
-    document.head.appendChild(s);
-  });
-  return mermaidPromise;
-}
+// The architecture figure, hand-drawn once: sources are corroborated by
+// witnesses, a reproducible build turns their signed statements into a
+// manifest, a k-of-n quorum attests it as a SignedRelease, and a node
+// verifies that release before serving it. Same house style as the three
+// figures on the landing page — .box/.paper/.ln classes, colour from this
+// page's own custom properties, so it never arrives as a grey stock
+// flowchart in the middle of a law report. It replaces the ```mermaid
+// fenced block that docs/ARCHITECTURE.md still carries as its source
+// (a fenced code block is a normal thing for a markdown source to keep);
+// this script matches that block by content, below, and never fetches a
+// renderer to draw it.
+const ARCH_SVG = `<svg viewBox="0 0 1220 380" role="img" aria-labelledby="archt archd">
+  <title id="archt">How a release becomes a searchable node</title>
+  <desc id="archd">Courts and gazettes, and a licensed bulk supplier, are corroborated by independent witnesses. A reproducible build canonicalises and extracts the corpus into a manifest, which a k-of-n quorum of signers attests as a SignedRelease, witnessed — in design but not yet built — by a public append-only log. A node verifies the quorum and hash chain, then serves the corpus from SQLite and FTS5 through an HTTP API to its embedded web UI.</desc>
+  <defs>
+    <marker id="archar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="var(--rule-3)"/>
+    </marker>
+  </defs>
+  <text x="16" y="22" class="strong">Sources</text>
+  <text x="16" y="40">(licensed or public)</text>
+  <text x="268" y="22" class="strong">Contribution</text>
+  <text x="268" y="40">&amp; corroboration</text>
+  <text x="480" y="22" class="strong">Release build</text>
+  <text x="480" y="40">(reproducible)</text>
+  <text x="747" y="22" class="strong">Attestation</text>
+  <text x="747" y="40">(k-of-n, k &#8805; 2)</text>
+  <text x="1004" y="22" class="strong">A node</text>
+  <text x="1004" y="40">(one binary, one file)</text>
+  <g class="ln">
+    <path d="M226 83 L268 83" marker-end="url(#archar)"/>
+    <path d="M226 83 C247 83,247 142,268 142" marker-end="url(#archar)"/>
+    <path d="M226 83 C247 83,247 192,268 192" marker-end="url(#archar)"/>
+    <path d="M226 160 C247 160,247 83,268 83" marker-end="url(#archar)"/>
+    <path d="M226 160 C247 160,247 142,268 142" marker-end="url(#archar)"/>
+    <path d="M226 160 C247 160,247 192,268 192" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln">
+    <path d="M438 83 L480 83" marker-end="url(#archar)"/>
+    <path d="M438 142 C459 142,459 83,480 83" marker-end="url(#archar)"/>
+    <path d="M438 192 C459 192,459 83,480 83" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln">
+    <path d="M592 110 L592 124" marker-end="url(#archar)"/>
+    <path d="M592 178 L592 192" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln">
+    <path d="M705 220 C726 220,726 74,747 74" marker-end="url(#archar)"/>
+    <path d="M705 246 C726 246,726 122,747 122" marker-end="url(#archar)"/>
+    <path d="M705 272 C726 272,726 170,747 170" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln-2">
+    <path d="M705 290 C726 290,726 245,747 245" stroke-dasharray="3 4" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln">
+    <path d="M962 74 C983 74,983 83,1004 83" marker-end="url(#archar)"/>
+    <path d="M962 122 C983 122,983 83,1004 83" marker-end="url(#archar)"/>
+    <path d="M962 170 C983 170,983 83,1004 83" marker-end="url(#archar)"/>
+  </g>
+  <g class="ln">
+    <path d="M1099 110 L1099 124" marker-end="url(#archar)"/>
+    <path d="M1099 196 L1099 210" marker-end="url(#archar)"/>
+    <path d="M1099 264 L1099 278" marker-end="url(#archar)"/>
+  </g>
+  <rect x="16" y="56" width="210" height="54" rx="2" class="box"/>
+  <text x="30" y="78" class="strong">Courts &amp; gazettes</text>
+  <text x="30" y="96">(direct, canonical)</text>
+  <rect x="16" y="124" width="210" height="72" rx="2" class="box"/>
+  <text x="30" y="146" class="strong">Licensed bulk supplier</text>
+  <text x="30" y="164">(e.g. Laws.Africa &#8212;</text>
+  <text x="30" y="182">Akoma Ntoso)</text>
+  <rect x="268" y="56" width="170" height="54" rx="2" class="box"/>
+  <text x="282" y="78" class="strong">Witness A</text>
+  <text x="282" y="96">(independent org)</text>
+  <rect x="268" y="124" width="170" height="36" rx="2" class="box"/>
+  <text x="282" y="147" class="strong">Witness B</text>
+  <rect x="268" y="174" width="170" height="36" rx="2" class="box"/>
+  <text x="282" y="197" class="strong">Witness C</text>
+  <rect x="480" y="56" width="225" height="54" rx="2" class="box"/>
+  <text x="494" y="78" class="strong">canonicalise()</text>
+  <text x="494" y="96">&#8594; DocId = BLAKE3(text)</text>
+  <rect x="480" y="124" width="225" height="54" rx="2" class="box"/>
+  <text x="494" y="146" class="strong">molao-cite extract()</text>
+  <text x="494" y="164">pinned EXTRACTOR_VERSION</text>
+  <rect x="480" y="192" width="225" height="108" rx="2" class="paper"/>
+  <text x="494" y="214" class="strong">Manifest</text>
+  <text x="494" y="232">corpus_root</text>
+  <text x="494" y="250">graph_root</text>
+  <text x="494" y="268">previous</text>
+  <text x="494" y="286">extractor_version</text>
+  <rect x="747" y="56" width="215" height="36" rx="2" class="box"/>
+  <text x="761" y="79" class="strong">Signer 1</text>
+  <rect x="747" y="104" width="215" height="36" rx="2" class="box"/>
+  <text x="761" y="127" class="strong">Signer 2</text>
+  <rect x="747" y="152" width="215" height="36" rx="2" class="box"/>
+  <text x="761" y="175" class="strong">Signer n</text>
+  <rect x="747" y="218" width="215" height="54" rx="2" class="planned"/>
+  <text x="761" y="240" class="strong">Public append-only log</text>
+  <text x="761" y="258" class="planned-text">(designed, not built)</text>
+  <rect x="1004" y="56" width="190" height="54" rx="2" class="box"/>
+  <text x="1018" y="78" class="strong">verify()</text>
+  <text x="1018" y="96">quorum + chain</text>
+  <rect x="1004" y="124" width="190" height="72" rx="2" class="box"/>
+  <text x="1018" y="146" class="strong">SQLite + FTS5</text>
+  <text x="1018" y="164">judgments, edges,</text>
+  <text x="1018" y="182">provenance</text>
+  <rect x="1004" y="210" width="190" height="54" rx="2" class="box"/>
+  <text x="1018" y="232" class="strong">axum HTTP API</text>
+  <text x="1018" y="250">/api/*</text>
+  <rect x="1004" y="278" width="190" height="72" rx="2" class="box"/>
+  <text x="1018" y="300" class="strong">Embedded web UI</text>
+  <text x="1018" y="318">(TypeScript + Vite,</text>
+  <text x="1018" y="336">rust-embed)</text>
+</svg>`;
 
-async function renderDiagrams(){
+const ARCH_NOTE = 'Witnesses countersign a canonical envelope — <code>doc_id, url, fetched_at, raw_hash</code> ' +
+  '— before it is canonicalised and extracted into a manifest. A k-of-n quorum (k &#8805; 2) signs that manifest ' +
+  'as a <code>SignedRelease</code>, which a node’s <code>verify()</code> checks against the quorum and the ' +
+  'hash chain before serving it. <strong>The public append-only log shown at the quorum stage is designed, not ' +
+  'built</strong> — today, split-view detection is manual: compare your node’s head against another’s.';
+
+function renderDiagrams(){
   const blocks = [...content.querySelectorAll('code.language-mermaid')];
-  if (!blocks.length) return;
-  const boxes = blocks.map(code => {
+  for (const code of blocks) {
+    const pre = code.closest('pre');
     const box = document.createElement('div');
     box.className = 'diagram';
     const note = document.createElement('div');
     note.className = 'diagram-note';
     note.textContent = 'Figure — drawn from the source of this document';
-    const node = document.createElement('div');
-    node.className = 'mermaid';
-    node.textContent = code.textContent;
-    box.append(note, node);
-    code.closest('pre').replaceWith(box);
-    return node;
-  });
-  try {
-    const mermaid = await loadMermaid();
-    // Draw the figure on the same paper as the page. Mermaid cannot read CSS
-    // custom properties, so the tokens are resolved here and handed over as
-    // literals — otherwise the one diagram in the documentation arrives as a
-    // grey stock flowchart in the middle of a law report.
-    const cs = getComputedStyle(document.documentElement);
-    const tok = n => cs.getPropertyValue(n).trim();
-    mermaid.initialize({
-      startOnLoad:false, securityLevel:'strict', theme:'base',
-      flowchart:{useMaxWidth:false, htmlLabels:false, curve:'basis'},
-      themeVariables:{
-        fontFamily:'"Plex Mono", ui-monospace, monospace', fontSize:'14px',
-        background:tok('--surface'),
-        primaryColor:tok('--sink'), primaryTextColor:tok('--ink'), primaryBorderColor:tok('--rule-2'),
-        secondaryColor:tok('--surface'), tertiaryColor:tok('--surface'),
-        lineColor:tok('--rule-3'), textColor:tok('--body'),
-        mainBkg:tok('--sink'), nodeBorder:tok('--rule-2'),
-        clusterBkg:'transparent', clusterBorder:tok('--rule'),
-        edgeLabelBackground:tok('--surface'),
-        titleColor:tok('--ink'), nodeTextColor:tok('--ink')
-      }
-    });
-    await mermaid.run({nodes: boxes});
-  } catch (err) {
-    // A diagram that cannot be drawn falls back to its own source, which is
-    // still readable — it never becomes a blank box.
-    for (let i = 0; i < boxes.length; i++) {
-      const pre = document.createElement('pre');
-      const code = document.createElement('code');
-      code.textContent = blocks[i].textContent;
-      pre.appendChild(code);
-      boxes[i].replaceWith(pre);
+    box.appendChild(note);
+    // Attached to the live document before anything else is built: mark()
+    // below needs real layout (scrollWidth/clientWidth), and both are 0 on a
+    // detached node — the fade silently never appeared because it measured
+    // an element that was not on the page yet.
+    pre.replaceWith(box);
+    try {
+      // The only recognised source is the one diagram this file knows how to
+      // draw. Anything else — a future second diagram, a source edit this
+      // renderer was never updated for — falls through to the catch below,
+      // exactly like a draw failure: source shown, never a blank box.
+      if (!code.textContent.includes('Public append-only log')) throw new Error('unrecognised diagram source');
+      const scroller = document.createElement('div');
+      scroller.className = 'arch-scroll';
+      scroller.innerHTML = ARCH_SVG;
+      box.appendChild(scroller);
+      const fignote = document.createElement('p');
+      fignote.className = 'diagram-fignote';
+      fignote.innerHTML = ARCH_NOTE;
+      box.appendChild(fignote);
+
+      // Same fade affordance as a wide code block, and for the same reason:
+      // the figure is drawn at its designed width (five real pipeline stages)
+      // and the prose column is ~780px even at 1440, so it scrolls inside
+      // itself at every breakpoint this page ships — not just at 390.
+      const mark = () => {
+        const over = scroller.scrollWidth - scroller.clientWidth;
+        if (over <= 1) { scroller.dataset.fade = 'none'; return; }
+        const left = scroller.scrollLeft > 2, right = scroller.scrollLeft < over - 2;
+        scroller.dataset.fade = left && right ? 'both' : right ? 'right' : 'left';
+      };
+      scroller.addEventListener('scroll', mark, { passive: true });
+      codeScrollers.push(mark);
+      mark();
+    } catch (err) {
+      const fallback = document.createElement('pre');
+      const fcode = document.createElement('code');
+      fcode.textContent = code.textContent;
+      fallback.appendChild(fcode);
+      box.appendChild(fallback);
     }
   }
 }
@@ -975,8 +1119,8 @@ async function renderDiagrams(){
    scripts, analytics or images are fetched from anywhere else") false in the
    first 200ms, and the CSP would block it anyway. A vendored general
    highlighter is a hundred kilobytes and change for grammars this site will
-   never render — the same trade that put 3.5 MB of mermaid behind a lazy load
-   for one diagram.
+   never render — the same trade that replaced the 3.5 MB mermaid renderer
+   with the hand-drawn architecture figure above.
 
    Bare fences stay unpainted on purpose. They hold citation tables and command
    output, and colouring those would invent a syntax the text does not have. */
