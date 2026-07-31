@@ -558,7 +558,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
           <li><strong>There is no bundled corpus — a node starts empty.</strong> <code>molao demo</code> seeds a synthetic one</li>
           <li><strong>No public signed release exists yet.</strong> Releases move as plain files, mirrored by hand</li>
           <li><strong>Peer-to-peer distribution is not live</strong>, and nothing in the packaging or transport path has carried a real release</li>
-          <li>Treatment attestations (followed / distinguished / overruled) are <strong>designed, not built</strong></li>
+          <li>Treatment attestations are built and tested, but <strong>nobody has attested anything</strong> — there is no gossip, no authoring path and no UI, so a reader still gets no treatment signal</li>
           <li>The public append-only log is <strong>designed, not built</strong></li>
           <li><code>molao-ingest</code> and <code>molao-index</code> are wired into the node, but <strong>no corpus has been assembled with them — a node still starts empty</strong></li>
         </ul>
@@ -584,11 +584,11 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <div class="cols c2">
         <div class="card">
           <h3>Search, then read as printed</h3>
-          <p>Full-text search across the corpus with court, year-from and year-to filters, and highlighted snippets. A judgment opens as a structured document — parties, court, case numbers, date, coram, parallel reported citations, and <strong>numbered paragraphs as printed</strong>, so a pinpoint reference means what it says.</p>
+          <p>Full-text search with court and year filters. A judgment opens as a structured document — parties, court, case numbers, date, coram, parallel reported citations, and <strong>numbered paragraphs as printed</strong>, so a pinpoint means what it says.</p>
         </div>
         <div class="card">
           <h3>Citations both ways</h3>
-          <p>Cases this judgment cites, and cases citing it — each with the paragraph it was cited from and the pinpoint it pointed at.</p>
+          <p>Cases this judgment cites and cases citing it, each with the paragraph cited from and the pinpoint cited to.</p>
           <p><strong>Unresolved citations are shown as written, never hidden.</strong> A citator that quietly drops what it cannot resolve tells a lawyer the case cites less than it does. That is a commitment, not a default.</p>
         </div>
       </div>
@@ -780,33 +780,6 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
 </section>
 
 <!-- ─────────────────────────────────────────────────────────────────────── -->
-<section class="chapter" id="jurisdictions">
-  <div class="sheet">
-    <div class="gutter"><span class="no">[ 3 ]</span> Any jurisdiction</div>
-    <div>
-      <h2>Regions are data, not code</h2>
-      <p class="stand"><strong>No jurisdiction is hardcoded.</strong> Court codes, court names, hierarchy tiers and law-report series ship as region profiles — data a node loads, never an assumption baked into the parser. Molao is infrastructure any LII, law faculty, bar council or ministry of justice can stand up for its own corpus.</p>
-
-      <div class="cols c2">
-        <div class="card">
-          <span class="lbl">One grammar</span>
-          <h3>The convention is already shared</h3>
-          <p>The free-access-to-law world converged long ago: <code>[2020] UKSC 1</code>, <code>[2020] HCA 1</code>, <code>[2020] NZSC 1</code>, <code>[1995] ZACC 3</code>. Year, court code, number.</p>
-          <p>Same grammar, different court codes — which is exactly why the codes belong in data and the grammar belongs in code. Adding a jurisdiction is a TOML file naming the courts and the law-report series. <strong>Correcting a court code is a file, not a rebuild.</strong></p>
-        </div>
-        <div class="card">
-          <span class="lbl">Honest caveat</span>
-          <h3>Generic anywhere, <code>ZA</code> populated</h3>
-          <p>Fourteen profiles ship both as <code>profiles/*.toml</code> and as compiled-in constants, held equal by a test. A loaded profile shadows the compiled-in one of the same code; the rest stay as the fallback.</p>
-          <p><strong>South Africa is the only fully-populated profile.</strong> <code>GENERIC</code> works anywhere from day one but finds only neutral citations and case numbers — reported citations need an enumerated report-series list, and a generic profile has none.</p>
-          <p>Nothing about that changes for Kenya, Nigeria, or any of the roughly sixteen AfricanLII member jurisdictions: the citation grammar is already shared continent-wide, and only the court registry differs.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
 <section class="chapter" id="sources">
   <div class="sheet">
     <div class="gutter"><span class="no">[ 4 ]</span> Where the law comes from</div>
@@ -842,7 +815,6 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
           <tbody>
             <tr><td class="j">New Zealand</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Judgments have <strong>no copyright at all</strong> (Copyright Act 1994 s27(g)) and robots is open — the cleanest source anywhere.</td></tr>
             <tr><td class="j">South Africa</td><td class="s s-work"><span class="dot"></span>Needs an adapter</td><td class="n">Constitutional Court and SCA directly. Judgments are <strong>public domain by statute</strong> — Copyright Act 1978 s12(8)(a) excludes official texts of a legal nature.</td></tr>
-            <tr><td class="j">England &amp; Wales · UK Supreme Court</td><td class="s s-wait"><span class="dot"></span>Paperwork</td><td class="n">National Archives <em>Find Case Law</em>: an official API in Akoma Ntoso XML — the best-structured source anywhere. Computational use needs a <strong>free licence application</strong>.</td></tr>
             <tr><td class="j">BAILII · AustLII · NZLII · CanLII · SAFLII, and most African LII sites</td><td class="s s-stop"><span class="dot"></span>Off-limits</td><td class="n">Off-limits by <em>their</em> policy — terms, robots, or an explicit no-AI content signal. Molao honours that and uses them only to resolve citations.</td></tr>
           </tbody>
         </table>
@@ -880,10 +852,11 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
           <p>Unresolved citations appear <strong>as written</strong> rather than being dropped.</p>
         </div>
         <div class="card">
-          <span class="tag no">Designed, not built</span>
+          <span class="tag no">Built, but empty</span>
           <h3 style="margin-top:12px">Treatment</h3>
-          <p>Whether a case was <em>followed</em>, <em>distinguished</em> or <em>overruled</em> is interpretation. It cannot be verified by recomputation, so it will be modelled as <strong>signed attestations that may conflict</strong>, with the mechanical edge remaining separate and verifiable underneath.</p>
-          <p>Two scholars can read the same judgments and differ. A system that silently picks a winner is lying about how law works, and it keeps Molao out of the business of deciding what the law means, which it has no standing to do. <strong>Until this lands, check currency yourself.</strong></p>
+          <p>Whether a case was <em>followed</em>, <em>distinguished</em> or <em>overruled</em> is interpretation. It cannot be verified by recomputation, so it is modelled as <strong>signed attestations that may conflict</strong> — signatures checked on ingest and again on every read, conflicts shown side by side and never resolved, with the mechanical edge separate and verifiable underneath.</p>
+          <p>Two scholars can read the same judgments and differ. A system that silently picks a winner is lying about how law works.</p>
+          <p><strong>Nobody has attested anything.</strong> The machinery is exercised entirely by fixtures, and there is no UI for it — so in practice you still get no treatment signal. <strong>Check currency yourself.</strong></p>
         </div>
       </div>
     </div>
@@ -980,7 +953,7 @@ pre code{background:none;border:0;padding:0;font-size:13.5px;line-height:1.7;col
       <ul class="rules honest">
         <li><span class="t">A quorum can still collude</span><span class="d">If k of n signers agree to publish something false, every check passes. The defence is institutional independence and jurisdictional spread — not mathematics. It is the reason the signer set matters more than the code.</span></li>
         <li><span class="t">Molao attests to what the source served, not to what the court meant</span><span class="d">If a court publishes the wrong file, witnesses will faithfully corroborate the wrong file.</span></li>
-        <li><span class="t">The node verifies bytes and signatures — never legal correctness</span><span class="d">Nothing here will ever be presented as “verified law”. Whether a judgment is still good law is a legal question the node does not answer, and until treatment attestations exist it does not attempt to.</span></li>
+        <li><span class="t">The node verifies bytes and signatures — never legal correctness</span><span class="d">Nothing here will ever be presented as “verified law”. Whether a judgment is still good law is a legal question the node does not answer, and with no attestations in existence it has nothing to answer it with.</span></li>
         <li><span class="t">Federations decay when the person running the node leaves</span><span class="d">Every distributed academic network has watched nodes go dark because a postgraduate graduated. Hence a zero-maintenance single binary with nothing to rotate, and network health exposed publicly on <code>/api/status</code>.</span></li>
         <li><span class="t">Reader privacy has a limit</span><span class="d">A node's operator can see what its users search for. Molao makes no anonymity claim. If your research is sensitive, run your own node.</span></li>
         <li><span class="t">Molao does not defend your machine against its own administrator</span><span class="d">Anyone with write access to the SQLite file can change what your node shows you. Re-verification against a release catches it.</span></li>
@@ -1012,9 +985,9 @@ cargo run -p molao-node</code></pre>
         </div>
         <div class="card">
           <h3>What you get, honestly</h3>
-          <p>The tests are the fastest way to see what the project guarantees: that canonicalisation is idempotent, that tampering with a judgment breaks its id, that one signer cannot reach a quorum by signing repeatedly, and that ordinary prose extracts no citations.</p>
-          <p><strong>A node starts empty.</strong> There is no bundled corpus and no public signed release yet. <code>molao demo</code> seeds a small synthetic corpus so that search, judgments, citations and the graph have something to show.</p>
-          <p>To ingest real documents, read the sourcing document first — those rules are a deliberate ethical position, not a configuration default.</p>
+          <p><strong>A node starts empty.</strong> There is no bundled corpus and no public signed release yet. <code>molao demo</code> seeds a small synthetic corpus so search, judgments, citations and the graph have something to show.</p>
+          <p><strong>No jurisdiction is hardcoded.</strong> Court codes, tiers and report series are region profiles a node loads — fourteen ship compiled-in, and correcting a court code is a file, not a rebuild. <strong>South Africa is the only fully-populated profile</strong>; <code>GENERIC</code> works anywhere but finds only neutral citations and case numbers, because reported citations need an enumerated report-series list. <a href="./docs.html#courts">Adding a jurisdiction</a>.</p>
+          <p>Before ingesting real documents, read <a href="./docs.html#sources">the sourcing rules</a> — a deliberate ethical position, not a configuration default. <a href="./docs.html#running-a-node">Running a node</a> sets out what each role costs.</p>
         </div>
       </div>
     </div>
