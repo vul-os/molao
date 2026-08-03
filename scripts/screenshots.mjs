@@ -8,7 +8,8 @@
  * backend — that is the point: if this script needs something running, the demo
  * mode it is exercising is not really standalone.
  *
- *   npm run screenshots
+ *   npm run screenshots                        # dark pass  -> <name>.png
+ *   MOLAO_SHOT_THEME=light npm run screenshots  # light pass -> <name>-light.png
  */
 
 import { spawnSync } from 'node:child_process';
@@ -195,7 +196,12 @@ async function main() {
         // "demo corpus" chip in frame either way, which is what the
         // disclosure rule actually protects; the footer's honesty line is a
         // nice-to-have and is not worth a nine-thousand-pixel image.
-        const file = join(OUT, `${shot.name}.png`);
+        // Dark keeps the bare name so every existing reference still resolves;
+        // light gets a suffix. Without this, running the light pass silently
+        // OVERWROTE the dark captures instead of producing the pair, which is
+        // why the site only ever had one set — and served dark screenshots on
+        // its light theme.
+        const file = join(OUT, `${shot.name}${THEME === 'light' ? '-light' : ''}.png`);
         await page.screenshot({ path: file, fullPage: !set.mobile, animations: 'disabled' });
         const size = (await stat(file)).size;
         if (size < 12_000) throw new Error(`${shot.name}.png looks blank (${size} bytes)`);

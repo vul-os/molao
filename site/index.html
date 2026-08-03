@@ -295,6 +295,9 @@ h1 .brk{display:block}
 .unbuilt .tick li::before{content:"—";color:var(--stop)}
 
 /* ── Chapters ───────────────────────────────────────────────────────────── */
+/* The rail's "Jurisdictions" entry targets a sub-section, not a chapter, so it
+   needs the same sticky-header offset the chapters already carry. */
+#jurisdictions{scroll-margin-top:150px}
 .chapter{border-top:3px double var(--rule-3);padding:var(--gap-chapter) 0}
 .chapter > .sheet{display:grid;gap:clamp(12px,3vw,40px);grid-template-columns:1fr}
 /* A grid item defaults to min-width:auto, so it refuses to shrink below its
@@ -707,7 +710,7 @@ pre code{
   </section>
 
   <figure class="plate-fig hero-plate">
-    <div class="shot"><a class="full" href="./screenshots/hero.png"><img src="./screenshots/hero.png" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async"></a></div>
+    <div class="shot"><a class="full" href="./screenshots/hero-light.png"><picture><source media="(prefers-color-scheme: dark)" srcset="./screenshots/hero.png"><img src="./screenshots/hero-light.png" alt="Molao search results: a list of judgments, each with its court, neutral citation, provenance class and inbound-citation weight, with filters for court and year." loading="lazy" decoding="async"></picture></a></div>
     <figcaption><span class="lbl">Plate I · search</span> Every result carries its court, neutral citation, provenance class and inbound-citation weight. <strong>All screenshots are of the demo corpus — synthetic judgments with a real citation graph between them. There is no bundled corpus yet.</strong></figcaption>
   </figure>
 </div>
@@ -936,7 +939,7 @@ pre code{
 
       <div style="height:var(--gap-block)"></div>
 
-      <span class="lbl">The map, as it actually stands</span>
+      <span class="lbl" id="jurisdictions">The map, as it actually stands</span>
       <p class="stand"><strong>Twelve jurisdictions or groups are mapped</strong> — three usable now (Kenya, Ireland, Scotland and Northern Ireland), four needing a small court-direct adapter, four a jurisdiction away from a usually-free paperwork step, and the LII aggregators off-limits by their own policy. Three are shown here; the full per-jurisdiction map, with the licence or robots evidence behind every verdict, is <a href="./docs.html#source-map">the source map</a>.</p>
       <div class="ledger-wrap">
         <table class="ledger">
@@ -1004,7 +1007,7 @@ pre code{
 
       <div class="plates">
         <figure class="plate-fig">
-          <div class="shot"><a class="full" href="./screenshots/judgment.png"><img src="./screenshots/judgment.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></a></div>
+          <div class="shot"><a class="full" href="./screenshots/judgment-light.png"><picture><source media="(prefers-color-scheme: dark)" srcset="./screenshots/judgment.png"><img src="./screenshots/judgment-light.png" alt="A judgment as displayed: parties, court, case number, coram, parallel reported citations and numbered paragraphs." loading="lazy" decoding="async"></picture></a></div>
           <figcaption><span class="lbl">Plate II · a judgment</span> Numbered paragraphs as printed, with court, case number, coram, parallel reported citations, and the provenance class.</figcaption>
         </figure>
       </div>
@@ -1016,9 +1019,9 @@ pre code{
       <figure class="plate-fig">
         <span class="lbl">Plate VI · on a phone</span>
         <div class="phones swipe">
-          <img src="./screenshots/mobile-search.png" alt="Molao search results on a phone." loading="lazy" decoding="async">
-          <img src="./screenshots/mobile-judgment.png" alt="A judgment displayed on a phone." loading="lazy" decoding="async">
-          <img src="./screenshots/mobile-graph.png" alt="The citation graph on a phone." loading="lazy" decoding="async">
+          <picture><source media="(prefers-color-scheme: dark)" srcset="./screenshots/mobile-search.png"><img src="./screenshots/mobile-search-light.png" alt="Molao search results on a phone." loading="lazy" decoding="async"></picture>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="./screenshots/mobile-judgment.png"><img src="./screenshots/mobile-judgment-light.png" alt="A judgment displayed on a phone." loading="lazy" decoding="async"></picture>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="./screenshots/mobile-graph.png"><img src="./screenshots/mobile-graph-light.png" alt="The citation graph on a phone." loading="lazy" decoding="async"></picture>
         </div>
         <figcaption>The same node, the same corpus, on a handset — because a great deal of legal research in the jurisdictions this matters most to happens on a phone.</figcaption>
       </figure>
