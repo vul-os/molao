@@ -94,6 +94,20 @@ depends on `molao-core` for the active region profile, and on nothing else but
 `regex`. Neither touches the network. That is enforced by the dependency list,
 not by convention.
 
+**Why `apps/web` is Preact, not the fleet's React.** The web UI is not served
+separately; `crates/molao-node/build.rs` runs Vite to produce `apps/web/dist`,
+and `rust-embed` (`crates/molao-node/src/assets.rs`) compiles that output
+directly into the node binary. Bundle size is therefore not a page-load
+concern to optimise later — it is binary size, paid by every node on every
+build and every distributed release. Preact is used natively
+(`tsconfig.json`'s `jsxImportSource: "preact"`, via `@preact/preset-vite`),
+not through `preact/compat`, so nothing pulls in the React package or its
+ecosystem; `package.json` depends on `preact` alone. At roughly 3.3k lines of
+UI code the absolute savings are modest, but they are the entire justification
+— a UI this size embedded in a binary this way has no other reason to prefer
+one framework over the other, so the one that adds zero extra dependency
+weight to the shipped artifact wins by default.
+
 ## Document identity
 
 `DocId` is the BLAKE3 hash of a judgment's **canonical text**, and nothing else.
