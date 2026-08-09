@@ -353,10 +353,7 @@ mod http {
         }
         let mut out = Vec::new();
         let mut rest = body;
-        loop {
-            let Some(nl) = rest.windows(2).position(|w| w == b"\r\n") else {
-                break;
-            };
+        while let Some(nl) = rest.windows(2).position(|w| w == b"\r\n") {
             let size_str = String::from_utf8_lossy(&rest[..nl]);
             let size = usize::from_str_radix(size_str.trim(), 16).unwrap_or(0);
             let data_start = nl + 2;

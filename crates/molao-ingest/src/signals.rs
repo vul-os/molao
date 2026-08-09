@@ -153,13 +153,9 @@ impl ContentSignal {
                 "ai-input" => self.ai_input = combine(self.ai_input, parse_signal(&val)),
                 "ai-train" => self.ai_train = combine(self.ai_train, parse_signal(&val)),
                 "search" => self.search = combine(self.search, parse_signal(&val)),
-                "use" => {
-                    // Any purpose-limiting `use` directive is a reference-only
-                    // restriction for AI purposes (see the struct docs).
-                    if !val.is_empty() {
-                        self.use_reference = true;
-                    }
-                }
+                // Any purpose-limiting `use` directive is a reference-only
+                // restriction for AI purposes (see the struct docs).
+                "use" if !val.is_empty() => self.use_reference = true,
                 // Anything a site invents beyond these keys: not our concern,
                 // and not an error.
                 _ => {}
